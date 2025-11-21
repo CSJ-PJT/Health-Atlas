@@ -5,20 +5,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, Circle } from "lucide-react";
 
 const Setup = () => {
-  const [step, setStep] = useState(1);
   const [apiKey, setApiKey] = useState("");
   const [projectId, setProjectId] = useState("");
+  const [nickname, setNickname] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleComplete = () => {
-    if (!apiKey || !projectId) {
+    if (!apiKey || !projectId || !nickname) {
       toast({
         title: "입력 오류",
-        description: "API Key와 Project ID를 모두 입력해주세요.",
+        description: "API Key, Project ID, 닉네임을 모두 입력해주세요.",
         variant: "destructive",
       });
       return;
@@ -27,6 +26,7 @@ const Setup = () => {
     // Save to localStorage (in production, use secure storage)
     localStorage.setItem("openai_api_key", apiKey);
     localStorage.setItem("openai_project_id", projectId);
+    localStorage.setItem("user_nickname", nickname);
     localStorage.setItem("setup_completed", "true");
 
     toast({
@@ -76,72 +76,32 @@ const Setup = () => {
                   onChange={(e) => setProjectId(e.target.value)}
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="nickname">닉네임</Label>
+                <Input
+                  id="nickname"
+                  type="text"
+                  placeholder="사용할 닉네임을 입력하세요"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="space-y-3">
               <h3 className="font-semibold text-sm">연동 방법</h3>
-              
-              <div className="space-y-2">
-                <div className="flex items-start gap-2">
-                  <div className={`mt-1 ${step >= 1 ? 'text-primary' : 'text-muted-foreground'}`}>
-                    {step >= 1 ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">1단계: OpenAI 계정 생성</p>
-                    <p className="text-sm text-muted-foreground">
-                      <a href="https://platform.openai.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        OpenAI Platform
-                      </a>에서 계정을 만듭니다.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2">
-                  <div className={`mt-1 ${step >= 2 ? 'text-primary' : 'text-muted-foreground'}`}>
-                    {step >= 2 ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">2단계: API Key 생성</p>
-                    <p className="text-sm text-muted-foreground">
-                      API Keys 메뉴에서 "Create new secret key"를 클릭하여 API Key를 생성합니다.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2">
-                  <div className={`mt-1 ${step >= 3 ? 'text-primary' : 'text-muted-foreground'}`}>
-                    {step >= 3 ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">3단계: 프로젝트 생성</p>
-                    <p className="text-sm text-muted-foreground">
-                      "관리" 프로젝트를 생성하고 Project ID를 복사합니다.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2">
-                  <div className={`mt-1 ${step >= 4 ? 'text-primary' : 'text-muted-foreground'}`}>
-                    {step >= 4 ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">4단계: 정보 입력</p>
-                    <p className="text-sm text-muted-foreground">
-                      위 입력란에 API Key와 Project ID를 입력합니다.
-                    </p>
-                  </div>
-                </div>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>1. <a href="https://platform.openai.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OpenAI Platform</a>에서 계정을 생성합니다.</p>
+                <p>2. API Keys 메뉴에서 "Create new secret key"를 클릭하여 API Key를 생성합니다.</p>
+                <p>3. "관리" 프로젝트를 생성하고 Project ID를 복사합니다.</p>
+                <p>4. 위 입력란에 API Key, Project ID, 닉네임을 입력합니다.</p>
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <Button onClick={() => setStep(Math.min(step + 1, 4))} variant="outline" className="flex-1">
-                다음 단계
-              </Button>
-              <Button onClick={handleComplete} className="flex-1">
-                설정 완료
-              </Button>
-            </div>
+            <Button onClick={handleComplete} className="w-full">
+              설정 완료
+            </Button>
           </CardContent>
         </Card>
 
