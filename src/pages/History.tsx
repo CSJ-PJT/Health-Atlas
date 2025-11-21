@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,7 +18,6 @@ interface HealthRecord {
 }
 
 const History = () => {
-  const navigate = useNavigate();
   const [records, setRecords] = useState<HealthRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -147,8 +145,7 @@ const History = () => {
                 {records.map((record) => (
                   <Card 
                     key={record.id} 
-                    className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
-                    onClick={() => navigate(`/record/${record.id}`)}
+                    className="overflow-hidden"
                   >
                     <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
                       <CardTitle className="text-lg text-primary">
