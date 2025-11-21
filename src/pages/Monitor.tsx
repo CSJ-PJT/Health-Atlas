@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Activity, Send, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
+import { ScrollToTop } from "@/components/ScrollToTop";
 
 interface LogEntry {
   timestamp: string;
@@ -16,6 +17,7 @@ const Monitor = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [samsungHealthStatus, setSamsungHealthStatus] = useState<"connected" | "disconnected">("disconnected");
   const [gptStatus, setGptStatus] = useState<"connected" | "disconnected">("disconnected");
+  const [remainingTokens, setRemainingTokens] = useState(0);
 
   useEffect(() => {
     checkConnections();
@@ -33,12 +35,20 @@ const Monitor = () => {
 
   const checkGPTConnection = async () => {
     try {
-      const { data, error } = await supabase.from("health_data").select("*").limit(1);
-      if (!error && data) {
+      const openaiEnabled = localStorage.getItem("openai_enabled") === "true";
+      const apiKey = localStorage.getItem("openai_api_key");
+      
+      if (openaiEnabled && apiKey) {
         setGptStatus("connected");
+        // Mock token count - in real app, this would come from OpenAI API
+        setRemainingTokens(15000);
+      } else {
+        setGptStatus("disconnected");
+        setRemainingTokens(0);
       }
     } catch (error) {
       setGptStatus("disconnected");
+      setRemainingTokens(0);
     }
   };
 
@@ -81,6 +91,7 @@ const Monitor = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
+      <ScrollToTop />
       <div className="max-w-4xl mx-auto p-4 space-y-6">
         <h1 className="text-3xl font-bold">연동</h1>
 
@@ -117,7 +128,7 @@ const Monitor = () => {
                 GPT 연결 상태
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-lg">연결 상태</span>
                 <div className="flex items-center gap-2">
@@ -127,6 +138,12 @@ const Monitor = () => {
                   </Badge>
                 </div>
               </div>
+              {gptStatus === "connected" && (
+                <div className="flex items-center justify-between pt-2 border-t border-border">
+                  <span className="text-lg">남은 토큰 개수</span>
+                  <span className="text-xl font-bold text-primary">{remainingTokens.toLocaleString()}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
