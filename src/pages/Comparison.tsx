@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { format, subDays, subMonths, subYears, startOfWeek, startOfMonth, startOfYear } from "date-fns";
+import { format, subDays, subMonths, subYears, startOfDay } from "date-fns";
 import { ko } from "date-fns/locale";
-import { NavLink } from "@/components/NavLink";
+import { Header } from "@/components/Header";
 import { CalendarIcon } from "lucide-react";
 
-type Period = "week" | "month" | "year";
+type Period = "day" | "week" | "month" | "year";
+type ComparisonType = "general" | "running";
 
 interface HealthRecord {
   synced_at: string;
@@ -24,7 +25,8 @@ interface HealthRecord {
 const Comparison = () => {
   const [records, setRecords] = useState<HealthRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<Period>("week");
+  const [period, setPeriod] = useState<Period>("day");
+  const [comparisonType, setComparisonType] = useState<ComparisonType>("general");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
@@ -47,6 +49,9 @@ const Comparison = () => {
       } else {
         let calculatedStartDate: Date;
         switch (period) {
+          case "day":
+            calculatedStartDate = subDays(new Date(), 30);
+            break;
           case "week":
             calculatedStartDate = subDays(new Date(), 14);
             break;
@@ -81,14 +86,17 @@ const Comparison = () => {
       const date = new Date(record.synced_at);
 
       switch (period) {
+        case "day":
+          key = format(startOfDay(date), "yyyy-MM-dd");
+          break;
         case "week":
-          key = format(startOfWeek(date), "yyyy-MM-dd");
+          key = format(startOfDay(date), "yyyy-MM-dd");
           break;
         case "month":
-          key = format(startOfMonth(date), "yyyy-MM");
+          key = format(date, "yyyy-MM");
           break;
         case "year":
-          key = format(startOfYear(date), "yyyy");
+          key = format(date, "yyyy");
           break;
       }
 
@@ -106,6 +114,14 @@ const Comparison = () => {
           muscleMassCount: 0,
           caloriesBurned: 0,
           caloriesIntake: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          proteinCount: 0,
+          carbsCount: 0,
+          fatCount: 0,
+          bodyFatMass: 0,
+          bodyFatMassCount: 0,
         };
       }
 
@@ -144,6 +160,39 @@ const Comparison = () => {
         if (record.nutrition_data.calories) {
           groupedData[key].caloriesIntake += Number(record.nutrition_data.calories) || 0;
         }
+        if (record.nutrition_data.protein) {
+          const proteinValue = typeof record.nutrition_data.protein === 'string' 
+            ? parseFloat(record.nutrition_data.protein.replace(/[^0-9.]/g, ''))
+            : Number(record.nutrition_data.protein);
+          if (!isNaN(proteinValue)) {
+            groupedData[key].protein += proteinValue;
+            groupedData[key].proteinCount += 1;
+          }
+        }
+        if (record.nutrition_data.carbs) {
+          const carbsValue = typeof record.nutrition_data.carbs === 'string'
+            ? parseFloat(record.nutrition_data.carbs.replace(/[^0-9.]/g, ''))
+            : Number(record.nutrition_data.carbs);
+          if (!isNaN(carbsValue)) {
+            groupedData[key].carbs += carbsValue;
+            groupedData[key].carbsCount += 1;
+          }
+        }
+        if (record.nutrition_data.fat) {
+          const fatValue = typeof record.nutrition_data.fat === 'string'
+            ? parseFloat(record.nutrition_data.fat.replace(/[^0-9.]/g, ''))
+            : Number(record.nutrition_data.fat);
+          if (!isNaN(fatValue)) {
+            groupedData[key].fat += fatValue;
+            groupedData[key].fatCount += 1;
+          }
+        }
+      }
+
+      // 체지방량 집계
+      if (record.body_composition_data?.bodyFatMass) {
+        groupedData[key].bodyFatMass += Number(record.body_composition_data.bodyFatMass) || 0;
+        groupedData[key].bodyFatMassCount += 1;
       }
     });
 
@@ -152,11 +201,15 @@ const Comparison = () => {
       ...item,
       weight: item.weightCount > 0 ? (item.weight / item.weightCount).toFixed(1) : 0,
       bodyFat: item.bodyFatCount > 0 ? (item.bodyFat / item.bodyFatCount).toFixed(1) : 0,
+      bodyFatMass: item.bodyFatMassCount > 0 ? (item.bodyFatMass / item.bodyFatMassCount).toFixed(1) : 0,
       muscleMass: item.muscleMassCount > 0 ? (item.muscleMass / item.muscleMassCount).toFixed(1) : 0,
       exerciseDuration: item.exerciseDuration.toFixed(0),
       exerciseDistance: item.exerciseDistance.toFixed(1),
       caloriesBurned: item.caloriesBurned.toFixed(0),
       caloriesIntake: item.caloriesIntake.toFixed(0),
+      protein: item.proteinCount > 0 ? (item.protein / item.proteinCount).toFixed(1) : 0,
+      carbs: item.carbsCount > 0 ? (item.carbs / item.carbsCount).toFixed(1) : 0,
+      fat: item.fatCount > 0 ? (item.fat / item.fatCount).toFixed(1) : 0,
     }));
   };
 
@@ -164,6 +217,8 @@ const Comparison = () => {
 
   const getPeriodLabel = () => {
     switch (period) {
+      case "day":
+        return "일별";
       case "week":
         return "주별";
       case "month":
@@ -174,16 +229,9 @@ const Comparison = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">데이터 비교</h1>
-          <div className="flex gap-2">
-            <NavLink to="/">홈</NavLink>
-            <NavLink to="/history">기록</NavLink>
-            <NavLink to="/monitor">모니터링</NavLink>
-          </div>
-        </div>
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="max-w-6xl mx-auto p-4 space-y-6">
 
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
           <div className="flex gap-2">
@@ -235,14 +283,21 @@ const Comparison = () => {
           )}
         </div>
 
-        <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
-          <TabsList className="grid w-full max-w-md grid-cols-3">
-            <TabsTrigger value="week">주별</TabsTrigger>
-            <TabsTrigger value="month">월별</TabsTrigger>
-            <TabsTrigger value="year">연도별</TabsTrigger>
+        <Tabs value={comparisonType} onValueChange={(v) => setComparisonType(v as ComparisonType)}>
+          <TabsList className="grid w-full max-w-md grid-cols-2 mb-4">
+            <TabsTrigger value="general">일반비교</TabsTrigger>
+            <TabsTrigger value="running">러닝비교</TabsTrigger>
           </TabsList>
 
-          <TabsContent value={period} className="space-y-6">
+          <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+            <TabsList className="grid w-full max-w-md grid-cols-4">
+              <TabsTrigger value="day">일별</TabsTrigger>
+              <TabsTrigger value="week">주별</TabsTrigger>
+              <TabsTrigger value="month">월별</TabsTrigger>
+              <TabsTrigger value="year">연도별</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value={period} className="space-y-6">
             {loading ? (
               <div className="space-y-4">
                 <Skeleton className="h-80 w-full" />
@@ -308,7 +363,7 @@ const Comparison = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle>체성분 변화 추이 ({getPeriodLabel()})</CardTitle>
-                    <CardDescription>체중 (kg), 체지방 (%), 근육량 (kg)</CardDescription>
+                    <CardDescription>체중 (kg), 체지방 (%), 체지방량 (kg), 근육량 (kg)</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -349,11 +404,74 @@ const Comparison = () => {
                         />
                         <Line
                           type="monotone"
+                          dataKey="bodyFatMass"
+                          stroke="hsl(var(--chart-3))"
+                          strokeWidth={2}
+                          name="체지방량 (kg)"
+                          dot={{ fill: "hsl(var(--chart-3))" }}
+                        />
+                        <Line
+                          type="monotone"
                           dataKey="muscleMass"
                           stroke="hsl(var(--chart-5))"
                           strokeWidth={2}
                           name="근육량 (kg)"
                           dot={{ fill: "hsl(var(--chart-5))" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>영양소 추이 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>탄수화물, 단백질, 지방 (g)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          dataKey="period"
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <YAxis 
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)"
+                          }}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="carbs"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2}
+                          name="탄수화물 (g)"
+                          dot={{ fill: "hsl(var(--primary))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="protein"
+                          stroke="hsl(var(--chart-2))"
+                          strokeWidth={2}
+                          name="단백질 (g)"
+                          dot={{ fill: "hsl(var(--chart-2))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="fat"
+                          stroke="hsl(var(--chart-4))"
+                          strokeWidth={2}
+                          name="지방 (g)"
+                          dot={{ fill: "hsl(var(--chart-4))" }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -408,6 +526,15 @@ const Comparison = () => {
                 </Card>
               </>
             )}
+            </TabsContent>
+          </Tabs>
+
+          <TabsContent value="running" className="space-y-6">
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-muted-foreground">러닝 전용 비교 기능이 구현 예정입니다.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

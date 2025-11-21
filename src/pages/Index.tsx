@@ -2,15 +2,18 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCw, Clock, Activity } from "lucide-react";
+import { Loader2, RefreshCw, Activity } from "lucide-react";
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { supabase } from "@/integrations/supabase/client";
-import { NavLink } from "@/components/NavLink";
+import { Header } from "@/components/Header";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const Index = () => {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [todayData, setTodayData] = useState<any>(null);
+  const [scheduledSyncEnabled, setScheduledSyncEnabled] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -157,24 +160,14 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Samsung Health Sync</h1>
-          <div className="flex gap-2">
-            <NavLink to="/history">기록</NavLink>
-            <NavLink to="/comparison">비교</NavLink>
-            <NavLink to="/monitor">모니터링</NavLink>
-          </div>
-        </div>
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="max-w-4xl mx-auto p-4 space-y-6">
 
         {todayData && (
           <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
             <CardHeader>
               <CardTitle className="text-primary">Today</CardTitle>
-              <CardDescription>
-                오늘 수집된 삼성헬스 데이터
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {todayData.steps_data && (
@@ -274,9 +267,28 @@ const Index = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              다음 동기화: 내일 오전 9:00
+            <div className="flex items-center justify-between">
+              <Label htmlFor="scheduled-sync" className="text-sm">자동 동기화</Label>
+              <Switch 
+                id="scheduled-sync"
+                checked={scheduledSyncEnabled}
+                onCheckedChange={(checked) => {
+                  setScheduledSyncEnabled(checked);
+                  if (checked) {
+                    scheduleDailyNotification();
+                    toast({
+                      title: "자동 동기화 활성화",
+                      description: "매일 오전 9시에 자동으로 동기화됩니다.",
+                    });
+                  } else {
+                    LocalNotifications.cancel({ notifications: [{ id: 1 }] });
+                    toast({
+                      title: "자동 동기화 비활성화",
+                      description: "예약된 동기화가 취소되었습니다.",
+                    });
+                  }
+                }}
+              />
             </div>
           </CardContent>
         </Card>
