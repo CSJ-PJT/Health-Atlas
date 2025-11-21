@@ -14,7 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      health_data: {
+        Row: {
+          body_composition_data: Json | null
+          created_at: string
+          exercise_data: Json | null
+          id: string
+          nutrition_data: Json | null
+          running_data: Json | null
+          sleep_data: Json | null
+          synced_at: string
+        }
+        Insert: {
+          body_composition_data?: Json | null
+          created_at?: string
+          exercise_data?: Json | null
+          id?: string
+          nutrition_data?: Json | null
+          running_data?: Json | null
+          sleep_data?: Json | null
+          synced_at?: string
+        }
+        Update: {
+          body_composition_data?: Json | null
+          created_at?: string
+          exercise_data?: Json | null
+          id?: string
+          nutrition_data?: Json | null
+          running_data?: Json | null
+          sleep_data?: Json | null
+          synced_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

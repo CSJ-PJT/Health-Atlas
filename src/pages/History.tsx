@@ -1,0 +1,133 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Activity, Moon, Utensils, Weight, TrendingUp } from "lucide-react";
+import { format } from "date-fns";
+import { NavLink } from "@/components/NavLink";
+
+interface HealthRecord {
+  id: string;
+  synced_at: string;
+  exercise_data: any;
+  running_data: any;
+  sleep_data: any;
+  body_composition_data: any;
+  nutrition_data: any;
+}
+
+const History = () => {
+  const [records, setRecords] = useState<HealthRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRecords();
+  }, []);
+
+  const fetchRecords = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("health_data")
+        .select("*")
+        .order("synced_at", { ascending: false })
+        .limit(30);
+
+      if (error) throw error;
+      setRecords(data || []);
+    } catch (error) {
+      console.error("Error fetching records:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderDataSection = (title: string, icon: any, data: any) => {
+    if (!data || Object.keys(data).length === 0) return null;
+    
+    const Icon = icon;
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-primary" />
+          <h4 className="font-semibold text-sm">{title}</h4>
+        </div>
+        <div className="pl-6 space-y-1">
+          {Object.entries(data).map(([key, value]) => (
+            <div key={key} className="text-sm">
+              <span className="text-muted-foreground">{key}:</span>{" "}
+              <span className="font-medium">{JSON.stringify(value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-6">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              동기화 기록
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              삼성 헬스 데이터 동기화 내역을 확인하세요
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <NavLink to="/">홈</NavLink>
+            <NavLink to="/comparison">비교</NavLink>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-6 w-48" />
+                  <Skeleton className="h-4 w-32" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-24 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : records.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">아직 동기화된 데이터가 없습니다.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <ScrollArea className="h-[calc(100vh-240px)]">
+            <div className="space-y-4 pr-4">
+              {records.map((record) => (
+                <Card key={record.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="text-lg">
+                      {format(new Date(record.synced_at), "yyyy년 MM월 dd일 HH:mm")}
+                    </CardTitle>
+                    <CardDescription>동기화 ID: {record.id.slice(0, 8)}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {renderDataSection("운동 데이터", Activity, record.exercise_data)}
+                    {renderDataSection("러닝 데이터", TrendingUp, record.running_data)}
+                    {renderDataSection("수면 데이터", Moon, record.sleep_data)}
+                    {renderDataSection("체성분 데이터", Weight, record.body_composition_data)}
+                    {renderDataSection("영양 데이터", Utensils, record.nutrition_data)}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default History;
