@@ -23,6 +23,7 @@ export type Database = {
           nutrition_data: Json | null
           running_data: Json | null
           sleep_data: Json | null
+          steps_data: Json | null
           synced_at: string
         }
         Insert: {
@@ -33,6 +34,7 @@ export type Database = {
           nutrition_data?: Json | null
           running_data?: Json | null
           sleep_data?: Json | null
+          steps_data?: Json | null
           synced_at?: string
         }
         Update: {
@@ -43,6 +45,7 @@ export type Database = {
           nutrition_data?: Json | null
           running_data?: Json | null
           sleep_data?: Json | null
+          steps_data?: Json | null
           synced_at?: string
         }
         Relationships: []
