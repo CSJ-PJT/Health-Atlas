@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity } from "lucide-react";
 import { Header } from "@/components/Header";
+import { ScrollToTop } from "@/components/ScrollToTop";
 
 interface HealthRecord {
   id: string;
@@ -150,6 +151,7 @@ const History = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
+      <ScrollToTop />
       <div className="max-w-4xl mx-auto p-4 space-y-6">
         <h1 className="text-3xl font-bold">일반기록</h1>
 

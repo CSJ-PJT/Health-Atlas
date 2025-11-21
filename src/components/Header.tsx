@@ -9,11 +9,32 @@ interface HeaderProps {
 
 export const Header = ({ showNav = false }: HeaderProps) => {
   const [nickname, setNickname] = useState("");
+  const [isNavVisible, setIsNavVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
 
   useEffect(() => {
     const storedNickname = localStorage.getItem("user_nickname") || "";
     setNickname(storedNickname);
   }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        // Scrolling down
+        setIsNavVisible(false);
+      } else {
+        // Scrolling up
+        setIsNavVisible(true);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
 
   const openGPT = () => {
     // Try to open ChatGPT app, fallback to web
@@ -55,7 +76,11 @@ export const Header = ({ showNav = false }: HeaderProps) => {
         </div>
         
         {showNav && (
-          <nav className="flex gap-1 bg-primary/5 -mx-4 px-2 py-4 border-y border-primary/20">
+          <nav 
+            className={`flex gap-1 bg-primary/5 -mx-4 px-2 py-4 border-y border-primary/20 transition-all duration-300 ${
+              isNavVisible ? 'opacity-100 max-h-24' : 'opacity-0 max-h-0 overflow-hidden py-0'
+            }`}
+          >
             <NavLink to="/" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-primary/30 transition-colors bg-primary/20 text-center flex items-center justify-center">
               <Home className="h-6 w-6" />
             </NavLink>

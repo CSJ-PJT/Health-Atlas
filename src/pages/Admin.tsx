@@ -6,10 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { ScrollToTop } from "@/components/ScrollToTop";
 
 const Admin = () => {
   const { toast } = useToast();
   const [nickname, setNickname] = useState("");
+  const [gptConnected, setGptConnected] = useState(false);
+  const [remainingTokens, setRemainingTokens] = useState(0);
   
   const [homeMetrics, setHomeMetrics] = useState({
     steps: true,
@@ -49,6 +53,13 @@ const Admin = () => {
   useEffect(() => {
     const storedNickname = localStorage.getItem("user_nickname") || "";
     setNickname(storedNickname);
+    
+    const openaiEnabled = localStorage.getItem("openai_enabled") === "true";
+    const apiKey = localStorage.getItem("openai_api_key");
+    setGptConnected(openaiEnabled && !!apiKey);
+    
+    // Mock token count - in real app, this would come from OpenAI API
+    setRemainingTokens(15000);
   }, []);
 
   const handleSave = () => {
@@ -87,7 +98,29 @@ const Admin = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <Header showNav={true} />
+      <ScrollToTop />
       <div className="max-w-4xl mx-auto p-4 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>GPT 연결 상태</CardTitle>
+            <CardDescription>OpenAI API 연동 상태를 확인합니다</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">연결 상태</span>
+              <Badge variant={gptConnected ? "default" : "destructive"}>
+                {gptConnected ? "연결됨" : "연결 안됨"}
+              </Badge>
+            </div>
+            {gptConnected && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">남은 토큰 개수</span>
+                <span className="text-lg font-bold text-primary">{remainingTokens.toLocaleString()}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>닉네임 설정</CardTitle>

@@ -9,6 +9,7 @@ import { Header } from "@/components/Header";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { ScrollToTop } from "@/components/ScrollToTop";
 
 const Index = () => {
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -173,6 +174,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <Header showNav={true} />
+      <ScrollToTop />
       <div className="max-w-4xl mx-auto p-4 space-y-6">
         {todayData && (
           <>
