@@ -176,48 +176,6 @@ const Index = () => {
       <div className="max-w-4xl mx-auto p-4 space-y-6">
         {todayData && (
           <>
-            <Card className="bg-gradient-to-r from-secondary/20 to-accent/20 border-secondary/30">
-              <CardHeader>
-                <CardTitle className="text-primary">운동 요약</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div>
-                    <p className="text-sm text-muted-foreground">총 거리</p>
-                    <p className="text-2xl font-bold text-secondary">{totalExerciseDistance.toFixed(1)} km</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">총 시간</p>
-                    <p className="text-2xl font-bold text-secondary">{totalExerciseTime} 분</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-r from-primary/20 to-accent/20 border-primary/30">
-              <CardHeader>
-                <CardTitle className="text-primary">칼로리 요약</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-sm text-muted-foreground">총 소모</p>
-                    <p className="text-2xl font-bold text-destructive">{totalBurned} kcal</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">총 섭취</p>
-                    <p className="text-2xl font-bold text-primary">{totalConsumed} kcal</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">차이</p>
-                    <p className={`text-2xl font-bold ${calorieDiff > 0 ? 'text-primary' : 'text-destructive'}`}>
-                      {calorieDiff > 0 ? '+' : ''}{calorieDiff} kcal
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
             <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
               <CardHeader>
                 <CardTitle className="text-primary">Today</CardTitle>
@@ -298,6 +256,48 @@ const Index = () => {
               )}
             </CardContent>
           </Card>
+
+            <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-primary">운동 요약</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <p className="text-sm text-muted-foreground">총 거리</p>
+                    <p className="text-2xl font-bold text-primary">{totalExerciseDistance.toFixed(1)} km</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">총 시간</p>
+                    <p className="text-2xl font-bold text-primary">{totalExerciseTime} 분</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-primary">칼로리 요약</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-sm text-muted-foreground">총 소모</p>
+                    <p className="text-2xl font-bold text-primary">{totalBurned} kcal</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">총 섭취</p>
+                    <p className="text-2xl font-bold text-primary">{totalConsumed} kcal</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">차이</p>
+                    <p className={`text-2xl font-bold ${calorieDiff > 0 ? 'text-primary' : 'text-destructive'}`}>
+                      {calorieDiff > 0 ? '+' : ''}{calorieDiff} kcal
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </>
         )}
 
