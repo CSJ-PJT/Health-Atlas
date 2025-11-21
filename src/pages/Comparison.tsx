@@ -366,7 +366,11 @@ const Comparison = () => {
             
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="justify-start text-left font-normal">
+                <Button 
+                  variant="outline" 
+                  className="justify-start text-left font-normal"
+                  disabled={!startDate}
+                >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {endDate ? format(endDate, "PPP", { locale: ko }) : "종료일"}
                 </Button>
@@ -378,6 +382,7 @@ const Comparison = () => {
                   onSelect={setEndDate}
                   initialFocus
                   className="pointer-events-auto"
+                  disabled={(date) => !startDate || date < startDate}
                 />
               </PopoverContent>
             </Popover>
