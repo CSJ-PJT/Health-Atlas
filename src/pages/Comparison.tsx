@@ -20,6 +20,7 @@ interface HealthRecord {
   body_composition_data: any;
   nutrition_data: any;
   running_data: any;
+  sleep_data: any;
 }
 
 const Comparison = () => {
@@ -28,6 +29,7 @@ const Comparison = () => {
   const [period, setPeriod] = useState<Period>("day");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<"general" | "running">("general");
 
   useEffect(() => {
     fetchRecords();
@@ -38,7 +40,7 @@ const Comparison = () => {
     try {
       let query = supabase
         .from("health_data")
-        .select("synced_at, exercise_data, body_composition_data, nutrition_data, running_data")
+        .select("synced_at, exercise_data, body_composition_data, nutrition_data, running_data, sleep_data")
         .order("synced_at", { ascending: true });
 
       if (startDate && endDate) {
@@ -121,6 +123,12 @@ const Comparison = () => {
           fatCount: 0,
           bodyFatMass: 0,
           bodyFatMassCount: 0,
+          // Sleep
+          totalSleep: 0,
+          deepSleep: 0,
+          lightSleep: 0,
+          remSleep: 0,
+          sleepCount: 0,
           // Running specific
           avgPace: 0,
           bestPace: 0,
@@ -185,6 +193,32 @@ const Comparison = () => {
         }
       }
 
+      // 수면 데이터 집계
+      if (record.sleep_data) {
+        groupedData[key].sleepCount += 1;
+        
+        const parseDuration = (duration: string) => {
+          const match = duration.match(/(\d+)시간\s*(\d+)분/);
+          if (match) {
+            return parseFloat(match[1]) + parseFloat(match[2]) / 60;
+          }
+          return 0;
+        };
+        
+        if (record.sleep_data.duration) {
+          groupedData[key].totalSleep += parseDuration(record.sleep_data.duration);
+        }
+        if (record.sleep_data.deep_sleep) {
+          groupedData[key].deepSleep += parseDuration(record.sleep_data.deep_sleep);
+        }
+        if (record.sleep_data.light_sleep) {
+          groupedData[key].lightSleep += parseDuration(record.sleep_data.light_sleep);
+        }
+        if (record.sleep_data.rem_sleep) {
+          groupedData[key].remSleep += parseDuration(record.sleep_data.rem_sleep);
+        }
+      }
+
       // 영양 데이터 집계
       if (record.nutrition_data) {
         if (record.nutrition_data.calories) {
@@ -244,6 +278,10 @@ const Comparison = () => {
       speed: item.runningCount > 0 ? (item.speed / item.runningCount).toFixed(1) : 0,
       vo2max: item.runningCount > 0 ? (item.vo2max / item.runningCount).toFixed(1) : 0,
       elevation: item.runningCount > 0 ? (item.elevation / item.runningCount).toFixed(0) : 0,
+      totalSleep: item.sleepCount > 0 ? (item.totalSleep / item.sleepCount).toFixed(1) : 0,
+      deepSleep: item.sleepCount > 0 ? (item.deepSleep / item.sleepCount).toFixed(1) : 0,
+      lightSleep: item.sleepCount > 0 ? (item.lightSleep / item.sleepCount).toFixed(1) : 0,
+      remSleep: item.sleepCount > 0 ? (item.remSleep / item.sleepCount).toFixed(1) : 0,
     }));
   };
 
@@ -358,15 +396,25 @@ const Comparison = () => {
           )}
         </div>
 
-        <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
-          <TabsList className="grid w-full max-w-md grid-cols-4">
-            <TabsTrigger value="day">일별</TabsTrigger>
-            <TabsTrigger value="week">주별</TabsTrigger>
-            <TabsTrigger value="month">월별</TabsTrigger>
-            <TabsTrigger value="year">연도별</TabsTrigger>
-          </TabsList>
+        <div className="flex gap-4">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "general" | "running")}>
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="general">일반비교</TabsTrigger>
+              <TabsTrigger value="running">러닝비교</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-          <TabsContent value={period} className="space-y-6 mt-6">
+          <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+            <TabsList className="grid w-full max-w-md grid-cols-4">
+              <TabsTrigger value="day">일별</TabsTrigger>
+              <TabsTrigger value="week">주별</TabsTrigger>
+              <TabsTrigger value="month">월별</TabsTrigger>
+              <TabsTrigger value="year">연도별</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        <div className="space-y-6 mt-6">
             {loading ? (
               <div className="space-y-4">
                 <Skeleton className="h-80 w-full" />
@@ -382,9 +430,9 @@ const Comparison = () => {
               </Card>
             ) : (
               <>
-                {/* 일반 비교 섹션 */}
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-primary">일반 비교</h2>
+                {activeTab === "general" && (
+                  <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-primary">일반 비교</h2>
                   
                   <Card>
                     <CardHeader>
@@ -608,11 +656,69 @@ const Comparison = () => {
                       </ResponsiveContainer>
                     </CardContent>
                   </Card>
-                </div>
 
-                {/* 러닝 비교 섹션 */}
-                <div className="space-y-6 mt-12">
-                  <h2 className="text-2xl font-bold text-primary">러닝 비교</h2>
+                  {/* 수면 비교 */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>수면 추이 ({getPeriodLabel()})</CardTitle>
+                      <CardDescription>수면 시간 (시간)</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ComparisonHeader title="총 수면 시간" dataKey="totalSleep" unit="시간" />
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            dataKey="period"
+                            className="text-xs"
+                            tick={{ fill: "hsl(var(--muted-foreground))" }}
+                          />
+                          <YAxis 
+                            className="text-xs"
+                            tick={{ fill: "hsl(var(--muted-foreground))" }}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "var(--radius)"
+                            }}
+                          />
+                          <Legend />
+                          <Line
+                            type="monotone"
+                            dataKey="deepSleep"
+                            stroke="hsl(var(--chart-1))"
+                            strokeWidth={2}
+                            name="깊은 수면 (시간)"
+                            dot={{ fill: "hsl(var(--chart-1))" }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="lightSleep"
+                            stroke="hsl(var(--chart-2))"
+                            strokeWidth={2}
+                            name="얕은 수면 (시간)"
+                            dot={{ fill: "hsl(var(--chart-2))" }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="remSleep"
+                            stroke="hsl(var(--chart-3))"
+                            strokeWidth={2}
+                            name="렘 수면 (시간)"
+                            dot={{ fill: "hsl(var(--chart-3))" }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </div>
+                )}
+
+                {activeTab === "running" && (
+                  <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-primary">러닝 비교</h2>
 
                   <Card>
                     <CardHeader>
@@ -931,10 +1037,10 @@ const Comparison = () => {
                     </CardContent>
                   </Card>
                 </div>
+                )}
               </>
             )}
-          </TabsContent>
-        </Tabs>
+        </div>
       </div>
     </div>
   );

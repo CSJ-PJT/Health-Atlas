@@ -226,6 +226,21 @@ const Index = () => {
                   </div>
                 </div>
               )}
+
+              {todayData.nutrition_data && (
+                <div className="space-y-2 p-3 rounded-lg bg-card">
+                  <h3 className="font-semibold flex items-center gap-2 text-primary">
+                    <Activity className="h-4 w-4" />
+                    영양 섭취
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>섭취 칼로리 {todayData.nutrition_data.calories}kcal</div>
+                    <div>단백질 {todayData.nutrition_data.protein}</div>
+                    <div>탄수화물 {todayData.nutrition_data.carbs}</div>
+                    <div>지방 {todayData.nutrition_data.fat}</div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
