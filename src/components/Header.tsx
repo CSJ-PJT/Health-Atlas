@@ -48,7 +48,7 @@ export const Header = ({ showNav = false }: HeaderProps) => {
             <img 
               src="https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg" 
               alt="ChatGPT" 
-              className="h-8 w-8"
+              className="h-6 w-6"
             />
             <span className="text-xs text-gray-700">{nickname}</span>
           </button>
