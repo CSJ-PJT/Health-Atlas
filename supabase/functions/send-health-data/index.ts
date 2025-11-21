@@ -14,10 +14,38 @@ serve(async (req) => {
     const { healthData } = await req.json();
     
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    const OPENAI_THREAD_ID = Deno.env.get('OPENAI_THREAD_ID');
+    let OPENAI_THREAD_ID = Deno.env.get('OPENAI_THREAD_ID');
     
-    if (!OPENAI_API_KEY || !OPENAI_THREAD_ID) {
-      throw new Error('Missing OpenAI credentials');
+    if (!OPENAI_API_KEY) {
+      throw new Error('Missing OpenAI API key');
+    }
+
+    // Create thread if not exists or invalid
+    if (!OPENAI_THREAD_ID || !OPENAI_THREAD_ID.startsWith('thread_')) {
+      console.log('Creating new OpenAI thread...');
+      const createThreadResponse = await fetch(
+        'https://api.openai.com/v1/threads',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+            'OpenAI-Beta': 'assistants=v2',
+          },
+          body: JSON.stringify({}),
+        }
+      );
+
+      if (!createThreadResponse.ok) {
+        const error = await createThreadResponse.text();
+        console.error('Failed to create thread:', error);
+        throw new Error(`Failed to create thread: ${createThreadResponse.status}`);
+      }
+
+      const threadData = await createThreadResponse.json();
+      OPENAI_THREAD_ID = threadData.id;
+      console.log('✅ Created new thread:', OPENAI_THREAD_ID);
+      console.log('💡 Set this as OPENAI_THREAD_ID secret for future use');
     }
 
     // Format health data message
@@ -47,10 +75,15 @@ serve(async (req) => {
     }
 
     const result = await response.json();
-    console.log('Data sent successfully to OpenAI thread:', result.id);
+    console.log('✅ Data sent successfully to thread:', OPENAI_THREAD_ID);
+    console.log('Message ID:', result.id);
 
     return new Response(
-      JSON.stringify({ success: true, messageId: result.id }),
+      JSON.stringify({ 
+        success: true, 
+        messageId: result.id,
+        threadId: OPENAI_THREAD_ID
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
