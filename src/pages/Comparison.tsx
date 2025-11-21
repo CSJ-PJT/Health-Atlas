@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,12 +24,22 @@ interface HealthRecord {
 }
 
 const Comparison = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [records, setRecords] = useState<HealthRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("day");
-  const [comparisonType, setComparisonType] = useState<ComparisonType>("general");
+  const [comparisonType, setComparisonType] = useState<ComparisonType>(
+    (searchParams.get("tab") as ComparisonType) || "general"
+  );
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab") as ComparisonType;
+    if (tab && (tab === "general" || tab === "running")) {
+      setComparisonType(tab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchRecords();
@@ -283,7 +294,10 @@ const Comparison = () => {
           )}
         </div>
 
-        <Tabs value={comparisonType} onValueChange={(v) => setComparisonType(v as ComparisonType)}>
+        <Tabs value={comparisonType} onValueChange={(v) => {
+          setComparisonType(v as ComparisonType);
+          setSearchParams({ tab: v });
+        }}>
           <TabsList className="grid w-full max-w-md grid-cols-2 mb-4">
             <TabsTrigger value="general">일반비교</TabsTrigger>
             <TabsTrigger value="running">러닝비교</TabsTrigger>
@@ -425,6 +439,53 @@ const Comparison = () => {
 
                 <Card>
                   <CardHeader>
+                    <CardTitle>칼로리 추이 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>소모 칼로리 vs 섭취 칼로리 (kcal)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          dataKey="period"
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <YAxis 
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)"
+                          }}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="caloriesBurned"
+                          stroke="hsl(var(--destructive))"
+                          strokeWidth={2}
+                          name="소모 칼로리 (kcal)"
+                          dot={{ fill: "hsl(var(--destructive))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="caloriesIntake"
+                          stroke="hsl(var(--chart-1))"
+                          strokeWidth={2}
+                          name="섭취 칼로리 (kcal)"
+                          dot={{ fill: "hsl(var(--chart-1))" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
                     <CardTitle>영양소 추이 ({getPeriodLabel()})</CardTitle>
                     <CardDescription>탄수화물, 단백질, 지방 (g)</CardDescription>
                   </CardHeader>
@@ -477,11 +538,300 @@ const Comparison = () => {
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
+              </>
+            )}
+            </TabsContent>
+          </Tabs>
+
+          <TabsContent value="running" className="space-y-6">
+            {loading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-80 w-full" />
+                <Skeleton className="h-80 w-full" />
+              </div>
+            ) : chartData.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <p className="text-muted-foreground">
+                    선택한 기간에 대한 러닝 데이터가 없습니다.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>러닝 시간 및 거리 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>러닝 시간 (분) 및 거리 (km)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          dataKey="period" 
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <YAxis 
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)"
+                          }}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="exerciseDuration"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2}
+                          name="시간 (분)"
+                          dot={{ fill: "hsl(var(--primary))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="exerciseDistance"
+                          stroke="hsl(var(--chart-3))"
+                          strokeWidth={2}
+                          name="거리 (km)"
+                          dot={{ fill: "hsl(var(--chart-3))" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>칼로리 추이 ({getPeriodLabel()})</CardTitle>
-                    <CardDescription>소모 칼로리 vs 섭취 칼로리 (kcal)</CardDescription>
+                    <CardTitle>페이스 분석 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>평균, 최고, 최저 페이스 (분/km)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          dataKey="period"
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <YAxis 
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)"
+                          }}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="avgPace"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2}
+                          name="평균 페이스"
+                          dot={{ fill: "hsl(var(--primary))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="bestPace"
+                          stroke="hsl(var(--chart-2))"
+                          strokeWidth={2}
+                          name="최고 페이스"
+                          dot={{ fill: "hsl(var(--chart-2))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="worstPace"
+                          stroke="hsl(var(--chart-4))"
+                          strokeWidth={2}
+                          name="최저 페이스"
+                          dot={{ fill: "hsl(var(--chart-4))" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>심박수 분석 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>평균, 최고, 최저 심박수 (bpm) 및 구간률</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          dataKey="period"
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <YAxis 
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)"
+                          }}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="avgHeartRate"
+                          stroke="hsl(var(--destructive))"
+                          strokeWidth={2}
+                          name="평균 심박수"
+                          dot={{ fill: "hsl(var(--destructive))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="maxHeartRate"
+                          stroke="hsl(var(--chart-1))"
+                          strokeWidth={2}
+                          name="최고 심박수"
+                          dot={{ fill: "hsl(var(--chart-1))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="minHeartRate"
+                          stroke="hsl(var(--chart-3))"
+                          strokeWidth={2}
+                          name="최저 심박수"
+                          dot={{ fill: "hsl(var(--chart-3))" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                    <div className="grid grid-cols-4 gap-2 p-4 bg-muted/50 rounded-lg">
+                      <div className="text-center">
+                        <div className="text-xs text-muted-foreground">휴식 구간</div>
+                        <div className="text-sm font-semibold">15%</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-muted-foreground">유산소 구간</div>
+                        <div className="text-sm font-semibold">45%</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-muted-foreground">무산소 구간</div>
+                        <div className="text-sm font-semibold">30%</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-muted-foreground">최대 구간</div>
+                        <div className="text-sm font-semibold">10%</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>케이던스 및 속도 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>케이던스 (spm), 속도 (km/h)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          dataKey="period"
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <YAxis 
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)"
+                          }}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="cadence"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2}
+                          name="케이던스 (spm)"
+                          dot={{ fill: "hsl(var(--primary))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="speed"
+                          stroke="hsl(var(--chart-5))"
+                          strokeWidth={2}
+                          name="속도 (km/h)"
+                          dot={{ fill: "hsl(var(--chart-5))" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>산소섭취량 및 고도 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>산소섭취량 (ml/kg/min), 누적 고도 (m)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          dataKey="period"
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <YAxis 
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)"
+                          }}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="vo2max"
+                          stroke="hsl(var(--chart-2))"
+                          strokeWidth={2}
+                          name="VO2 Max"
+                          dot={{ fill: "hsl(var(--chart-2))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="elevation"
+                          stroke="hsl(var(--chart-4))"
+                          strokeWidth={2}
+                          name="누적 고도 (m)"
+                          dot={{ fill: "hsl(var(--chart-4))" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>칼로리 소모 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>러닝 칼로리 소모량 (kcal)</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -509,16 +859,8 @@ const Comparison = () => {
                           dataKey="caloriesBurned"
                           stroke="hsl(var(--destructive))"
                           strokeWidth={2}
-                          name="소모 칼로리 (kcal)"
+                          name="칼로리 소모 (kcal)"
                           dot={{ fill: "hsl(var(--destructive))" }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="caloriesIntake"
-                          stroke="hsl(var(--chart-1))"
-                          strokeWidth={2}
-                          name="섭취 칼로리 (kcal)"
-                          dot={{ fill: "hsl(var(--chart-1))" }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -526,15 +868,6 @@ const Comparison = () => {
                 </Card>
               </>
             )}
-            </TabsContent>
-          </Tabs>
-
-          <TabsContent value="running" className="space-y-6">
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">러닝 전용 비교 기능이 구현 예정입니다.</p>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </div>
