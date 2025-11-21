@@ -1,1 +1,4 @@
 project_id = "ctpiqdxdofkqlzchviha"
+
+[functions.send-health-data]
+verify_jwt = false
