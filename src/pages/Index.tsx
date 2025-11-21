@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2, RefreshCw, Clock, Activity } from "lucide-react";
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { supabase } from "@/integrations/supabase/client";
 import { NavLink } from "@/components/NavLink";
@@ -9,22 +10,18 @@ import { NavLink } from "@/components/NavLink";
 const Index = () => {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [todayData, setTodayData] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Request notification permissions
     requestNotificationPermission();
-    
-    // Schedule daily notification at 9 AM
     scheduleDailyNotification();
     
-    // Load last sync time
     const savedLastSync = localStorage.getItem('lastSync');
     if (savedLastSync) {
       setLastSync(savedLastSync);
     }
 
-    // Load today's data
     loadTodayData();
   }, []);
 
@@ -38,15 +35,12 @@ const Index = () => {
 
   const scheduleDailyNotification = async () => {
     try {
-      // Cancel existing notifications
       await LocalNotifications.cancel({ notifications: [{ id: 1 }] });
       
-      // Schedule notification for 9 AM daily
       const now = new Date();
       const scheduledTime = new Date();
       scheduledTime.setHours(9, 0, 0, 0);
       
-      // If 9 AM has passed today, schedule for tomorrow
       if (scheduledTime <= now) {
         scheduledTime.setDate(scheduledTime.getDate() + 1);
       }
@@ -70,33 +64,50 @@ const Index = () => {
     }
   };
 
-  const [todayData, setTodayData] = useState<any>(null);
-
+  // Mock function to collect Samsung Health data
+  // In a real implementation, this would use the Samsung Health SDK
   const collectSamsungHealthData = async () => {
-    // Mock data - 실제 앱에서는 Samsung Health SDK를 사용해야 합니다
-    // This is placeholder data structure
+    console.log("Collecting Samsung Health data...");
+    
+    // This is mock data. In a real app, you would:
+    // 1. Request permissions from Samsung Health
+    // 2. Use the Samsung Health SDK to fetch actual data
+    // 3. Process and format the data
+    
+    // Note: Only returning data that actually exists in Samsung Health
+    // If user hasn't done running, don't show running data
+    
     return {
-      steps: [
-        { count: 8500, calories: 340 },
-      ],
-      exercise: [
-        { type: '걷기', duration: 30, calories: 150 },
-        { type: '자전거', duration: 45, calories: 300 },
-      ],
-      running: [
-        { distance: 5.2, duration: 35, calories: 400 },
-      ],
-      sleep: [
-        { duration: 7.5, deepSleep: 2.5 },
-      ],
-      bodyComposition: [
-        { weight: 70, bodyFat: 18, muscleMass: 32 },
-      ],
-      nutrition: [
-        { name: '아침식사', calories: 450, carbs: 60, protein: 20, fat: 15 },
-        { name: '점심식사', calories: 680, carbs: 85, protein: 35, fat: 22 },
-        { name: '저녁식사', calories: 550, carbs: 70, protein: 28, fat: 18 },
-      ],
+      steps_data: {
+        count: 8234,
+        distance: "6.2 km",
+        calories: 312
+      },
+      exercise_data: {
+        type: "걷기",
+        duration: "45분",
+        calories: 234,
+        heart_rate: 98
+      },
+      sleep_data: {
+        duration: "7시간 30분",
+        deep_sleep: "2시간 15분",
+        light_sleep: "4시간 45분",
+        rem_sleep: "30분"
+      },
+      body_composition_data: {
+        weight: "72.5 kg",
+        body_fat: "18.5%",
+        muscle_mass: "32.1 kg",
+        bmi: 23.4
+      },
+      nutrition_data: {
+        calories: 1850,
+        protein: "85g",
+        carbs: "220g",
+        fat: "65g"
+      }
+      // running_data is not included because user hasn't done any running
     };
   };
 
@@ -109,10 +120,8 @@ const Index = () => {
     setIsSyncing(true);
     
     try {
-      // Collect Samsung Health data
       const healthData = await collectSamsungHealthData();
       
-      // Send to backend
       const { data, error } = await supabase.functions.invoke('send-health-data', {
         body: { healthData }
       });
@@ -140,30 +149,89 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-4">
-      <div className="max-w-md mx-auto space-y-6 pt-8">
-        <div className="space-y-4">
-          <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              삼성헬스 동기화
-            </h1>
-            <p className="text-muted-foreground">
-              매일 오전 9시 자동으로 ChatGPT에 데이터를 전송합니다
-            </p>
-          </div>
-          <div className="flex justify-center gap-2">
-            <NavLink to="/history">동기화 기록</NavLink>
-            <NavLink to="/comparison">데이터 비교</NavLink>
+    <div className="min-h-screen bg-background p-4">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Samsung Health Sync</h1>
+          <div className="flex gap-2">
+            <NavLink to="/history">기록</NavLink>
+            <NavLink to="/comparison">비교</NavLink>
+            <NavLink to="/monitor">모니터링</NavLink>
           </div>
         </div>
 
-        <Card>
+        {todayData && (
+          <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-primary">Today</CardTitle>
+              <CardDescription>
+                오늘 수집된 삼성헬스 데이터
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {todayData.steps_data && (
+                <div className="space-y-2 p-3 rounded-lg bg-card">
+                  <h3 className="font-semibold flex items-center gap-2 text-primary">
+                    <Activity className="h-4 w-4" />
+                    걸음수
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>걸음수 {todayData.steps_data.count}</div>
+                    <div>거리 {todayData.steps_data.distance}</div>
+                    <div>칼로리 {todayData.steps_data.calories}</div>
+                  </div>
+                </div>
+              )}
+              
+              {todayData.exercise_data && (
+                <div className="space-y-2 p-3 rounded-lg bg-card">
+                  <h3 className="font-semibold flex items-center gap-2 text-primary">
+                    <Activity className="h-4 w-4" />
+                    운동
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>운동 시간 {todayData.exercise_data.duration}</div>
+                    <div>칼로리 {todayData.exercise_data.calories}</div>
+                    <div>운동 종류 {todayData.exercise_data.type}</div>
+                  </div>
+                </div>
+              )}
+
+              {todayData.body_composition_data && (
+                <div className="space-y-2 p-3 rounded-lg bg-card">
+                  <h3 className="font-semibold flex items-center gap-2 text-primary">
+                    <Activity className="h-4 w-4" />
+                    신체 구성
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>체중 {todayData.body_composition_data.weight}</div>
+                    <div>체지방률 {todayData.body_composition_data.body_fat}</div>
+                    <div>근육량 {todayData.body_composition_data.muscle_mass}</div>
+                  </div>
+                </div>
+              )}
+
+              {todayData.sleep_data && (
+                <div className="space-y-2 p-3 rounded-lg bg-card">
+                  <h3 className="font-semibold flex items-center gap-2 text-primary">
+                    <Activity className="h-4 w-4" />
+                    수면
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>수면 시간 {todayData.sleep_data.duration}</div>
+                    <div>깊은 수면 {todayData.sleep_data.deep_sleep}</div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className="bg-secondary/20">
           <CardHeader>
             <CardTitle>동기화 상태</CardTitle>
             <CardDescription>
-              {lastSync 
-                ? `마지막 동기화: ${lastSync}`
-                : '아직 동기화되지 않았습니다'}
+              마지막 동기화: {lastSync ? new Date(lastSync).toLocaleString('ko-KR') : '동기화 기록 없음'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -171,99 +239,36 @@ const Index = () => {
               onClick={syncHealthData} 
               disabled={isSyncing}
               className="w-full"
-              size="lg"
             >
-              {isSyncing ? '동기화 중...' : '지금 동기화하기'}
+              {isSyncing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  동기화 중...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  수동 동기화
+                </>
+              )}
             </Button>
-
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p>📊 수집되는 데이터:</p>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>운동 기록</li>
-                <li>러닝 기록</li>
-                <li>수면 기록</li>
-                <li>체성분 기록</li>
-                <li>음식 및 영양 기록</li>
-              </ul>
-            </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-muted/30">
           <CardHeader>
-            <CardTitle>자동 동기화</CardTitle>
+            <CardTitle>예약된 동기화</CardTitle>
             <CardDescription>
-              매일 오전 9시에 전날 00시~24시 데이터를 자동으로 전송합니다
+              매일 오전 9시에 자동으로 건강 데이터가 동기화됩니다.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">알림 권한</span>
-              <span className="text-sm text-muted-foreground">설정됨 ✓</span>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              다음 동기화: 내일 오전 9:00
             </div>
           </CardContent>
         </Card>
-
-        {todayData && (
-          <Card>
-            <CardHeader>
-              <CardTitle>오늘의 건강 데이터</CardTitle>
-              <CardDescription>
-                삼성헬스에서 수집된 오늘의 데이터
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {todayData.steps && todayData.steps.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">🚶 걸음수</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>걸음수: {todayData.steps[0].count}걸음</div>
-                    <div>칼로리: {todayData.steps[0].calories}kcal</div>
-                  </div>
-                </div>
-              )}
-
-              {todayData.exercise && todayData.exercise.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">💪 운동</h4>
-                  {todayData.exercise.map((ex: any, i: number) => (
-                    <div key={i} className="grid grid-cols-3 gap-2 text-sm">
-                      <div>종류: {ex.type}</div>
-                      <div>시간: {ex.duration}분</div>
-                      <div>칼로리: {ex.calories}kcal</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {todayData.running && todayData.running.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">🏃 러닝</h4>
-                  {todayData.running.map((run: any, i: number) => (
-                    <div key={i} className="grid grid-cols-3 gap-2 text-sm">
-                      <div>거리: {run.distance}km</div>
-                      <div>시간: {run.duration}분</div>
-                      <div>칼로리: {run.calories}kcal</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {todayData.bodyComposition && todayData.bodyComposition.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">⚖️ 체성분</h4>
-                  {todayData.bodyComposition.map((bc: any, i: number) => (
-                    <div key={i} className="grid grid-cols-3 gap-2 text-sm">
-                      <div>체중: {bc.weight}kg</div>
-                      <div>체지방: {bc.bodyFat}%</div>
-                      <div>근육량: {bc.muscleMass}kg</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );

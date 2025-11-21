@@ -138,18 +138,14 @@ const Comparison = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-6">
+    <div className="min-h-screen bg-background p-4">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              데이터 비교
-            </h1>
-            <p className="text-muted-foreground mt-2">운동 및 체성분 지표를 비교하세요</p>
-          </div>
+          <h1 className="text-3xl font-bold">데이터 비교</h1>
           <div className="flex gap-2">
             <NavLink to="/">홈</NavLink>
             <NavLink to="/history">기록</NavLink>
+            <NavLink to="/monitor">모니터링</NavLink>
           </div>
         </div>
 

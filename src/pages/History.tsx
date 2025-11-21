@@ -3,8 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Activity, Moon, Utensils, Weight, TrendingUp } from "lucide-react";
-import { format } from "date-fns";
+import { Activity } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 
 interface HealthRecord {
@@ -113,20 +112,14 @@ const History = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-6">
+    <div className="min-h-screen bg-background p-4">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              동기화 기록
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              삼성 헬스 데이터 동기화 내역을 확인하세요
-            </p>
-          </div>
+          <h1 className="text-3xl font-bold">건강 데이터 기록</h1>
           <div className="flex gap-2">
             <NavLink to="/">홈</NavLink>
             <NavLink to="/comparison">비교</NavLink>
+            <NavLink to="/monitor">모니터링</NavLink>
           </div>
         </div>
 
@@ -151,23 +144,46 @@ const History = () => {
             </CardContent>
           </Card>
         ) : (
-          <ScrollArea className="h-[calc(100vh-240px)]">
-            <div className="space-y-4 pr-4">
+          <ScrollArea className="h-[calc(100vh-200px)]">
+            <div className="space-y-4">
               {records.map((record) => (
-                <Card key={record.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      {format(new Date(record.synced_at), "yyyy년 MM월 dd일 HH:mm")}
+                <Card key={record.id} className="overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
+                    <CardTitle className="text-lg text-primary">
+                      동기화 시간: {new Date(record.synced_at).toLocaleString('ko-KR')}
                     </CardTitle>
-                    <CardDescription>동기화 ID: {record.id.slice(0, 8)}</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {renderDataSection("걸음수", Activity, record.steps_data)}
-                    {renderDataSection("운동", Activity, record.exercise_data)}
-                    {renderDataSection("러닝", TrendingUp, record.running_data)}
-                    {renderDataSection("수면", Moon, record.sleep_data)}
-                    {renderDataSection("체성분", Weight, record.body_composition_data)}
-                    {renderDataSection("영양", Utensils, record.nutrition_data)}
+                  <CardContent className="space-y-4 p-6">
+                    {record.steps_data && (
+                      <div className="p-4 rounded-lg bg-secondary/20">
+                        {renderDataSection('걸음수', Activity, record.steps_data)}
+                      </div>
+                    )}
+                    {record.exercise_data && (
+                      <div className="p-4 rounded-lg bg-accent/20">
+                        {renderDataSection('운동', Activity, record.exercise_data)}
+                      </div>
+                    )}
+                    {record.running_data && (
+                      <div className="p-4 rounded-lg bg-muted/40">
+                        {renderDataSection('달리기', Activity, record.running_data)}
+                      </div>
+                    )}
+                    {record.sleep_data && (
+                      <div className="p-4 rounded-lg bg-secondary/30">
+                        {renderDataSection('수면', Activity, record.sleep_data)}
+                      </div>
+                    )}
+                    {record.body_composition_data && (
+                      <div className="p-4 rounded-lg bg-accent/15">
+                        {renderDataSection('신체 구성', Activity, record.body_composition_data)}
+                      </div>
+                    )}
+                    {record.nutrition_data && (
+                      <div className="p-4 rounded-lg bg-muted/30">
+                        {renderDataSection('영양', Activity, record.nutrition_data)}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
