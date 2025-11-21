@@ -18,6 +18,7 @@ interface HealthRecord {
   synced_at: string;
   exercise_data: any;
   body_composition_data: any;
+  nutrition_data: any;
 }
 
 const Comparison = () => {
@@ -36,7 +37,7 @@ const Comparison = () => {
     try {
       let query = supabase
         .from("health_data")
-        .select("synced_at, exercise_data, body_composition_data")
+        .select("synced_at, exercise_data, body_composition_data, nutrition_data")
         .order("synced_at", { ascending: true });
 
       if (startDate && endDate) {
@@ -96,8 +97,15 @@ const Comparison = () => {
           period: key,
           exerciseCount: 0,
           exerciseDuration: 0,
+          exerciseDistance: 0,
           weight: 0,
           weightCount: 0,
+          bodyFat: 0,
+          bodyFatCount: 0,
+          muscleMass: 0,
+          muscleMassCount: 0,
+          caloriesBurned: 0,
+          caloriesIntake: 0,
         };
       }
 
@@ -107,12 +115,35 @@ const Comparison = () => {
         if (record.exercise_data.duration) {
           groupedData[key].exerciseDuration += Number(record.exercise_data.duration) || 0;
         }
+        if (record.exercise_data.distance) {
+          groupedData[key].exerciseDistance += Number(record.exercise_data.distance) || 0;
+        }
+        if (record.exercise_data.calories) {
+          groupedData[key].caloriesBurned += Number(record.exercise_data.calories) || 0;
+        }
       }
 
       // 체성분 데이터 집계
-      if (record.body_composition_data?.weight) {
-        groupedData[key].weight += Number(record.body_composition_data.weight) || 0;
-        groupedData[key].weightCount += 1;
+      if (record.body_composition_data) {
+        if (record.body_composition_data.weight) {
+          groupedData[key].weight += Number(record.body_composition_data.weight) || 0;
+          groupedData[key].weightCount += 1;
+        }
+        if (record.body_composition_data.bodyFat) {
+          groupedData[key].bodyFat += Number(record.body_composition_data.bodyFat) || 0;
+          groupedData[key].bodyFatCount += 1;
+        }
+        if (record.body_composition_data.muscleMass) {
+          groupedData[key].muscleMass += Number(record.body_composition_data.muscleMass) || 0;
+          groupedData[key].muscleMassCount += 1;
+        }
+      }
+
+      // 영양 데이터 집계
+      if (record.nutrition_data) {
+        if (record.nutrition_data.calories) {
+          groupedData[key].caloriesIntake += Number(record.nutrition_data.calories) || 0;
+        }
       }
     });
 
@@ -120,7 +151,12 @@ const Comparison = () => {
     return Object.values(groupedData).map((item) => ({
       ...item,
       weight: item.weightCount > 0 ? (item.weight / item.weightCount).toFixed(1) : 0,
+      bodyFat: item.bodyFatCount > 0 ? (item.bodyFat / item.bodyFatCount).toFixed(1) : 0,
+      muscleMass: item.muscleMassCount > 0 ? (item.muscleMass / item.muscleMassCount).toFixed(1) : 0,
       exerciseDuration: item.exerciseDuration.toFixed(0),
+      exerciseDistance: item.exerciseDistance.toFixed(1),
+      caloriesBurned: item.caloriesBurned.toFixed(0),
+      caloriesIntake: item.caloriesIntake.toFixed(0),
     }));
   };
 
@@ -224,8 +260,8 @@ const Comparison = () => {
               <>
                 <Card>
                   <CardHeader>
-                    <CardTitle>운동 시간 추이 ({getPeriodLabel()})</CardTitle>
-                    <CardDescription>총 운동 시간 (분)</CardDescription>
+                    <CardTitle>운동 시간 및 거리 추이 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>운동 시간 (분) 및 거리 (km)</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -256,6 +292,14 @@ const Comparison = () => {
                           name="운동 시간 (분)"
                           dot={{ fill: "hsl(var(--primary))" }}
                         />
+                        <Line
+                          type="monotone"
+                          dataKey="exerciseDistance"
+                          stroke="hsl(var(--chart-3))"
+                          strokeWidth={2}
+                          name="운동 거리 (km)"
+                          dot={{ fill: "hsl(var(--chart-3))" }}
+                        />
                       </LineChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -263,8 +307,8 @@ const Comparison = () => {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>체중 변화 추이 ({getPeriodLabel()})</CardTitle>
-                    <CardDescription>평균 체중 (kg)</CardDescription>
+                    <CardTitle>체성분 변화 추이 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>체중 (kg), 체지방 (%), 근육량 (kg)</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -294,6 +338,69 @@ const Comparison = () => {
                           strokeWidth={2}
                           name="체중 (kg)"
                           dot={{ fill: "hsl(var(--chart-2))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="bodyFat"
+                          stroke="hsl(var(--chart-4))"
+                          strokeWidth={2}
+                          name="체지방 (%)"
+                          dot={{ fill: "hsl(var(--chart-4))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="muscleMass"
+                          stroke="hsl(var(--chart-5))"
+                          strokeWidth={2}
+                          name="근육량 (kg)"
+                          dot={{ fill: "hsl(var(--chart-5))" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>칼로리 추이 ({getPeriodLabel()})</CardTitle>
+                    <CardDescription>소모 칼로리 vs 섭취 칼로리 (kcal)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          dataKey="period"
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <YAxis 
+                          className="text-xs"
+                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)"
+                          }}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="caloriesBurned"
+                          stroke="hsl(var(--destructive))"
+                          strokeWidth={2}
+                          name="소모 칼로리 (kcal)"
+                          dot={{ fill: "hsl(var(--destructive))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="caloriesIntake"
+                          stroke="hsl(var(--chart-1))"
+                          strokeWidth={2}
+                          name="섭취 칼로리 (kcal)"
+                          dot={{ fill: "hsl(var(--chart-1))" }}
                         />
                       </LineChart>
                     </ResponsiveContainer>

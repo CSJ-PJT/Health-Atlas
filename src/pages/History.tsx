@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 
@@ -123,73 +124,119 @@ const History = () => {
           </div>
         </div>
 
-        {loading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-6 w-48" />
-                  <Skeleton className="h-4 w-32" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-24 w-full" />
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="general">일반기록</TabsTrigger>
+            <TabsTrigger value="running">러닝기록</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="general">
+            {loading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i}>
+                    <CardHeader>
+                      <Skeleton className="h-6 w-48" />
+                      <Skeleton className="h-4 w-32" />
+                    </CardHeader>
+                    <CardContent>
+                      <Skeleton className="h-24 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : records.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <p className="text-muted-foreground">아직 동기화된 데이터가 없습니다.</p>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        ) : records.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">아직 동기화된 데이터가 없습니다.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <ScrollArea className="h-[calc(100vh-200px)]">
-            <div className="space-y-4">
-              {records.map((record) => (
-                <Card key={record.id} className="overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
-                    <CardTitle className="text-lg text-primary">
-                      동기화 시간: {new Date(record.synced_at).toLocaleString('ko-KR')}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 p-6">
-                    {record.steps_data && (
-                      <div className="p-4 rounded-lg bg-secondary/20">
-                        {renderDataSection('걸음수', Activity, record.steps_data)}
-                      </div>
-                    )}
-                    {record.exercise_data && (
-                      <div className="p-4 rounded-lg bg-accent/20">
-                        {renderDataSection('운동', Activity, record.exercise_data)}
-                      </div>
-                    )}
-                    {record.running_data && (
-                      <div className="p-4 rounded-lg bg-muted/40">
-                        {renderDataSection('달리기', Activity, record.running_data)}
-                      </div>
-                    )}
-                    {record.sleep_data && (
-                      <div className="p-4 rounded-lg bg-secondary/30">
-                        {renderDataSection('수면', Activity, record.sleep_data)}
-                      </div>
-                    )}
-                    {record.body_composition_data && (
-                      <div className="p-4 rounded-lg bg-accent/15">
-                        {renderDataSection('신체 구성', Activity, record.body_composition_data)}
-                      </div>
-                    )}
-                    {record.nutrition_data && (
-                      <div className="p-4 rounded-lg bg-muted/30">
-                        {renderDataSection('영양', Activity, record.nutrition_data)}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </ScrollArea>
-        )}
+            ) : (
+              <ScrollArea className="h-[calc(100vh-250px)]">
+                <div className="space-y-4">
+                  {records.map((record) => (
+                    <Card key={record.id} className="overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
+                        <CardTitle className="text-lg text-primary">
+                          동기화 시간: {new Date(record.synced_at).toLocaleString('ko-KR')}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4 p-6">
+                        {record.steps_data && (
+                          <div className="p-4 rounded-lg bg-secondary/20">
+                            {renderDataSection('걸음수', Activity, record.steps_data)}
+                          </div>
+                        )}
+                        {record.exercise_data && (
+                          <div className="p-4 rounded-lg bg-accent/20">
+                            {renderDataSection('운동', Activity, record.exercise_data)}
+                          </div>
+                        )}
+                        {record.sleep_data && (
+                          <div className="p-4 rounded-lg bg-secondary/30">
+                            {renderDataSection('수면', Activity, record.sleep_data)}
+                          </div>
+                        )}
+                        {record.body_composition_data && (
+                          <div className="p-4 rounded-lg bg-accent/15">
+                            {renderDataSection('신체 구성', Activity, record.body_composition_data)}
+                          </div>
+                        )}
+                        {record.nutrition_data && (
+                          <div className="p-4 rounded-lg bg-muted/30">
+                            {renderDataSection('영양', Activity, record.nutrition_data)}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </TabsContent>
+
+          <TabsContent value="running">
+            {loading ? (
+              <div className="space-y-4">
+                {[1, 2].map((i) => (
+                  <Card key={i}>
+                    <CardHeader>
+                      <Skeleton className="h-6 w-48" />
+                    </CardHeader>
+                    <CardContent>
+                      <Skeleton className="h-32 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : records.filter(r => r.running_data).length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <p className="text-muted-foreground">러닝 기록이 없습니다.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <ScrollArea className="h-[calc(100vh-250px)]">
+                <div className="space-y-4">
+                  {records.filter(r => r.running_data).map((record) => (
+                    <Card key={record.id} className="overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
+                        <CardTitle className="text-lg text-primary">
+                          러닝 기록: {new Date(record.synced_at).toLocaleString('ko-KR')}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-6">
+                        <div className="p-4 rounded-lg bg-muted/40">
+                          {renderDataSection('달리기', Activity, record.running_data)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
