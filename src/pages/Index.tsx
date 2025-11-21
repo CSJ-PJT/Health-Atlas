@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { supabase } from "@/integrations/supabase/client";
+import { NavLink } from "@/components/NavLink";
 
 const Index = () => {
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -126,13 +127,21 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-4">
       <div className="max-w-md mx-auto space-y-6 pt-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold">삼성헬스 동기화</h1>
-          <p className="text-muted-foreground">
-            매일 오전 9시 자동으로 ChatGPT에 데이터를 전송합니다
-          </p>
+        <div className="space-y-4">
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              삼성헬스 동기화
+            </h1>
+            <p className="text-muted-foreground">
+              매일 오전 9시 자동으로 ChatGPT에 데이터를 전송합니다
+            </p>
+          </div>
+          <div className="flex justify-center gap-2">
+            <NavLink to="/history">동기화 기록</NavLink>
+            <NavLink to="/comparison">데이터 비교</NavLink>
+          </div>
         </div>
 
         <Card>

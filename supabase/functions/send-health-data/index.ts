@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,6 +13,11 @@ serve(async (req) => {
 
   try {
     const { healthData } = await req.json();
+    
+    // Initialize Supabase client for database operations
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
     
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     let OPENAI_THREAD_ID = Deno.env.get('OPENAI_THREAD_ID');
@@ -78,11 +84,33 @@ serve(async (req) => {
     console.log('✅ Data sent successfully to thread:', OPENAI_THREAD_ID);
     console.log('Message ID:', result.id);
 
+    // Store health data in database
+    const { data: dbData, error: dbError } = await supabase
+      .from('health_data')
+      .insert({
+        exercise_data: healthData.exercise,
+        running_data: healthData.running,
+        sleep_data: healthData.sleep,
+        body_composition_data: healthData.bodyComposition,
+        nutrition_data: healthData.nutrition,
+        synced_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('Failed to save to database:', dbError);
+      // Continue even if DB save fails - OpenAI sync is primary
+    } else {
+      console.log('✅ Data saved to database:', dbData.id);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         messageId: result.id,
-        threadId: OPENAI_THREAD_ID
+        threadId: OPENAI_THREAD_ID,
+        dbRecordId: dbData?.id
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
