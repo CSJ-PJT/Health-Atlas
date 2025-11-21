@@ -15,14 +15,16 @@ const Setup = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const existingApiKey = localStorage.getItem("openai_api_key");
-    const existingProjectId = localStorage.getItem("openai_project_id");
     const existingNickname = localStorage.getItem("user_nickname");
+    const setupCompleted = localStorage.getItem("setup_completed");
     
-    if (existingApiKey && existingProjectId && existingNickname) {
+    if (setupCompleted === "true" && existingNickname) {
       navigate("/");
       return;
     }
+    
+    const existingApiKey = localStorage.getItem("openai_api_key");
+    const existingProjectId = localStorage.getItem("openai_project_id");
     
     if (existingApiKey && existingProjectId) {
       setStep(2);
@@ -41,6 +43,12 @@ const Setup = () => {
 
     localStorage.setItem("openai_api_key", apiKey);
     localStorage.setItem("openai_project_id", projectId);
+    localStorage.setItem("openai_enabled", "true");
+    setStep(2);
+  };
+
+  const handleSkip = () => {
+    localStorage.setItem("openai_enabled", "false");
     setStep(2);
   };
 
@@ -117,9 +125,14 @@ const Setup = () => {
                 </div>
               </div>
 
-              <Button onClick={handleNext} className="w-full">
-                다음
-              </Button>
+              <div className="space-y-3">
+                <Button onClick={handleNext} className="w-full">
+                  다음
+                </Button>
+                <Button onClick={handleSkip} variant="outline" className="w-full">
+                  나중에 설정하기 (건너뛰기)
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (
