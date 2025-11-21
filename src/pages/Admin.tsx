@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 
 const Admin = () => {
   const { toast } = useToast();
+  const [nickname, setNickname] = useState("");
   
   const [homeMetrics, setHomeMetrics] = useState({
     steps: true,
@@ -44,6 +46,11 @@ const Admin = () => {
     caloriesBurned: true,
   });
 
+  useEffect(() => {
+    const storedNickname = localStorage.getItem("user_nickname") || "";
+    setNickname(storedNickname);
+  }, []);
+
   const handleSave = () => {
     localStorage.setItem('homeMetrics', JSON.stringify(homeMetrics));
     localStorage.setItem('historyMetrics', JSON.stringify(historyMetrics));
@@ -56,14 +63,57 @@ const Admin = () => {
     });
   };
 
+  const handleNicknameChange = () => {
+    if (!nickname.trim()) {
+      toast({
+        title: "입력 오류",
+        description: "닉네임을 입력해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    localStorage.setItem("user_nickname", nickname);
+    
+    toast({
+      title: "닉네임 변경 완료",
+      description: "닉네임이 성공적으로 변경되었습니다.",
+    });
+
+    // Trigger a page reload to update the header
+    window.location.reload();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <Header showNav={true} />
       <div className="max-w-4xl mx-auto p-4 space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>관리자 설정</CardTitle>
-            <CardDescription>메뉴별 표출 항목 관리</CardDescription>
+            <CardTitle>닉네임 설정</CardTitle>
+            <CardDescription>사용자 닉네임을 변경합니다</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="nickname">닉네임</Label>
+              <Input
+                id="nickname"
+                type="text"
+                placeholder="닉네임을 입력하세요"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleNicknameChange} className="w-full">
+              닉네임 변경
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>메뉴 항목 관리</CardTitle>
+            <CardDescription>메뉴별 표출 항목 설정</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* 홈 화면 설정 */}

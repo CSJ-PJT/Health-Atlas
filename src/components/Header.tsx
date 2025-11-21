@@ -1,12 +1,20 @@
-import { Home, Settings, Bot } from "lucide-react";
+import { Home, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 
 interface HeaderProps {
   showNav?: boolean;
 }
 
 export const Header = ({ showNav = false }: HeaderProps) => {
+  const [nickname, setNickname] = useState("");
+
+  useEffect(() => {
+    const storedNickname = localStorage.getItem("user_nickname") || "";
+    setNickname(storedNickname);
+  }, []);
+
   const openGPT = () => {
     // Try to open ChatGPT app, fallback to web
     const chatGPTAppURL = "chatgpt://";
@@ -34,10 +42,15 @@ export const Header = ({ showNav = false }: HeaderProps) => {
           </Link>
           <button 
             onClick={openGPT}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
+            className="flex flex-col items-center gap-1 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
             aria-label="Open ChatGPT"
           >
-            <Bot className="h-5 w-5 text-primary" />
+            <img 
+              src="https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg" 
+              alt="ChatGPT" 
+              className="h-8 w-8"
+            />
+            <span className="text-xs text-foreground">{nickname}</span>
           </button>
         </div>
         
