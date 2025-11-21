@@ -21,21 +21,21 @@ export const Header = ({ showNav = false }: HeaderProps) => {
         </div>
         
         {showNav && (
-          <nav className="flex gap-2 pb-4">
-            <NavLink to="/" className="px-4 py-2 rounded-lg hover:bg-accent transition-colors">
-              <div className="flex items-center gap-2">
-                <Home className="h-4 w-4" />
-                <span className="text-sm font-medium">모니터링</span>
-              </div>
+          <nav className="flex gap-0 bg-secondary/30 -mx-4 px-4 py-3 border-y border-border/50">
+            <NavLink to="/" className="flex-1 px-4 py-2.5 rounded-lg hover:bg-primary/20 transition-colors bg-primary/10 text-center">
+              <Home className="h-5 w-5 mx-auto" />
             </NavLink>
-            <NavLink to="/history" className="px-4 py-2 rounded-lg hover:bg-accent transition-colors">
+            <NavLink to="/history" className="flex-1 px-4 py-2.5 rounded-lg hover:bg-primary/20 transition-colors bg-primary/10 text-center">
               <span className="text-sm font-medium">기록</span>
             </NavLink>
-            <NavLink to="/comparison" className="px-4 py-2 rounded-lg hover:bg-accent transition-colors">
+            <NavLink to="/comparison" className="flex-1 px-4 py-2.5 rounded-lg hover:bg-primary/20 transition-colors bg-primary/10 text-center">
               <span className="text-sm font-medium">비교</span>
             </NavLink>
-            <NavLink to="/monitor" className="px-4 py-2 rounded-lg hover:bg-accent transition-colors">
+            <NavLink to="/monitor" className="flex-1 px-4 py-2.5 rounded-lg hover:bg-primary/20 transition-colors bg-primary/10 text-center">
               <span className="text-sm font-medium">연동</span>
+            </NavLink>
+            <NavLink to="/admin" className="flex-1 px-4 py-2.5 rounded-lg hover:bg-primary/20 transition-colors bg-primary/10 text-center">
+              <span className="text-sm font-medium">관리</span>
             </NavLink>
           </nav>
         )}
