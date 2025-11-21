@@ -231,6 +231,7 @@ const Index = () => {
                     <div>걸음수 {todayData.steps_data.count}</div>
                     <div>거리 {todayData.steps_data.distance}</div>
                     <div>칼로리 {todayData.steps_data.calories}</div>
+                    {todayData.steps_data.floors && <div>층수 {todayData.steps_data.floors}층</div>}
                   </div>
                 </div>
               )}
