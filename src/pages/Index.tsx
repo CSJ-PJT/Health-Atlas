@@ -83,12 +83,20 @@ const Index = () => {
         distance: "6.2 km",
         calories: 312
       },
-      exercise_data: {
-        type: "걷기",
-        duration: "45분",
-        calories: 234,
-        heart_rate: 98
-      },
+      exercise_data: [
+        {
+          type: "걷기",
+          duration: "45",
+          calories: 234,
+          distance: 3.2
+        },
+        {
+          type: "자전거",
+          duration: "30",
+          calories: 180,
+          distance: 5.5
+        }
+      ],
       sleep_data: {
         duration: "7시간 30분",
         deep_sleep: "2시간 15분",
@@ -96,9 +104,9 @@ const Index = () => {
         rem_sleep: "30분"
       },
       body_composition_data: {
-        weight: "72.5 kg",
-        body_fat: "18.5%",
-        muscle_mass: "32.1 kg",
+        weight: "72.5",
+        body_fat: "18.5",
+        muscle_mass: "32.1",
         bmi: 23.4
       },
       nutrition_data: {
@@ -183,17 +191,20 @@ const Index = () => {
                 </div>
               )}
               
-              {todayData.exercise_data && (
+              {todayData.exercise_data && Array.isArray(todayData.exercise_data) && (
                 <div className="space-y-2 p-3 rounded-lg bg-card">
                   <h3 className="font-semibold flex items-center gap-2 text-primary">
                     <Activity className="h-4 w-4" />
                     운동
                   </h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>운동 시간 {todayData.exercise_data.duration}</div>
-                    <div>칼로리 {todayData.exercise_data.calories}</div>
-                    <div>운동 종류 {todayData.exercise_data.type}</div>
-                  </div>
+                  {todayData.exercise_data.map((ex: any, idx: number) => (
+                    <div key={idx} className="grid grid-cols-2 gap-2 text-sm border-t border-border/50 pt-2 first:border-t-0 first:pt-0">
+                      <div className="col-span-2 font-semibold">{ex.type}</div>
+                      <div>시간 {ex.duration}분</div>
+                      <div>칼로리 {ex.calories}kcal</div>
+                      {ex.distance && <div className="col-span-2">거리 {ex.distance}km</div>}
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -204,9 +215,9 @@ const Index = () => {
                     신체 구성
                   </h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>체중 {todayData.body_composition_data.weight}</div>
-                    <div>체지방률 {todayData.body_composition_data.body_fat}</div>
-                    <div>근육량 {todayData.body_composition_data.muscle_mass}</div>
+                    <div>체중 {todayData.body_composition_data.weight}kg</div>
+                    <div>체지방률 {todayData.body_composition_data.body_fat}%</div>
+                    <div>근육량 {todayData.body_composition_data.muscle_mass}kg</div>
                   </div>
                 </div>
               )}
