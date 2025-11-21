@@ -17,11 +17,17 @@ const Setup = () => {
   useEffect(() => {
     const existingApiKey = localStorage.getItem("openai_api_key");
     const existingProjectId = localStorage.getItem("openai_project_id");
+    const existingNickname = localStorage.getItem("user_nickname");
+    
+    if (existingApiKey && existingProjectId && existingNickname) {
+      navigate("/");
+      return;
+    }
     
     if (existingApiKey && existingProjectId) {
       setStep(2);
     }
-  }, []);
+  }, [navigate]);
 
   const handleNext = () => {
     if (!apiKey || !projectId) {

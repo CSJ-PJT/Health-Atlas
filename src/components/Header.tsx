@@ -42,7 +42,7 @@ export const Header = ({ showNav = false }: HeaderProps) => {
           </Link>
           <button 
             onClick={openGPT}
-            className="flex flex-col items-center gap-1 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
+            className="flex flex-col items-center gap-1 px-3 py-2 rounded-lg bg-white hover:bg-white/90 transition-colors shadow-sm"
             aria-label="Open ChatGPT"
           >
             <img 
@@ -50,26 +50,26 @@ export const Header = ({ showNav = false }: HeaderProps) => {
               alt="ChatGPT" 
               className="h-8 w-8"
             />
-            <span className="text-xs text-foreground">{nickname}</span>
+            <span className="text-xs text-gray-700">{nickname}</span>
           </button>
         </div>
         
         {showNav && (
           <nav className="flex gap-1 bg-primary/5 -mx-4 px-2 py-4 border-y border-primary/20">
-            <NavLink to="/" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-primary/30 transition-colors bg-primary/20 text-center">
-              <Home className="h-6 w-6 mx-auto" />
+            <NavLink to="/" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-primary/30 transition-colors bg-primary/20 text-center flex items-center justify-center">
+              <Home className="h-6 w-6" />
             </NavLink>
-            <NavLink to="/history" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-accent/30 transition-colors bg-accent/20 text-center">
-              <span className="text-base font-medium">기록</span>
+            <NavLink to="/history" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-accent/30 transition-colors bg-accent/20 text-center flex items-center justify-center">
+              <span className="text-base font-medium whitespace-nowrap">기록</span>
             </NavLink>
-            <NavLink to="/comparison" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-secondary/50 transition-colors bg-secondary/30 text-center">
-              <span className="text-base font-medium">비교</span>
+            <NavLink to="/comparison" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-secondary/50 transition-colors bg-secondary/30 text-center flex items-center justify-center">
+              <span className="text-base font-medium whitespace-nowrap">비교</span>
             </NavLink>
-            <NavLink to="/monitor" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-muted/70 transition-colors bg-muted/50 text-center">
-              <span className="text-base font-medium">연동</span>
+            <NavLink to="/monitor" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-muted/70 transition-colors bg-muted/50 text-center flex items-center justify-center">
+              <span className="text-base font-medium whitespace-nowrap">연동</span>
             </NavLink>
-            <NavLink to="/admin" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-primary/30 transition-colors bg-primary/20 text-center">
-              <Settings className="h-6 w-6 mx-auto" />
+            <NavLink to="/admin" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-primary/30 transition-colors bg-primary/20 text-center flex items-center justify-center">
+              <Settings className="h-6 w-6" />
             </NavLink>
           </nav>
         )}

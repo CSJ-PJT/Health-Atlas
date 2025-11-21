@@ -167,12 +167,33 @@ const Index = () => {
   const totalConsumed = todayData?.nutrition_data?.calories || 0;
   const calorieDiff = totalConsumed - totalBurned;
 
+  const totalExerciseDistance = todayData?.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.distance || 0), 0) || 0;
+  const totalExerciseTime = todayData?.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.duration || 0), 0) || 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <Header showNav={true} />
       <div className="max-w-4xl mx-auto p-4 space-y-6">
         {todayData && (
           <>
+            <Card className="bg-gradient-to-r from-secondary/20 to-accent/20 border-secondary/30">
+              <CardHeader>
+                <CardTitle className="text-primary">운동 요약</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <p className="text-sm text-muted-foreground">총 거리</p>
+                    <p className="text-2xl font-bold text-secondary">{totalExerciseDistance.toFixed(1)} km</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">총 시간</p>
+                    <p className="text-2xl font-bold text-secondary">{totalExerciseTime} 분</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="bg-gradient-to-r from-primary/20 to-accent/20 border-primary/30">
               <CardHeader>
                 <CardTitle className="text-primary">칼로리 요약</CardTitle>
