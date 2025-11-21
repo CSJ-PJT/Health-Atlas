@@ -3,9 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { format, subDays, subMonths, subYears, startOfWeek, startOfMonth, startOfYear } from "date-fns";
+import { ko } from "date-fns/locale";
 import { NavLink } from "@/components/NavLink";
+import { CalendarIcon } from "lucide-react";
 
 type Period = "week" | "month" | "year";
 
@@ -19,32 +24,42 @@ const Comparison = () => {
   const [records, setRecords] = useState<HealthRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("week");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
     fetchRecords();
-  }, [period]);
+  }, [period, startDate, endDate]);
 
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      let startDate: Date;
-      switch (period) {
-        case "week":
-          startDate = subDays(new Date(), 14); // 2주 데이터
-          break;
-        case "month":
-          startDate = subMonths(new Date(), 2); // 2개월 데이터
-          break;
-        case "year":
-          startDate = subYears(new Date(), 2); // 2년 데이터
-          break;
-      }
-
-      const { data, error } = await supabase
+      let query = supabase
         .from("health_data")
         .select("synced_at, exercise_data, body_composition_data")
-        .gte("synced_at", startDate.toISOString())
         .order("synced_at", { ascending: true });
+
+      if (startDate && endDate) {
+        query = query
+          .gte("synced_at", startDate.toISOString())
+          .lte("synced_at", endDate.toISOString());
+      } else {
+        let calculatedStartDate: Date;
+        switch (period) {
+          case "week":
+            calculatedStartDate = subDays(new Date(), 14);
+            break;
+          case "month":
+            calculatedStartDate = subMonths(new Date(), 2);
+            break;
+          case "year":
+            calculatedStartDate = subYears(new Date(), 2);
+            break;
+        }
+        query = query.gte("synced_at", calculatedStartDate.toISOString());
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setRecords(data || []);
@@ -118,7 +133,7 @@ const Comparison = () => {
       case "month":
         return "월별";
       case "year":
-        return "연별";
+        return "연도별";
     }
   };
 
@@ -138,11 +153,61 @@ const Comparison = () => {
           </div>
         </div>
 
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          <div className="flex gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {startDate ? format(startDate, "PPP", { locale: ko }) : "시작일"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={startDate}
+                  onSelect={setStartDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {endDate ? format(endDate, "PPP", { locale: ko }) : "종료일"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={endDate}
+                  onSelect={setEndDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {(startDate || endDate) && (
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                setStartDate(undefined);
+                setEndDate(undefined);
+              }}
+            >
+              날짜 초기화
+            </Button>
+          )}
+        </div>
+
         <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
           <TabsList className="grid w-full max-w-md grid-cols-3">
             <TabsTrigger value="week">주별</TabsTrigger>
             <TabsTrigger value="month">월별</TabsTrigger>
-            <TabsTrigger value="year">연별</TabsTrigger>
+            <TabsTrigger value="year">연도별</TabsTrigger>
           </TabsList>
 
           <TabsContent value={period} className="space-y-6">

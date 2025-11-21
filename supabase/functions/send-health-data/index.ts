@@ -88,6 +88,7 @@ serve(async (req) => {
     const { data: dbData, error: dbError } = await supabase
       .from('health_data')
       .insert({
+        steps_data: healthData.steps,
         exercise_data: healthData.exercise,
         running_data: healthData.running,
         sleep_data: healthData.sleep,
@@ -127,8 +128,16 @@ function formatHealthData(data: any): string {
   const sections = [];
   const date = new Date().toLocaleDateString('ko-KR');
   
-  sections.push(`📊 삼성헬스 데이터 (${date})`);
+  sections.push(`📊 삼성헬스 데이터 - 전날(00:00~24:00) (${date})`);
   sections.push('');
+
+  if (data.steps && data.steps.length > 0) {
+    sections.push('🚶 걸음수:');
+    data.steps.forEach((step: any, i: number) => {
+      sections.push(`  ${i + 1}. 걸음수: ${step.count || 0}걸음, 칼로리: ${step.calories || 0}kcal`);
+    });
+    sections.push('');
+  }
 
   if (data.exercise && data.exercise.length > 0) {
     sections.push('🏃 운동 기록:');

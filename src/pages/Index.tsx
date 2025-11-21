@@ -23,6 +23,9 @@ const Index = () => {
     if (savedLastSync) {
       setLastSync(savedLastSync);
     }
+
+    // Load today's data
+    loadTodayData();
   }, []);
 
   const requestNotificationPermission = async () => {
@@ -67,10 +70,15 @@ const Index = () => {
     }
   };
 
+  const [todayData, setTodayData] = useState<any>(null);
+
   const collectSamsungHealthData = async () => {
     // Mock data - 실제 앱에서는 Samsung Health SDK를 사용해야 합니다
     // This is placeholder data structure
     return {
+      steps: [
+        { count: 8500, calories: 340 },
+      ],
       exercise: [
         { type: '걷기', duration: 30, calories: 150 },
         { type: '자전거', duration: 45, calories: 300 },
@@ -90,6 +98,11 @@ const Index = () => {
         { name: '저녁식사', calories: 550, carbs: 70, protein: 28, fat: 18 },
       ],
     };
+  };
+
+  const loadTodayData = async () => {
+    const data = await collectSamsungHealthData();
+    setTodayData(data);
   };
 
   const syncHealthData = async () => {
@@ -180,7 +193,7 @@ const Index = () => {
           <CardHeader>
             <CardTitle>자동 동기화</CardTitle>
             <CardDescription>
-              매일 오전 9시에 자동으로 실행됩니다
+              매일 오전 9시에 전날 00시~24시 데이터를 자동으로 전송합니다
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -190,6 +203,67 @@ const Index = () => {
             </div>
           </CardContent>
         </Card>
+
+        {todayData && (
+          <Card>
+            <CardHeader>
+              <CardTitle>오늘의 건강 데이터</CardTitle>
+              <CardDescription>
+                삼성헬스에서 수집된 오늘의 데이터
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {todayData.steps && todayData.steps.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">🚶 걸음수</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>걸음수: {todayData.steps[0].count}걸음</div>
+                    <div>칼로리: {todayData.steps[0].calories}kcal</div>
+                  </div>
+                </div>
+              )}
+
+              {todayData.exercise && todayData.exercise.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">💪 운동</h4>
+                  {todayData.exercise.map((ex: any, i: number) => (
+                    <div key={i} className="grid grid-cols-3 gap-2 text-sm">
+                      <div>종류: {ex.type}</div>
+                      <div>시간: {ex.duration}분</div>
+                      <div>칼로리: {ex.calories}kcal</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {todayData.running && todayData.running.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">🏃 러닝</h4>
+                  {todayData.running.map((run: any, i: number) => (
+                    <div key={i} className="grid grid-cols-3 gap-2 text-sm">
+                      <div>거리: {run.distance}km</div>
+                      <div>시간: {run.duration}분</div>
+                      <div>칼로리: {run.calories}kcal</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {todayData.bodyComposition && todayData.bodyComposition.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">⚖️ 체성분</h4>
+                  {todayData.bodyComposition.map((bc: any, i: number) => (
+                    <div key={i} className="grid grid-cols-3 gap-2 text-sm">
+                      <div>체중: {bc.weight}kg</div>
+                      <div>체지방: {bc.bodyFat}%</div>
+                      <div>근육량: {bc.muscleMass}kg</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

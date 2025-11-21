@@ -10,11 +10,12 @@ import { NavLink } from "@/components/NavLink";
 interface HealthRecord {
   id: string;
   synced_at: string;
-  exercise_data: any;
-  running_data: any;
-  sleep_data: any;
-  body_composition_data: any;
-  nutrition_data: any;
+  steps_data?: any;
+  exercise_data?: any;
+  running_data?: any;
+  sleep_data?: any;
+  body_composition_data?: any;
+  nutrition_data?: any;
 }
 
 const History = () => {
@@ -42,8 +43,43 @@ const History = () => {
     }
   };
 
+  const formatDataItem = (key: string, value: any): string => {
+    const keyMap: Record<string, string> = {
+      type: '종류',
+      duration: '시간',
+      calories: '칼로리',
+      distance: '거리',
+      deepSleep: '깊은 수면',
+      weight: '체중',
+      bodyFat: '체지방',
+      muscleMass: '근육량',
+      name: '식사',
+      carbs: '탄수화물',
+      protein: '단백질',
+      fat: '지방',
+      count: '걸음수'
+    };
+
+    const unitMap: Record<string, string> = {
+      duration: '분',
+      calories: 'kcal',
+      distance: 'km',
+      weight: 'kg',
+      bodyFat: '%',
+      muscleMass: 'kg',
+      carbs: 'g',
+      protein: 'g',
+      fat: 'g',
+      count: '걸음'
+    };
+
+    const koreanKey = keyMap[key] || key;
+    const unit = unitMap[key] || '';
+    return `${koreanKey}: ${value}${unit}`;
+  };
+
   const renderDataSection = (title: string, icon: any, data: any) => {
-    if (!data || Object.keys(data).length === 0) return null;
+    if (!data || (Array.isArray(data) && data.length === 0)) return null;
     
     const Icon = icon;
     return (
@@ -52,13 +88,25 @@ const History = () => {
           <Icon className="h-4 w-4 text-primary" />
           <h4 className="font-semibold text-sm">{title}</h4>
         </div>
-        <div className="pl-6 space-y-1">
-          {Object.entries(data).map(([key, value]) => (
-            <div key={key} className="text-sm">
-              <span className="text-muted-foreground">{key}:</span>{" "}
-              <span className="font-medium">{JSON.stringify(value)}</span>
-            </div>
-          ))}
+        <div className="pl-6 space-y-2">
+          {Array.isArray(data) ? (
+            data.map((item, index) => (
+              <div key={index} className="text-sm space-y-0.5">
+                {Object.entries(item).map(([key, value]) => (
+                  <div key={key}>
+                    <span className="font-medium">{formatDataItem(key, value)}</span>
+                  </div>
+                ))}
+                {index < data.length - 1 && <div className="border-b border-border/50 my-1" />}
+              </div>
+            ))
+          ) : (
+            Object.entries(data).map(([key, value]) => (
+              <div key={key} className="text-sm">
+                <span className="font-medium">{formatDataItem(key, value)}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
     );
@@ -114,11 +162,12 @@ const History = () => {
                     <CardDescription>동기화 ID: {record.id.slice(0, 8)}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {renderDataSection("운동 데이터", Activity, record.exercise_data)}
-                    {renderDataSection("러닝 데이터", TrendingUp, record.running_data)}
-                    {renderDataSection("수면 데이터", Moon, record.sleep_data)}
-                    {renderDataSection("체성분 데이터", Weight, record.body_composition_data)}
-                    {renderDataSection("영양 데이터", Utensils, record.nutrition_data)}
+                    {renderDataSection("걸음수", Activity, record.steps_data)}
+                    {renderDataSection("운동", Activity, record.exercise_data)}
+                    {renderDataSection("러닝", TrendingUp, record.running_data)}
+                    {renderDataSection("수면", Moon, record.sleep_data)}
+                    {renderDataSection("체성분", Weight, record.body_composition_data)}
+                    {renderDataSection("영양", Utensils, record.nutrition_data)}
                   </CardContent>
                 </Card>
               ))}
