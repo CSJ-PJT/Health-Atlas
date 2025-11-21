@@ -80,9 +80,9 @@ const Monitor = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header showNav={true} />
       <div className="max-w-4xl mx-auto p-4 space-y-6">
-        <h1 className="text-3xl font-bold">모니터링</h1>
+        <h1 className="text-3xl font-bold">연동</h1>
 
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="bg-secondary/30">
