@@ -1,4 +1,4 @@
-import { Home } from "lucide-react";
+import { Home, Settings, Bot } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link } from "react-router-dom";
 
@@ -7,10 +7,24 @@ interface HeaderProps {
 }
 
 export const Header = ({ showNav = false }: HeaderProps) => {
+  const openGPT = () => {
+    // Try to open ChatGPT app, fallback to web
+    const chatGPTAppURL = "chatgpt://";
+    const chatGPTWebURL = "https://chat.openai.com";
+    
+    // Attempt to open app
+    window.location.href = chatGPTAppURL;
+    
+    // Fallback to web after a short delay
+    setTimeout(() => {
+      window.open(chatGPTWebURL, '_blank');
+    }, 500);
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container px-4">
-        <div className="flex h-20 items-center gap-3">
+        <div className="flex h-20 items-center justify-between gap-3">
           <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <img src="/app-icon.png" alt="Logo" className="h-12 w-12" />
             <div className="flex flex-col">
@@ -18,24 +32,31 @@ export const Header = ({ showNav = false }: HeaderProps) => {
               <p className="text-xs text-muted-foreground">Samsung Health Sync GPT</p>
             </div>
           </Link>
+          <button 
+            onClick={openGPT}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
+            aria-label="Open ChatGPT"
+          >
+            <Bot className="h-5 w-5 text-primary" />
+          </button>
         </div>
         
         {showNav && (
-          <nav className="flex gap-0 bg-secondary/30 -mx-4 px-4 py-3 border-y border-border/50">
-            <NavLink to="/" className="flex-1 px-4 py-2.5 rounded-lg hover:bg-primary/20 transition-colors bg-primary/10 text-center">
-              <Home className="h-5 w-5 mx-auto" />
+          <nav className="flex gap-1 bg-primary/5 -mx-4 px-2 py-4 border-y border-primary/20">
+            <NavLink to="/" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-primary/30 transition-colors bg-primary/20 text-center">
+              <Home className="h-6 w-6 mx-auto" />
             </NavLink>
-            <NavLink to="/history" className="flex-1 px-4 py-2.5 rounded-lg hover:bg-primary/20 transition-colors bg-primary/10 text-center">
-              <span className="text-sm font-medium">기록</span>
+            <NavLink to="/history" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-accent/30 transition-colors bg-accent/20 text-center">
+              <span className="text-base font-medium">기록</span>
             </NavLink>
-            <NavLink to="/comparison" className="flex-1 px-4 py-2.5 rounded-lg hover:bg-primary/20 transition-colors bg-primary/10 text-center">
-              <span className="text-sm font-medium">비교</span>
+            <NavLink to="/comparison" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-secondary/50 transition-colors bg-secondary/30 text-center">
+              <span className="text-base font-medium">비교</span>
             </NavLink>
-            <NavLink to="/monitor" className="flex-1 px-4 py-2.5 rounded-lg hover:bg-primary/20 transition-colors bg-primary/10 text-center">
-              <span className="text-sm font-medium">연동</span>
+            <NavLink to="/monitor" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-muted/70 transition-colors bg-muted/50 text-center">
+              <span className="text-base font-medium">연동</span>
             </NavLink>
-            <NavLink to="/admin" className="flex-1 px-4 py-2.5 rounded-lg hover:bg-primary/20 transition-colors bg-primary/10 text-center">
-              <span className="text-sm font-medium">관리</span>
+            <NavLink to="/admin" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-primary/30 transition-colors bg-primary/20 text-center">
+              <Settings className="h-6 w-6 mx-auto" />
             </NavLink>
           </nav>
         )}

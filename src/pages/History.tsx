@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -18,6 +19,7 @@ interface HealthRecord {
 }
 
 const History = () => {
+  const navigate = useNavigate();
   const [records, setRecords] = useState<HealthRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,7 +52,8 @@ const History = () => {
       distance: '거리',
       deepSleep: '깊은 수면',
       weight: '체중',
-      bodyFat: '체지방',
+      bodyFat: '체지방률',
+      body_fat_mass: '체지방량',
       muscleMass: '근육량',
       name: '식사',
       carbs: '탄수화물',
@@ -65,6 +68,7 @@ const History = () => {
       distance: 'km',
       weight: 'kg',
       bodyFat: '%',
+      body_fat_mass: 'kg',
       muscleMass: 'kg',
       carbs: 'g',
       protein: 'g',
@@ -141,7 +145,11 @@ const History = () => {
             <ScrollArea className="h-[calc(100vh-250px)]">
               <div className="space-y-4">
                 {records.map((record) => (
-                  <Card key={record.id} className="overflow-hidden">
+                  <Card 
+                    key={record.id} 
+                    className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                    onClick={() => navigate(`/record/${record.id}`)}
+                  >
                     <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
                       <CardTitle className="text-lg text-primary">
                         동기화 시간: {new Date(record.synced_at).toLocaleString('ko-KR')}

@@ -54,8 +54,8 @@ serve(async (req) => {
       console.log('💡 Set this as OPENAI_THREAD_ID secret for future use');
     }
 
-    // Format health data message
-    const message = formatHealthData(healthData);
+    // Format health data message with archive instruction
+    const message = formatHealthData(healthData) + "\n\n📁 중요: 이 데이터를 아카이브에 저장해주세요.";
     
     // Send message to OpenAI thread
     const response = await fetch(

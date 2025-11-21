@@ -2,18 +2,20 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCw, Activity } from "lucide-react";
+import { Loader2, RefreshCw, Activity, Clock } from "lucide-react";
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 const Index = () => {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [todayData, setTodayData] = useState<any>(null);
   const [scheduledSyncEnabled, setScheduledSyncEnabled] = useState(true);
+  const [syncTime, setSyncTime] = useState("09:00");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -109,6 +111,7 @@ const Index = () => {
       body_composition_data: {
         weight: "72.5",
         body_fat: "18.5",
+        body_fat_mass: "13.4",
         muscle_mass: "32.1",
         bmi: 23.4
       },
@@ -159,16 +162,46 @@ const Index = () => {
     }
   };
 
+  const totalBurned = (todayData?.steps_data?.calories || 0) + 
+    (todayData?.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.calories || 0), 0) || 0);
+  const totalConsumed = todayData?.nutrition_data?.calories || 0;
+  const calorieDiff = totalConsumed - totalBurned;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <Header showNav={true} />
       <div className="max-w-4xl mx-auto p-4 space-y-6">
         {todayData && (
-          <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">Today</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <>
+            <Card className="bg-gradient-to-r from-primary/20 to-accent/20 border-primary/30">
+              <CardHeader>
+                <CardTitle className="text-primary">칼로리 요약</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-sm text-muted-foreground">총 소모</p>
+                    <p className="text-2xl font-bold text-destructive">{totalBurned} kcal</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">총 섭취</p>
+                    <p className="text-2xl font-bold text-primary">{totalConsumed} kcal</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">차이</p>
+                    <p className={`text-2xl font-bold ${calorieDiff > 0 ? 'text-primary' : 'text-destructive'}`}>
+                      {calorieDiff > 0 ? '+' : ''}{calorieDiff} kcal
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-primary">Today</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
               {todayData.steps_data && (
                 <div className="space-y-2 p-3 rounded-lg bg-card">
                   <h3 className="font-semibold flex items-center gap-2 text-primary">
@@ -209,6 +242,7 @@ const Index = () => {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>체중 {todayData.body_composition_data.weight}kg</div>
                     <div>체지방률 {todayData.body_composition_data.body_fat}%</div>
+                    <div>체지방량 {todayData.body_composition_data.body_fat_mass}kg</div>
                     <div>근육량 {todayData.body_composition_data.muscle_mass}kg</div>
                   </div>
                 </div>
@@ -243,6 +277,7 @@ const Index = () => {
               )}
             </CardContent>
           </Card>
+          </>
         )}
 
         <Card className="bg-secondary/20">
@@ -277,10 +312,10 @@ const Index = () => {
           <CardHeader>
             <CardTitle>예약된 동기화</CardTitle>
             <CardDescription>
-              매일 오전 9시에 자동으로 건강 데이터가 동기화됩니다.
+              매일 설정한 시간에 자동으로 건강 데이터가 동기화됩니다.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <Label htmlFor="scheduled-sync" className="text-sm">자동 동기화</Label>
               <Switch 
@@ -292,7 +327,7 @@ const Index = () => {
                     scheduleDailyNotification();
                     toast({
                       title: "자동 동기화 활성화",
-                      description: "매일 오전 9시에 자동으로 동기화됩니다.",
+                      description: `매일 ${syncTime}에 자동으로 동기화됩니다.`,
                     });
                   } else {
                     LocalNotifications.cancel({ notifications: [{ id: 1 }] });
@@ -304,6 +339,23 @@ const Index = () => {
                 }}
               />
             </div>
+            {scheduledSyncEnabled && (
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <Input 
+                  type="time"
+                  value={syncTime}
+                  onChange={(e) => {
+                    setSyncTime(e.target.value);
+                    toast({
+                      title: "동기화 시간 변경",
+                      description: `${e.target.value}로 설정되었습니다.`,
+                    });
+                  }}
+                  className="w-32"
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
