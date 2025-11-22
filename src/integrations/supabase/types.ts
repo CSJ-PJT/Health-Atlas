@@ -25,7 +25,7 @@ export type Database = {
           sleep_data: Json | null
           steps_data: Json | null
           synced_at: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           body_composition_data?: Json | null
@@ -37,7 +37,7 @@ export type Database = {
           sleep_data?: Json | null
           steps_data?: Json | null
           synced_at?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           body_composition_data?: Json | null
@@ -49,7 +49,7 @@ export type Database = {
           sleep_data?: Json | null
           steps_data?: Json | null
           synced_at?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
