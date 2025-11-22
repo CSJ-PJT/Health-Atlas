@@ -5,10 +5,6 @@ const config: CapacitorConfig = {
   appName: "RH Healthcare",
   webDir: "dist",
   bundledWebRuntime: false,
-
-  android: {
-    path: "android",
-  },
 };
 
 export default config;
