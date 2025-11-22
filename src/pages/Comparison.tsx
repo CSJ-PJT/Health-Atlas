@@ -30,6 +30,7 @@ const Comparison = () => {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"general" | "running">("general");
+  const [endDateOpen, setEndDateOpen] = useState(false);
 
   useEffect(() => {
     fetchRecords();
@@ -357,14 +358,19 @@ const Comparison = () => {
                 <Calendar
                   mode="single"
                   selected={startDate}
-                  onSelect={setStartDate}
+                  onSelect={(date) => {
+                    setStartDate(date);
+                    if (date) {
+                      setEndDateOpen(true);
+                    }
+                  }}
                   initialFocus
                   className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
             
-            <Popover>
+            <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
               <PopoverTrigger asChild>
                 <Button 
                   variant="outline" 
@@ -379,7 +385,10 @@ const Comparison = () => {
                 <Calendar
                   mode="single"
                   selected={endDate}
-                  onSelect={setEndDate}
+                  onSelect={(date) => {
+                    setEndDate(date);
+                    setEndDateOpen(false);
+                  }}
                   initialFocus
                   className="pointer-events-auto"
                   disabled={(date) => !startDate || date < startDate}
