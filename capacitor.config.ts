@@ -2,7 +2,7 @@ import { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.danchon.healthsync",
-  appName: "HealthSyncDaily",
+  appName: "RH Healthcare",
   webDir: "dist",
   bundledWebRuntime: false,
 

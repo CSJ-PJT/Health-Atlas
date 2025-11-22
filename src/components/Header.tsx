@@ -1,6 +1,6 @@
 import { Home, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 
 interface HeaderProps {
@@ -8,6 +8,7 @@ interface HeaderProps {
 }
 
 export const Header = ({ showNav = false }: HeaderProps) => {
+  const location = useLocation();
   const [nickname, setNickname] = useState("");
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -15,7 +16,7 @@ export const Header = ({ showNav = false }: HeaderProps) => {
   useEffect(() => {
     const storedNickname = localStorage.getItem("user_nickname") || "";
     setNickname(storedNickname);
-  }, []);
+  }, [location]); // Re-read nickname when location changes
 
   useEffect(() => {
     const handleScroll = () => {
@@ -77,8 +78,8 @@ export const Header = ({ showNav = false }: HeaderProps) => {
         
         {showNav && (
           <nav 
-            className={`flex gap-1 bg-primary/5 -mx-4 px-2 py-4 border-y border-primary/20 transition-all duration-300 ${
-              isNavVisible ? 'opacity-100 max-h-24' : 'opacity-0 max-h-0 overflow-hidden py-0'
+            className={`flex gap-1 bg-primary/5 -mx-4 px-2 border-y border-primary/20 transition-all duration-300 ease-in-out ${
+              isNavVisible ? 'opacity-100 max-h-24 py-4' : 'opacity-0 max-h-0 overflow-hidden py-0'
             }`}
           >
             <NavLink to="/" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-primary/30 transition-colors bg-primary/20 text-center flex items-center justify-center">
