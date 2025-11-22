@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Activity, Send, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
@@ -14,6 +16,7 @@ interface LogEntry {
 }
 
 const Monitor = () => {
+  const navigate = useNavigate();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [samsungHealthStatus, setSamsungHealthStatus] = useState<"connected" | "disconnected">("disconnected");
   const [gptStatus, setGptStatus] = useState<"connected" | "disconnected">("disconnected");
@@ -138,10 +141,20 @@ const Monitor = () => {
                   </Badge>
                 </div>
               </div>
-              {gptStatus === "connected" && (
+              {gptStatus === "connected" ? (
                 <div className="flex items-center justify-between pt-2 border-t border-border">
                   <span className="text-lg">남은 토큰 개수</span>
                   <span className="text-xl font-bold text-primary">{remainingTokens.toLocaleString()}</span>
+                </div>
+              ) : (
+                <div className="pt-2 border-t border-border">
+                  <Button 
+                    onClick={() => navigate("/setup")} 
+                    variant="outline" 
+                    className="w-full"
+                  >
+                    GPT 연동 설정하기
+                  </Button>
                 </div>
               )}
             </CardContent>

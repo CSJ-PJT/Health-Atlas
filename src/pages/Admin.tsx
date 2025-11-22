@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ScrollToTop } from "@/components/ScrollToTop";
 
 const Admin = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [nickname, setNickname] = useState("");
   
@@ -81,8 +83,8 @@ const Admin = () => {
       description: "닉네임이 성공적으로 변경되었습니다.",
     });
 
-    // Trigger a page reload to update the header
-    window.location.reload();
+    // Navigate to home to update the header
+    navigate("/");
   };
 
   return (
