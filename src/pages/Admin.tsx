@@ -92,27 +92,7 @@ const Admin = () => {
       <Header showNav={true} />
       <ScrollToTop />
       <div className="max-w-4xl mx-auto p-4 space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>닉네임 설정</CardTitle>
-            <CardDescription>사용자 닉네임을 변경합니다</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="nickname">닉네임</Label>
-              <Input
-                id="nickname"
-                type="text"
-                placeholder="닉네임을 입력하세요"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-              />
-            </div>
-            <Button onClick={handleNicknameChange} className="w-full">
-              닉네임 변경
-            </Button>
-          </CardContent>
-        </Card>
+        <h1 className="text-3xl font-bold">설정</h1>
 
         <Card>
           <CardHeader>
