@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +25,11 @@ const Index = () => {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [todayData, setTodayData] = useState<any>(null);
+  const [weekData, setWeekData] = useState<any>(null);
+  const [monthData, setMonthData] = useState<any>(null);
+  const [yearData, setYearData] = useState<any>(null);
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState("today");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -243,9 +248,16 @@ const Index = () => {
     try {
       const data = await collectSamsungHealthData();
       setTodayData(data);
+      // Mock data for week, month, year (실제로는 네이티브에서 기간별로 가져와야 함)
+      setWeekData(data);
+      setMonthData(data);
+      setYearData(data);
     } catch (error) {
       console.error("Failed to load today data:", error);
       setTodayData(null);
+      setWeekData(null);
+      setMonthData(null);
+      setYearData(null);
     }
   };
 
@@ -312,15 +324,156 @@ const Index = () => {
     }
   };
 
-  const totalBurned = todayData ? (
-    (todayData.steps_data?.calories || 0) + 
-    (todayData.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.calories || 0), 0) || 0)
-  ) : 0;
-  const totalConsumed = todayData?.nutrition_data?.calories || 0;
-  const calorieDiff = totalConsumed - totalBurned;
+  const calculateStats = (data: any) => {
+    const totalBurned = data ? (
+      (data.steps_data?.calories || 0) + 
+      (data.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.calories || 0), 0) || 0)
+    ) : 0;
+    const totalConsumed = data?.nutrition_data?.calories || 0;
+    const calorieDiff = totalConsumed - totalBurned;
+    const totalExerciseDistance = data?.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.distance || 0), 0) || 0;
+    const totalExerciseTime = data?.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.duration || 0), 0) || 0;
 
-  const totalExerciseDistance = todayData?.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.distance || 0), 0) || 0;
-  const totalExerciseTime = todayData?.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.duration || 0), 0) || 0;
+    return { totalBurned, totalConsumed, calorieDiff, totalExerciseDistance, totalExerciseTime };
+  };
+
+  const renderHealthCard = (data: any, period: string) => {
+    if (!data) return null;
+    
+    const { totalBurned, totalConsumed, calorieDiff, totalExerciseDistance, totalExerciseTime } = calculateStats(data);
+
+    return (
+      <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
+        <CardHeader>
+          <CardTitle className="text-primary">{period}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2 p-3 rounded-lg bg-card">
+            <h3 className="font-semibold flex items-center gap-2 text-primary">
+              <Activity className="h-4 w-4" />
+              운동 요약
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-center">
+              <div>
+                <p className="text-sm text-muted-foreground">총 거리</p>
+                <p className="text-2xl font-bold text-primary">{totalExerciseDistance.toFixed(1)} km</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">총 시간</p>
+                <p className="text-2xl font-bold text-primary">{totalExerciseTime} 분</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2 p-3 rounded-lg bg-card">
+            <h3 className="font-semibold flex items-center gap-2 text-primary">
+              <Activity className="h-4 w-4" />
+              칼로리 요약
+            </h3>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-sm text-muted-foreground">총 소모</p>
+                <p className="text-2xl font-bold text-primary">{totalBurned} kcal</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">총 섭취</p>
+                <p className="text-2xl font-bold text-primary">{totalConsumed} kcal</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">차이</p>
+                <p className={`text-2xl font-bold ${calorieDiff > 0 ? 'text-primary' : 'text-destructive'}`}>
+                  {calorieDiff > 0 ? '+' : ''}{calorieDiff} kcal
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {data.steps_data && (
+            <div className="space-y-2 p-3 rounded-lg bg-card">
+              <h3 className="font-semibold flex items-center gap-2 text-primary">
+                <Activity className="h-4 w-4" />
+                걸음수
+              </h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>걸음수 {data.steps_data.count}</div>
+                <div>거리 {data.steps_data.distance}</div>
+                <div>칼로리 {data.steps_data.calories}</div>
+                {data.steps_data.floors && <div>층수 {data.steps_data.floors}층</div>}
+              </div>
+            </div>
+          )}
+          
+          {data.exercise_data && Array.isArray(data.exercise_data) && (
+            <div className="space-y-2 p-3 rounded-lg bg-card">
+              <h3 className="font-semibold flex items-center gap-2 text-primary">
+                <Activity className="h-4 w-4" />
+                운동
+              </h3>
+              {data.exercise_data.map((ex: any, idx: number) => (
+                <div key={idx} className="grid grid-cols-2 gap-2 text-sm border-t border-border/50 pt-2 first:border-t-0 first:pt-0">
+                  <div className="col-span-2 font-semibold">{ex.type}</div>
+                  <div>시간 {ex.duration}분</div>
+                  <div>칼로리 {ex.calories}kcal</div>
+                  {ex.distance && <div className="col-span-2">거리 {ex.distance}km</div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {data.sleep_data && (
+            <div className="space-y-2 p-3 rounded-lg bg-card">
+              <h3 className="font-semibold flex items-center gap-2 text-primary">
+                <Clock className="h-4 w-4" />
+                수면
+              </h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>총 수면 {data.sleep_data.totalMinutes}분</div>
+                <div>수면 점수 {data.sleep_data.score || 'N/A'}</div>
+                {data.sleep_data.deepSleepMinutes && (
+                  <>
+                    <div>깊은 수면 {data.sleep_data.deepSleepMinutes}분</div>
+                    <div>얕은 수면 {data.sleep_data.lightSleepMinutes}분</div>
+                    <div>렘 수면 {data.sleep_data.remSleepMinutes}분</div>
+                    <div>깬 시간 {data.sleep_data.awakeMinutes}분</div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {data.body_composition_data && (
+            <div className="space-y-2 p-3 rounded-lg bg-card">
+              <h3 className="font-semibold flex items-center gap-2 text-primary">
+                <Activity className="h-4 w-4" />
+                신체 구성
+              </h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {data.body_composition_data.weight && <div>체중 {data.body_composition_data.weight}kg</div>}
+                {data.body_composition_data.bodyFat && <div>체지방률 {data.body_composition_data.bodyFat}%</div>}
+                {data.body_composition_data.muscleMass && <div>근육량 {data.body_composition_data.muscleMass}kg</div>}
+                {data.body_composition_data.bmi && <div>BMI {data.body_composition_data.bmi}</div>}
+              </div>
+            </div>
+          )}
+
+          {data.nutrition_data && (
+            <div className="space-y-2 p-3 rounded-lg bg-card">
+              <h3 className="font-semibold flex items-center gap-2 text-primary">
+                <Activity className="h-4 w-4" />
+                영양
+              </h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>칼로리 {data.nutrition_data.calories}kcal</div>
+                <div>탄수화물 {data.nutrition_data.carbs}g</div>
+                <div>단백질 {data.nutrition_data.protein}g</div>
+                <div>지방 {data.nutrition_data.fat}g</div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
@@ -386,129 +539,30 @@ const Index = () => {
             </CardContent>
           </Card>
         ) : (
-          <>
-            <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
-              <CardHeader>
-                <CardTitle className="text-primary">Today</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2 p-3 rounded-lg bg-card">
-                  <h3 className="font-semibold flex items-center gap-2 text-primary">
-                    <Activity className="h-4 w-4" />
-                    운동 요약
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4 text-center">
-                    <div>
-                      <p className="text-sm text-muted-foreground">총 거리</p>
-                      <p className="text-2xl font-bold text-primary">{totalExerciseDistance.toFixed(1)} km</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">총 시간</p>
-                      <p className="text-2xl font-bold text-primary">{totalExerciseTime} 분</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2 p-3 rounded-lg bg-card">
-                  <h3 className="font-semibold flex items-center gap-2 text-primary">
-                    <Activity className="h-4 w-4" />
-                    칼로리 요약
-                  </h3>
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <div>
-                      <p className="text-sm text-muted-foreground">총 소모</p>
-                      <p className="text-2xl font-bold text-primary">{totalBurned} kcal</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">총 섭취</p>
-                      <p className="text-2xl font-bold text-primary">{totalConsumed} kcal</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">차이</p>
-                      <p className={`text-2xl font-bold ${calorieDiff > 0 ? 'text-primary' : 'text-destructive'}`}>
-                        {calorieDiff > 0 ? '+' : ''}{calorieDiff} kcal
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-              {todayData.steps_data && (
-                <div className="space-y-2 p-3 rounded-lg bg-card">
-                  <h3 className="font-semibold flex items-center gap-2 text-primary">
-                    <Activity className="h-4 w-4" />
-                    걸음수
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>걸음수 {todayData.steps_data.count}</div>
-                    <div>거리 {todayData.steps_data.distance}</div>
-                    <div>칼로리 {todayData.steps_data.calories}</div>
-                    {todayData.steps_data.floors && <div>층수 {todayData.steps_data.floors}층</div>}
-                  </div>
-                </div>
-              )}
-              
-              {todayData.exercise_data && Array.isArray(todayData.exercise_data) && (
-                <div className="space-y-2 p-3 rounded-lg bg-card">
-                  <h3 className="font-semibold flex items-center gap-2 text-primary">
-                    <Activity className="h-4 w-4" />
-                    운동
-                  </h3>
-                  {todayData.exercise_data.map((ex: any, idx: number) => (
-                    <div key={idx} className="grid grid-cols-2 gap-2 text-sm border-t border-border/50 pt-2 first:border-t-0 first:pt-0">
-                      <div className="col-span-2 font-semibold">{ex.type}</div>
-                      <div>시간 {ex.duration}분</div>
-                      <div>칼로리 {ex.calories}kcal</div>
-                      {ex.distance && <div className="col-span-2">거리 {ex.distance}km</div>}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {todayData.body_composition_data && (
-                <div className="space-y-2 p-3 rounded-lg bg-card">
-                  <h3 className="font-semibold flex items-center gap-2 text-primary">
-                    <Activity className="h-4 w-4" />
-                    신체 구성
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>체중 {todayData.body_composition_data.weight}kg</div>
-                    <div>체지방률 {todayData.body_composition_data.body_fat}%</div>
-                    <div>체지방량 {todayData.body_composition_data.body_fat_mass}kg</div>
-                    <div>근육량 {todayData.body_composition_data.muscle_mass}kg</div>
-                  </div>
-                </div>
-              )}
-
-              {todayData.sleep_data && (
-                <div className="space-y-2 p-3 rounded-lg bg-card">
-                  <h3 className="font-semibold flex items-center gap-2 text-primary">
-                    <Activity className="h-4 w-4" />
-                    수면
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>수면 시간 {todayData.sleep_data.duration}</div>
-                    <div>깊은 수면 {todayData.sleep_data.deep_sleep}</div>
-                  </div>
-                </div>
-              )}
-
-              {todayData.nutrition_data && (
-                <div className="space-y-2 p-3 rounded-lg bg-card">
-                  <h3 className="font-semibold flex items-center gap-2 text-primary">
-                    <Activity className="h-4 w-4" />
-                    영양 섭취
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>섭취 칼로리 {todayData.nutrition_data.calories}kcal</div>
-                    <div>단백질 {todayData.nutrition_data.protein}</div>
-                    <div>탄수화물 {todayData.nutrition_data.carbs}</div>
-                    <div>지방 {todayData.nutrition_data.fat}</div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          </>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="today">Today</TabsTrigger>
+              <TabsTrigger value="week">This Week</TabsTrigger>
+              <TabsTrigger value="month">This Month</TabsTrigger>
+              <TabsTrigger value="year">This Year</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="today" className="mt-4">
+              {renderHealthCard(todayData, "Today")}
+            </TabsContent>
+            
+            <TabsContent value="week" className="mt-4">
+              {renderHealthCard(weekData, "This Week")}
+            </TabsContent>
+            
+            <TabsContent value="month" className="mt-4">
+              {renderHealthCard(monthData, "This Month")}
+            </TabsContent>
+            
+            <TabsContent value="year" className="mt-4">
+              {renderHealthCard(yearData, "This Year")}
+            </TabsContent>
+          </Tabs>
         )}
 
         <Card className="bg-secondary/20">

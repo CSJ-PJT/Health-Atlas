@@ -9,6 +9,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { userIdSchema, passwordSchema, nicknameSchema } from "@/lib/validationSchemas";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const AccountSettings = () => {
   const [userId, setUserId] = useState("");
@@ -20,12 +31,73 @@ const AccountSettings = () => {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
+  // Health Connect 권한 상태
+  const [permissions, setPermissions] = useState({
+    readSteps: false,
+    writeSteps: false,
+    readHeartRate: false,
+    writeHeartRate: false,
+    readSleep: false,
+    writeSleep: false,
+    readExercise: false,
+    writeExercise: false,
+    readNutrition: false,
+    writeNutrition: false,
+    readBodyComposition: false,
+    writeBodyComposition: false,
+    readBloodPressure: false,
+    writeBloodPressure: false,
+    backgroundRead: false,
+  });
+  const [showPrivacyDialog, setShowPrivacyDialog] = useState(false);
+  
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
     loadProfileData();
+    loadPermissions();
   }, []);
+
+  const loadPermissions = () => {
+    // Load saved permissions from localStorage
+    const savedPermissions = localStorage.getItem('health_connect_permissions');
+    if (savedPermissions) {
+      setPermissions(JSON.parse(savedPermissions));
+    }
+  };
+
+  const handlePermissionChange = (key: string, value: boolean) => {
+    const newPermissions = { ...permissions, [key]: value };
+    setPermissions(newPermissions);
+    localStorage.setItem('health_connect_permissions', JSON.stringify(newPermissions));
+    
+    toast({
+      title: "권한 설정 변경",
+      description: `${getPermissionLabel(key)} 권한이 ${value ? '허용' : '거부'}되었습니다.`,
+    });
+  };
+
+  const getPermissionLabel = (key: string) => {
+    const labels: { [key: string]: string } = {
+      readSteps: "걸음수 읽기",
+      writeSteps: "걸음수 쓰기",
+      readHeartRate: "심박수 읽기",
+      writeHeartRate: "심박수 쓰기",
+      readSleep: "수면 읽기",
+      writeSleep: "수면 쓰기",
+      readExercise: "운동 읽기",
+      writeExercise: "운동 쓰기",
+      readNutrition: "영양 읽기",
+      writeNutrition: "영양 쓰기",
+      readBodyComposition: "신체 구성 읽기",
+      writeBodyComposition: "신체 구성 쓰기",
+      readBloodPressure: "혈압 읽기",
+      writeBloodPressure: "혈압 쓰기",
+      backgroundRead: "백그라운드 데이터 읽기",
+    };
+    return labels[key] || key;
+  };
 
   const loadProfileData = async () => {
     try {
@@ -331,6 +403,94 @@ const AccountSettings = () => {
             </CardContent>
           </Card>
 
+          {/* Health Connect 권한 설정 */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Health Connect 권한 설정</CardTitle>
+              <CardDescription>
+                건강 데이터 접근 권한을 관리합니다
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="privacy-policy" className="flex-1">개인정보 처리방침</Label>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowPrivacyDialog(true)}
+                  >
+                    확인
+                  </Button>
+                </div>
+
+                <div className="border-t pt-4 space-y-3">
+                  <p className="text-sm font-semibold text-muted-foreground">읽기 권한</p>
+                  
+                  {[
+                    { key: 'readSteps', label: '걸음수 읽기' },
+                    { key: 'readHeartRate', label: '심박수 읽기' },
+                    { key: 'readSleep', label: '수면 데이터 읽기' },
+                    { key: 'readExercise', label: '운동 데이터 읽기' },
+                    { key: 'readNutrition', label: '영양 데이터 읽기' },
+                    { key: 'readBodyComposition', label: '신체 구성 읽기' },
+                    { key: 'readBloodPressure', label: '혈압 읽기' },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="flex items-center justify-between">
+                      <Label htmlFor={key} className="flex-1">{label}</Label>
+                      <Switch
+                        id={key}
+                        checked={permissions[key as keyof typeof permissions]}
+                        onCheckedChange={(checked) => handlePermissionChange(key, checked)}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t pt-4 space-y-3">
+                  <p className="text-sm font-semibold text-muted-foreground">쓰기 권한</p>
+                  
+                  {[
+                    { key: 'writeSteps', label: '걸음수 쓰기' },
+                    { key: 'writeHeartRate', label: '심박수 쓰기' },
+                    { key: 'writeSleep', label: '수면 데이터 쓰기' },
+                    { key: 'writeExercise', label: '운동 데이터 쓰기' },
+                    { key: 'writeNutrition', label: '영양 데이터 쓰기' },
+                    { key: 'writeBodyComposition', label: '신체 구성 쓰기' },
+                    { key: 'writeBloodPressure', label: '혈압 쓰기' },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="flex items-center justify-between">
+                      <Label htmlFor={key} className="flex-1">{label}</Label>
+                      <Switch
+                        id={key}
+                        checked={permissions[key as keyof typeof permissions]}
+                        onCheckedChange={(checked) => handlePermissionChange(key, checked)}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t pt-4 space-y-3">
+                  <p className="text-sm font-semibold text-muted-foreground">고급 권한</p>
+                  
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="backgroundRead" className="flex-1">백그라운드 데이터 읽기</Label>
+                    <Switch
+                      id="backgroundRead"
+                      checked={permissions.backgroundRead}
+                      onCheckedChange={(checked) => handlePermissionChange('backgroundRead', checked)}
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground mt-4">
+                  이 권한들은 Android Health Connect를 통해 건강 데이터에 접근하기 위해 필요합니다. 
+                  실제 네이티브 앱에서 권한을 요청하며, 이 설정은 사용자 선호도를 저장합니다.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           <Button 
             onClick={() => navigate("/admin")} 
             variant="outline"
@@ -340,6 +500,72 @@ const AccountSettings = () => {
           </Button>
         </div>
       </div>
+
+      {/* 개인정보처리방침 대화상자 */}
+      <AlertDialog open={showPrivacyDialog} onOpenChange={setShowPrivacyDialog}>
+        <AlertDialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>개인정보 처리방침</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4 text-left">
+              <div>
+                <h3 className="font-semibold text-foreground mb-2">1. 수집하는 개인 건강 정보</h3>
+                <p>본 앱은 다음의 건강 정보를 수집합니다:</p>
+                <ul className="list-disc list-inside ml-4 mt-2 space-y-1">
+                  <li>신체 활동 데이터 (걸음수, 운동 기록, 칼로리)</li>
+                  <li>수면 데이터 (수면 시간, 수면 단계)</li>
+                  <li>신체 측정 데이터 (체중, 체지방률, BMI)</li>
+                  <li>영양 데이터 (섭취 칼로리, 영양소)</li>
+                  <li>생체 신호 (심박수, 혈압)</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-foreground mb-2">2. 정보 수집 방법</h3>
+                <p>Health Connect를 통해 Samsung Health 및 기타 호환 앱으로부터 데이터를 수집합니다.</p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-foreground mb-2">3. 정보의 이용 목적</h3>
+                <ul className="list-disc list-inside ml-4 space-y-1">
+                  <li>개인 맞춤형 건강 분석 제공</li>
+                  <li>AI 기반 건강 관리 조언</li>
+                  <li>건강 데이터 시각화 및 추세 분석</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-foreground mb-2">4. 정보 보안</h3>
+                <p>모든 건강 데이터는 암호화되어 전송되며, 안전하게 저장됩니다. 사용자의 동의 없이 제3자에게 제공되지 않습니다.</p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-foreground mb-2">5. 권한 철회</h3>
+                <p>언제든지 앱 설정에서 권한을 철회할 수 있으며, 철회 시 해당 데이터의 수집이 중단됩니다.</p>
+              </div>
+
+              <div className="mt-4 p-3 bg-muted rounded-lg">
+                <p className="text-sm">
+                  자세한 내용은{" "}
+                  <a 
+                    href="https://developer.android.com/health-and-fitness/guides/health-connect" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-primary underline"
+                  >
+                    Android Health Connect 가이드
+                  </a>
+                  를 참조하세요.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowPrivacyDialog(false)}>
+              확인
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
