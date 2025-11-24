@@ -24,14 +24,10 @@ const Index = () => {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [todayData, setTodayData] = useState<any>(null);
-  const [scheduledSyncEnabled, setScheduledSyncEnabled] = useState(true);
-  const [syncTime, setSyncTime] = useState("09:00");
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    requestNotificationPermission();
-    scheduleDailyNotification();
     checkSamsungHealthPermission();
     
     const savedLastSync = localStorage.getItem('lastSync');
@@ -51,22 +47,40 @@ const Index = () => {
     }
   };
 
-  const handleGrantPermission = () => {
-    // In a real implementation, this would open Samsung Health settings
-    // For now, we'll simulate permission grant
-    localStorage.setItem("samsung_health_connected", "true");
-    setShowPermissionDialog(false);
+  const handleGrantPermission = async () => {
+    const isNative = (window as any).Capacitor?.isNativePlatform();
     
-    toast({
-      title: "권한 설정",
-      description: "Samsung Health 앱에서 'RH Healthcare' 앱에 건강 데이터 접근 권한을 허용해주세요.",
-      duration: 5000,
-    });
-    
-    // Reload data after permission granted
-    setTimeout(() => {
+    if (isNative) {
+      // Request Android permissions
+      try {
+        // In real implementation, use Capacitor plugins to request permissions
+        toast({
+          title: "권한 요청",
+          description: "앱 권한 설정에서 다음 권한을 허용해주세요: 건강 데이터, 피트니스, 신체 활동, 위치",
+          duration: 7000,
+        });
+        
+        // Simulate permission grant
+        setTimeout(() => {
+          localStorage.setItem("samsung_health_connected", "true");
+          localStorage.setItem("samsung_health_last_sync", new Date().toISOString());
+          setShowPermissionDialog(false);
+          loadTodayData();
+        }, 1000);
+      } catch (error) {
+        console.error("권한 요청 실패:", error);
+        toast({
+          title: "권한 요청 실패",
+          description: "설정 > 앱 권한에서 수동으로 권한을 허용해주세요.",
+          variant: "destructive",
+        });
+      }
+    } else {
+      localStorage.setItem("samsung_health_connected", "true");
+      localStorage.setItem("samsung_health_last_sync", new Date().toISOString());
+      setShowPermissionDialog(false);
       loadTodayData();
-    }, 1000);
+    }
   };
 
   const requestNotificationPermission = async () => {
@@ -270,14 +284,34 @@ const Index = () => {
       <AlertDialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Samsung Health 접근 권한 필요</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>건강 데이터를 수집하려면 Samsung Health 접근 권한이 필요합니다.</p>
-              <p className="text-sm">다음 단계를 따라주세요:</p>
-              <ol className="list-decimal list-inside space-y-1 text-sm">
-                <li>Samsung Health 앱을 실행하세요</li>
-                <li>설정 → 연결된 앱으로 이동하세요</li>
-                <li>'RH Healthcare' 앱을 찾아 권한을 허용하세요</li>
+            <AlertDialogTitle>Samsung Health 및 앱 권한 필요</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p className="font-semibold">건강 데이터를 수집하려면 다음 권한이 필요합니다:</p>
+              
+              <div className="space-y-2 text-sm">
+                <p className="font-medium">필수 권한:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>건강, 피트니스, 웰니스 (Samsung Health 데이터)</li>
+                  <li>신체 활동 (활동 추적)</li>
+                  <li>위치 (운동 경로 기록)</li>
+                </ul>
+              </div>
+              
+              <div className="space-y-2 text-sm">
+                <p className="font-medium">선택 권한:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>사진 및 동영상 (프로필 이미지)</li>
+                  <li>카메라 (프로필 사진 촬영)</li>
+                  <li>알림 (동기화 알림)</li>
+                </ul>
+              </div>
+              
+              <p className="text-sm font-medium mt-4">권한 설정 방법:</p>
+              <ol className="list-decimal list-inside space-y-1 text-sm ml-2">
+                <li>휴대폰 설정 &gt; 앱 &gt; RH Healthcare</li>
+                <li>권한 탭에서 필요한 권한 허용</li>
+                <li>Samsung Health 앱 &gt; 설정 &gt; 연결된 앱</li>
+                <li>'RH Healthcare' 찾아서 데이터 접근 허용</li>
               </ol>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -459,56 +493,6 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-muted/30">
-          <CardHeader>
-            <CardTitle>예약된 동기화</CardTitle>
-            <CardDescription>
-              매일 설정한 시간에 자동으로 건강 데이터가 동기화됩니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="scheduled-sync" className="text-sm">자동 동기화</Label>
-              <Switch 
-                id="scheduled-sync"
-                checked={scheduledSyncEnabled}
-                onCheckedChange={(checked) => {
-                  setScheduledSyncEnabled(checked);
-                  if (checked) {
-                    scheduleDailyNotification();
-                    toast({
-                      title: "자동 동기화 활성화",
-                      description: `매일 ${syncTime}에 자동으로 동기화됩니다.`,
-                    });
-                  } else {
-                    LocalNotifications.cancel({ notifications: [{ id: 1 }] });
-                    toast({
-                      title: "자동 동기화 비활성화",
-                      description: "예약된 동기화가 취소되었습니다.",
-                    });
-                  }
-                }}
-              />
-            </div>
-            {scheduledSyncEnabled && (
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <Input 
-                  type="time"
-                  value={syncTime}
-                  onChange={(e) => {
-                    setSyncTime(e.target.value);
-                    toast({
-                      title: "동기화 시간 변경",
-                      description: `${e.target.value}로 설정되었습니다.`,
-                    });
-                  }}
-                  className="w-32"
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
