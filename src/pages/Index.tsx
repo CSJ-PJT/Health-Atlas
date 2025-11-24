@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, RefreshCw, Activity, Clock } from "lucide-react";
 import { LocalNotifications } from '@capacitor/local-notifications';
 import HealthConnect, { HEALTH_CONNECT_PERMISSIONS } from "@/plugins/HealthConnectPlugin";
+import { readTodaySnapshot, ensurePermissions } from "@/lib/healthConnect";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Switch } from "@/components/ui/switch";
@@ -225,46 +226,33 @@ const Index = () => {
     await logTransferStatus("data_collection", "pending", "Health Connect 데이터 수집 시작");
 
     try {
-      // Check if Health Connect is available
-      const { available } = await HealthConnect.isAvailable();
-      if (!available) {
-        throw new Error("Health Connect가 이 기기에서 지원되지 않습니다.");
-      }
-
-      // Define time range for today
-      const endTime = new Date();
-      const startTime = new Date(endTime);
-      startTime.setHours(0, 0, 0, 0);
-
-      // Read health data from Health Connect
-      const { data: healthData } = await HealthConnect.readHealthData({
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-        dataTypes: ['steps', 'heart_rate', 'sleep', 'exercise', 'calories', 'distance'],
-      });
+      // Use new Kotlin native plugin
+      const snapshot = await readTodaySnapshot();
 
       await logTransferStatus("data_collection", "success", "Health Connect 데이터 수집 완료");
 
       return {
         steps_data: {
-          count: healthData.steps || 0,
-          distance: (healthData.distance || 0).toFixed(2),
-          calories: healthData.calories || 0,
+          count: snapshot.steps || 0,
+          distance: (snapshot.distance || 0).toFixed(2),
+          calories: snapshot.calories || 0,
         },
-        exercise_data: [],
-        sleep_data: healthData.sleepHours ? {
-          totalMinutes: Math.round(healthData.sleepHours * 60),
+        exercise_data: snapshot.exercises ? [{
+          type: "운동",
+          duration: snapshot.exercises,
+          calories: 0,
+        }] : [],
+        sleep_data: snapshot.sleep ? {
+          totalMinutes: Math.round(snapshot.sleep * 60),
         } : null,
         body_composition_data: {
-          weight: healthData.weight,
-          bodyFat: healthData.bodyFat,
+          weight: snapshot.bodyweight,
+          bodyFat: snapshot.bodyfat,
         },
         nutrition_data: {
-          calories: healthData.calories || 0,
-          protein: healthData.protein,
-          carbs: healthData.carbs,
-          fat: healthData.fat,
+          calories: snapshot.calories || 0,
         },
+        heart_rate: snapshot.heartRate || 0,
       };
     } catch (error) {
       await logTransferStatus("data_collection", "error", `데이터 수집 실패: ${error}`);
@@ -465,6 +453,18 @@ const Index = () => {
                     <div>깬 시간 {data.sleep_data.awakeMinutes}분</div>
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {data.heart_rate && (
+            <div className="space-y-2 p-3 rounded-lg bg-card">
+              <h3 className="font-semibold flex items-center gap-2 text-primary">
+                <Activity className="h-4 w-4" />
+                심박수
+              </h3>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-primary">{data.heart_rate} bpm</p>
               </div>
             </div>
           )}
