@@ -70,7 +70,7 @@ const Setup = () => {
       description: "앱을 사용할 준비가 완료되었습니다.",
     });
 
-    navigate("/");
+    window.location.href = "/";
   };
 
   return (
