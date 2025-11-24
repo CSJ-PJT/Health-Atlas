@@ -70,78 +70,129 @@ const Index = () => {
     }
   };
 
-  // Mock function to collect Samsung Health data
-  // In a real implementation, this would use the Samsung Health SDK
+  // Samsung Health integration function
+  // This uses Capacitor to access native Samsung Health data
   const collectSamsungHealthData = async () => {
     console.log("Collecting Samsung Health data...");
     
-    // This is mock data. In a real app, you would:
-    // 1. Request permissions from Samsung Health
-    // 2. Use the Samsung Health SDK to fetch actual data
-    // 3. Process and format the data
-    
-    // Note: Only returning data that actually exists in Samsung Health
-    // If user hasn't done running, don't show running data
-    
-    return {
-      steps_data: {
-        count: 8234,
-        distance: "6.2 km",
-        calories: 312
-      },
-      exercise_data: [
-        {
-          type: "걷기",
-          duration: "45",
-          calories: 234,
-          distance: 3.2
-        },
-        {
-          type: "자전거",
-          duration: "30",
-          calories: 180,
-          distance: 5.5
-        }
-      ],
-      sleep_data: {
-        duration: "7시간 30분",
-        deep_sleep: "2시간 15분",
-        light_sleep: "4시간 45분",
-        rem_sleep: "30분"
-      },
-      body_composition_data: {
-        weight: "72.5",
-        body_fat: "18.5",
-        body_fat_mass: "13.4",
-        muscle_mass: "32.1",
-        bmi: 23.4
-      },
-      nutrition_data: {
-        calories: 1850,
-        protein: "85g",
-        carbs: "220g",
-        fat: "65g"
+    try {
+      // Check if running in native environment
+      const isNative = (window as any).Capacitor?.isNativePlatform();
+      
+      if (!isNative) {
+        throw new Error("삼성헬스는 네이티브 앱 환경에서만 사용 가능합니다.");
       }
-      // running_data is not included because user hasn't done any running
-    };
+
+      // Request Samsung Health permissions
+      const hasPermission = await requestSamsungHealthPermissions();
+      if (!hasPermission) {
+        throw new Error("삼성헬스 접근 권한이 필요합니다.");
+      }
+
+      // Fetch data from Samsung Health
+      const healthData = await fetchSamsungHealthData();
+      
+      // Log successful connection
+      await logTransferStatus("삼성헬스 연동", "success", "삼성헬스 데이터를 성공적으로 가져왔습니다.");
+      
+      return healthData;
+    } catch (error) {
+      console.error("Samsung Health error:", error);
+      
+      // Log failed connection
+      await logTransferStatus("삼성헬스 연동", "error", error instanceof Error ? error.message : "삼성헬스 연동 실패");
+      
+      throw error;
+    }
+  };
+
+  const requestSamsungHealthPermissions = async (): Promise<boolean> => {
+    try {
+      // This would call native Samsung Health SDK
+      // For now, check if already connected
+      const connected = localStorage.getItem("samsung_health_connected") === "true";
+      return connected;
+    } catch (error) {
+      console.error("Permission request failed:", error);
+      return false;
+    }
+  };
+
+  const fetchSamsungHealthData = async () => {
+    // This function should call native Samsung Health SDK
+    // Implementation will be done in Android native code
+    // For now, return null to indicate no data
+    return null;
+  };
+
+  const logTransferStatus = async (logType: string, status: "success" | "error" | "pending", message: string) => {
+    try {
+      const profileId = localStorage.getItem("profile_id");
+      if (!profileId) return;
+
+      await supabase.from('transfer_logs').insert({
+        profile_id: profileId,
+        log_type: logType,
+        status,
+        message,
+      });
+    } catch (error) {
+      console.error("Failed to log transfer status:", error);
+    }
   };
 
   const loadTodayData = async () => {
-    const data = await collectSamsungHealthData();
-    setTodayData(data);
+    try {
+      const data = await collectSamsungHealthData();
+      setTodayData(data);
+    } catch (error) {
+      console.error("Failed to load today data:", error);
+      setTodayData(null);
+    }
   };
 
   const syncHealthData = async () => {
     setIsSyncing(true);
     
     try {
+      // First, collect Samsung Health data
       const healthData = await collectSamsungHealthData();
       
+      if (!healthData) {
+        throw new Error("삼성헬스 데이터를 가져올 수 없습니다. 삼성헬스 연동을 먼저 완료해주세요.");
+      }
+
+      // Check GPT connection before sending
+      const profileId = localStorage.getItem("profile_id");
+      if (!profileId) {
+        throw new Error("사용자 프로필을 찾을 수 없습니다. Setup을 다시 진행해주세요.");
+      }
+
+      const { data: credentials } = await supabase
+        .from("openai_credentials")
+        .select("*")
+        .eq("profile_id", profileId)
+        .maybeSingle();
+
+      if (!credentials || !credentials.api_key) {
+        throw new Error("GPT 연동이 필요합니다. Setup 메뉴에서 OpenAI API Key를 설정해주세요.");
+      }
+
+      // Log GPT connection attempt
+      await logTransferStatus("GPT 연동", "pending", "GPT로 데이터 전송 시도 중...");
+      
+      // Send data to GPT
       const { data, error } = await supabase.functions.invoke('send-health-data', {
         body: { healthData }
       });
 
-      if (error) throw error;
+      if (error) {
+        await logTransferStatus("GPT 연동", "error", `GPT 전송 실패: ${error.message}`);
+        throw error;
+      }
+
+      // Log successful GPT transfer
+      await logTransferStatus("GPT 연동", "success", "건강 데이터가 GPT로 성공적으로 전송되었습니다.");
 
       const now = new Date().toLocaleString('ko-KR');
       setLastSync(now);
@@ -149,7 +200,7 @@ const Index = () => {
 
       toast({
         title: "동기화 완료",
-        description: "건강 데이터가 ChatGPT로 성공적으로 전송되었습니다.",
+        description: "건강 데이터가 GPT로 성공적으로 전송되었습니다.",
       });
     } catch (error) {
       console.error('Sync error:', error);
@@ -163,8 +214,10 @@ const Index = () => {
     }
   };
 
-  const totalBurned = (todayData?.steps_data?.calories || 0) + 
-    (todayData?.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.calories || 0), 0) || 0);
+  const totalBurned = todayData ? (
+    (todayData.steps_data?.calories || 0) + 
+    (todayData.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.calories || 0), 0) || 0)
+  ) : 0;
   const totalConsumed = todayData?.nutrition_data?.calories || 0;
   const calorieDiff = totalConsumed - totalBurned;
 
@@ -176,7 +229,22 @@ const Index = () => {
       <Header showNav={true} />
       <ScrollToTop />
       <div className="max-w-4xl mx-auto p-4 space-y-6">
-        {todayData && (
+        {!todayData ? (
+          <Card className="bg-accent/10">
+            <CardHeader>
+              <CardTitle>Samsung Health 연동 필요</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground">
+                오늘의 건강 데이터를 보려면 Samsung Health 연동이 필요합니다.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                이 기능은 Android 네이티브 앱에서만 사용 가능합니다. 
+                앱을 다운로드하여 Samsung Health와 연동해주세요.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
           <>
             <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
               <CardHeader>

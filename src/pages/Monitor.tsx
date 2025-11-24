@@ -225,7 +225,7 @@ const Monitor = () => {
               <div className="flex items-center gap-4">
               {getStatusIcon(samsungHealthStatus)}
               <div className="flex-1">
-                <h3 className="font-semibold">삼성헬스</h3>
+                <h3 className="font-semibold">Samsung Health</h3>
                 <p className="text-sm text-muted-foreground">
                   {samsungHealthStatus === "checking" && "연결 상태 확인 중..."}
                   {samsungHealthStatus === "connected" && "정상 연결됨"}
@@ -250,7 +250,7 @@ const Monitor = () => {
               <div className="flex items-center gap-4">
               {getStatusIcon(gptStatus)}
               <div className="flex-1">
-                <h3 className="font-semibold">GPT 연동</h3>
+                <h3 className="font-semibold">GPT</h3>
                 <p className="text-sm text-muted-foreground">
                   {gptStatus === "checking" && "연결 상태 확인 중..."}
                   {gptStatus === "connected" && `정상 연결됨 (남은 토큰: ${remainingTokens.toLocaleString()})`}
@@ -320,7 +320,11 @@ const Monitor = () => {
             ) : (
               <div className="space-y-4">
                 {logs.map((log) => (
-                  <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border">
+                  <div 
+                    key={log.id} 
+                    className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => navigate(`/monitor/log/${log.id}`)}
+                  >
                     {getLogStatusIcon(log.status)}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{log.log_type}</p>
@@ -339,14 +343,15 @@ const Monitor = () => {
         <Card className="bg-accent/10">
           <CardContent className="pt-6">
             <div className="space-y-2 text-sm">
-              <p className="font-semibold">📱 삼성헬스 연동 안내</p>
+              <p className="font-semibold">📱 Samsung Health 연동 안내</p>
               <p className="text-muted-foreground">
-                앱이 네이티브 환경에서 실행될 때 삼성헬스와 자동으로 연동됩니다. 
+                앱이 네이티브 환경(Android)에서 실행될 때 삼성헬스와 연동됩니다. 
                 웹 환경에서는 삼성헬스 접근이 제한됩니다.
               </p>
               <p className="font-semibold mt-4">💡 GPT 연동 안내</p>
               <p className="text-muted-foreground">
-                설정 메뉴에서 OpenAI API Key와 Project ID를 입력하여 GPT를 연동할 수 있습니다.
+                Setup 메뉴에서 OpenAI API Key와 Project ID를 입력하여 GPT를 연동할 수 있습니다.
+                삼성헬스 연동이 완료되어야 GPT로 데이터를 전송할 수 있습니다.
               </p>
             </div>
           </CardContent>
