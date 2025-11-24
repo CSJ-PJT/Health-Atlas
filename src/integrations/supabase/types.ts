@@ -96,6 +96,9 @@ export type Database = {
           created_at: string | null
           id: string
           nickname: string
+          samsung_health_connected_at: string | null
+          samsung_health_device_id: string | null
+          samsung_health_last_sync_at: string | null
           updated_at: string | null
           user_id: string
           user_id_changed: boolean | null
@@ -104,6 +107,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           nickname: string
+          samsung_health_connected_at?: string | null
+          samsung_health_device_id?: string | null
+          samsung_health_last_sync_at?: string | null
           updated_at?: string | null
           user_id: string
           user_id_changed?: boolean | null
@@ -112,6 +118,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           nickname?: string
+          samsung_health_connected_at?: string | null
+          samsung_health_device_id?: string | null
+          samsung_health_last_sync_at?: string | null
           updated_at?: string | null
           user_id?: string
           user_id_changed?: boolean | null
