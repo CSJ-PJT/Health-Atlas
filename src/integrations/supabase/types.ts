@@ -53,6 +53,106 @@ export type Database = {
         }
         Relationships: []
       }
+      openai_credentials: {
+        Row: {
+          api_key: string
+          created_at: string | null
+          id: string
+          profile_id: string
+          project_id: string
+          thread_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          api_key: string
+          created_at?: string | null
+          id?: string
+          profile_id: string
+          project_id: string
+          thread_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: string
+          created_at?: string | null
+          id?: string
+          profile_id?: string
+          project_id?: string
+          thread_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openai_credentials_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          id: string
+          nickname: string
+          updated_at: string | null
+          user_id: string
+          user_id_changed: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          nickname: string
+          updated_at?: string | null
+          user_id: string
+          user_id_changed?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          nickname?: string
+          updated_at?: string | null
+          user_id?: string
+          user_id_changed?: boolean | null
+        }
+        Relationships: []
+      }
+      transfer_logs: {
+        Row: {
+          created_at: string | null
+          id: string
+          log_type: string
+          message: string
+          profile_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          log_type: string
+          message: string
+          profile_id: string
+          status: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          log_type?: string
+          message?: string
+          profile_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfer_logs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
