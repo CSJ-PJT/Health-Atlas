@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { apiKeySchema, projectIdSchema, nicknameSchema } from "@/lib/validationSchemas";
 
 const Setup = () => {
   const [apiKey, setApiKey] = useState("");
@@ -31,7 +33,7 @@ const Setup = () => {
     }
   }, [navigate]);
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!apiKey || !projectId) {
       toast({
         title: "입력 오류",
@@ -41,10 +43,23 @@ const Setup = () => {
       return;
     }
 
-    localStorage.setItem("openai_api_key", apiKey);
-    localStorage.setItem("openai_project_id", projectId);
-    localStorage.setItem("openai_enabled", "true");
-    setStep(2);
+    try {
+      const validatedApiKey = apiKeySchema.parse(apiKey);
+      const validatedProjectId = projectIdSchema.parse(projectId);
+
+      localStorage.setItem("openai_api_key", validatedApiKey);
+      localStorage.setItem("openai_project_id", validatedProjectId);
+      localStorage.setItem("openai_enabled", "true");
+      setStep(2);
+    } catch (error: any) {
+      if (error.errors) {
+        toast({
+          title: "입력 오류",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   const handleSkip = () => {
@@ -52,7 +67,7 @@ const Setup = () => {
     setStep(2);
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (!nickname) {
       toast({
         title: "입력 오류",
@@ -62,15 +77,71 @@ const Setup = () => {
       return;
     }
 
-    localStorage.setItem("user_nickname", nickname);
-    localStorage.setItem("setup_completed", "true");
+    try {
+      const validatedNickname = nicknameSchema.parse(nickname);
 
-    toast({
-      title: "설정 완료",
-      description: "앱을 사용할 준비가 완료되었습니다.",
-    });
+      // 자동으로 사용자 ID 생성 (uuid 기반)
+      const generatedUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    window.location.href = "/";
+      // Supabase에 프로필 저장
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .insert({
+          user_id: generatedUserId,
+          nickname: validatedNickname,
+          user_id_changed: false
+        })
+        .select()
+        .single();
+
+      if (profileError) throw profileError;
+
+      // OpenAI 설정이 있으면 저장
+      const openaiEnabled = localStorage.getItem("openai_enabled");
+      if (openaiEnabled === "true" && profileData) {
+        const apiKey = localStorage.getItem("openai_api_key");
+        const projectId = localStorage.getItem("openai_project_id");
+
+        if (apiKey && projectId) {
+          const { error: credError } = await supabase
+            .from("openai_credentials")
+            .insert({
+              profile_id: profileData.id,
+              api_key: apiKey,
+              project_id: projectId
+            });
+
+          if (credError) throw credError;
+        }
+      }
+
+      localStorage.setItem("user_id", generatedUserId);
+      localStorage.setItem("user_nickname", validatedNickname);
+      localStorage.setItem("profile_id", profileData.id);
+      localStorage.setItem("setup_completed", "true");
+
+      toast({
+        title: "설정 완료",
+        description: "앱을 사용할 준비가 완료되었습니다.",
+      });
+
+      window.location.href = "/";
+    } catch (error: any) {
+      console.error("Setup error:", error);
+      if (error.errors) {
+        toast({
+          title: "입력 오류",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "오류",
+          description: "설정 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   return (

@@ -329,6 +329,15 @@ const Admin = () => {
             </Button>
           </CardContent>
         </Card>
+
+        <div className="flex flex-col gap-4 items-center">
+          <Button onClick={() => navigate("/account-settings")} className="w-full max-w-md">
+            사용자 계정 설정
+          </Button>
+          <Button onClick={() => navigate("/")} variant="outline" className="w-full max-w-md">
+            홈으로 돌아가기
+          </Button>
+        </div>
       </div>
     </div>
   );
