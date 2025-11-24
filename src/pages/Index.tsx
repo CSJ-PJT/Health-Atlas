@@ -10,6 +10,15 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const Index = () => {
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -17,11 +26,13 @@ const Index = () => {
   const [todayData, setTodayData] = useState<any>(null);
   const [scheduledSyncEnabled, setScheduledSyncEnabled] = useState(true);
   const [syncTime, setSyncTime] = useState("09:00");
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     requestNotificationPermission();
     scheduleDailyNotification();
+    checkSamsungHealthPermission();
     
     const savedLastSync = localStorage.getItem('lastSync');
     if (savedLastSync) {
@@ -30,6 +41,33 @@ const Index = () => {
 
     loadTodayData();
   }, []);
+
+  const checkSamsungHealthPermission = async () => {
+    const hasPermission = localStorage.getItem("samsung_health_connected") === "true";
+    const isNative = (window as any).Capacitor?.isNativePlatform();
+    
+    if (isNative && !hasPermission) {
+      setShowPermissionDialog(true);
+    }
+  };
+
+  const handleGrantPermission = () => {
+    // In a real implementation, this would open Samsung Health settings
+    // For now, we'll simulate permission grant
+    localStorage.setItem("samsung_health_connected", "true");
+    setShowPermissionDialog(false);
+    
+    toast({
+      title: "권한 설정",
+      description: "Samsung Health 앱에서 'RH Healthcare' 앱에 건강 데이터 접근 권한을 허용해주세요.",
+      duration: 5000,
+    });
+    
+    // Reload data after permission granted
+    setTimeout(() => {
+      loadTodayData();
+    }, 1000);
+  };
 
   const requestNotificationPermission = async () => {
     try {
@@ -228,6 +266,29 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <Header showNav={true} />
       <ScrollToTop />
+      
+      <AlertDialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Samsung Health 접근 권한 필요</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>건강 데이터를 수집하려면 Samsung Health 접근 권한이 필요합니다.</p>
+              <p className="text-sm">다음 단계를 따라주세요:</p>
+              <ol className="list-decimal list-inside space-y-1 text-sm">
+                <li>Samsung Health 앱을 실행하세요</li>
+                <li>설정 → 연결된 앱으로 이동하세요</li>
+                <li>'RH Healthcare' 앱을 찾아 권한을 허용하세요</li>
+              </ol>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleGrantPermission}>
+              확인
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="max-w-4xl mx-auto p-4 space-y-6">
         {!todayData ? (
           <Card className="bg-accent/10">
