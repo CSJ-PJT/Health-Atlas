@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, RefreshCw, Activity, Clock } from "lucide-react";
 import { LocalNotifications } from '@capacitor/local-notifications';
+import HealthConnect, { HEALTH_CONNECT_PERMISSIONS } from "@/plugins/HealthConnectPlugin";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Switch } from "@/components/ui/switch";
@@ -69,62 +70,81 @@ const Index = () => {
   };
 
   const handleGrantPermission = async () => {
-    const isNative = (window as any).Capacitor?.isNativePlatform();
-    
-    if (!isNative) {
-      toast({
-        title: "네이티브 앱 필요",
-        description: "Samsung Health 연동은 Android 네이티브 앱에서만 가능합니다.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
+      const profileId = localStorage.getItem("profile_id");
+      if (!profileId) {
+        toast({
+          title: "프로필 정보 없음",
+          description: "먼저 계정 설정을 완료해주세요.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if Health Connect is available
+      const { available } = await HealthConnect.isAvailable();
+      if (!available) {
+        toast({
+          title: "Health Connect 미지원",
+          description: "이 기기는 Health Connect를 지원하지 않습니다.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Request all Health Connect permissions
+      const permissions = Object.values(HEALTH_CONNECT_PERMISSIONS);
+      const { granted } = await HealthConnect.requestPermissions({ permissions });
+
+      if (!granted) {
+        toast({
+          title: "권한 거부됨",
+          description: "Health Connect 권한이 필요합니다.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Generate a unique device ID
+      const deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Update profile with Samsung Health connection info
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          samsung_health_device_id: deviceId,
+          samsung_health_connected_at: new Date().toISOString(),
+        })
+        .eq("id", profileId);
+
+      if (updateError) throw updateError;
+
+      // Save to localStorage
+      localStorage.setItem("samsung_health_device_id", deviceId);
+      localStorage.setItem("samsung_health_connected", "true");
+
+      // Log successful connection
+      await logTransferStatus("Samsung Health", "success", "Health Connect가 성공적으로 연동되었습니다.");
+
       toast({
-        title: "Health Connect 연동",
-        description: "Health Connect 앱으로 이동하여 권한을 허용해주세요...",
-        duration: 5000,
+        title: "연동 완료",
+        description: "Health Connect와 성공적으로 연동되었습니다.",
       });
 
-      // Generate device ID
-      const deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-      
-      // Save to database
-      const profileId = localStorage.getItem("profile_id");
-      if (profileId) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            samsung_health_device_id: deviceId,
-            samsung_health_connected_at: new Date().toISOString(),
-          })
-          .eq('id', profileId);
+      setShowPermissionDialog(false);
 
-        if (error) {
-          throw error;
-        }
+      // Request notification permissions
+      await requestNotificationPermission();
+      await scheduleDailyNotification();
 
-        // Log successful connection
-        await logTransferStatus("Samsung Health", "success", "Samsung Health가 성공적으로 연동되었습니다.");
-        
-        toast({
-          title: "연동 완료",
-          description: "Samsung Health가 성공적으로 연동되었습니다. 이제 데이터를 동기화할 수 있습니다.",
-        });
-        
-        setShowPermissionDialog(false);
-        loadTodayData();
-      }
+      // Load initial data
+      await loadTodayData();
     } catch (error) {
-      console.error("연동 실패:", error);
-      
-      // Log failed connection
-      await logTransferStatus("Samsung Health", "error", error instanceof Error ? error.message : "Samsung Health 연동 실패");
-      
+      console.error("Error granting Health Connect permission:", error);
+      await logTransferStatus("Samsung Health", "error", error instanceof Error ? error.message : "Health Connect 연동 실패");
       toast({
-        title: "연동 실패",
-        description: error instanceof Error ? error.message : "연동에 실패했습니다. 다시 시도해주세요.",
+        title: "권한 설정 실패",
+        description: "권한 설정 중 오류가 발생했습니다.",
         variant: "destructive",
       });
     }
@@ -185,61 +205,69 @@ const Index = () => {
     }
   };
 
-  // Samsung Health integration function
-  // Note: This requires native Android implementation with Health Connect SDK
   const collectSamsungHealthData = async () => {
-    console.log("Collecting Samsung Health data...");
-    
+    const profileId = localStorage.getItem("profile_id");
+    if (!profileId) {
+      throw new Error("프로필 정보를 찾을 수 없습니다.");
+    }
+
+    // Check if Health Connect is connected
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("samsung_health_device_id")
+      .eq("id", profileId)
+      .single();
+
+    if (!profile?.samsung_health_device_id) {
+      throw new Error("Health Connect가 연결되지 않았습니다.");
+    }
+
+    await logTransferStatus("data_collection", "pending", "Health Connect 데이터 수집 시작");
+
     try {
-      const isNative = (window as any).Capacitor?.isNativePlatform();
-      
-      if (!isNative) {
-        throw new Error("Samsung Health는 네이티브 앱 환경에서만 사용 가능합니다.");
+      // Check if Health Connect is available
+      const { available } = await HealthConnect.isAvailable();
+      if (!available) {
+        throw new Error("Health Connect가 이 기기에서 지원되지 않습니다.");
       }
 
-      // Check if connected
-      const profileId = localStorage.getItem("profile_id");
-      if (!profileId) {
-        throw new Error("프로필을 찾을 수 없습니다.");
-      }
+      // Define time range for today
+      const endTime = new Date();
+      const startTime = new Date(endTime);
+      startTime.setHours(0, 0, 0, 0);
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('samsung_health_device_id, samsung_health_connected_at')
-        .eq('id', profileId)
-        .maybeSingle();
+      // Read health data from Health Connect
+      const { data: healthData } = await HealthConnect.readHealthData({
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        dataTypes: ['steps', 'heart_rate', 'sleep', 'exercise', 'calories', 'distance'],
+      });
 
-      if (!profile?.samsung_health_device_id) {
-        throw new Error("Samsung Health가 연동되지 않았습니다. 연동하기를 먼저 진행해주세요.");
-      }
+      await logTransferStatus("data_collection", "success", "Health Connect 데이터 수집 완료");
 
-      // TODO: Implement actual Health Connect data fetching
-      // This requires native Android code implementation
-      // For now, return mock data structure
-      const healthData = {
-        steps_data: null,
+      return {
+        steps_data: {
+          count: healthData.steps || 0,
+          distance: (healthData.distance || 0).toFixed(2),
+          calories: healthData.calories || 0,
+        },
         exercise_data: [],
-        sleep_data: null,
-        body_composition_data: null,
-        nutrition_data: null,
+        sleep_data: healthData.sleepHours ? {
+          totalMinutes: Math.round(healthData.sleepHours * 60),
+        } : null,
+        body_composition_data: {
+          weight: healthData.weight,
+          bodyFat: healthData.bodyFat,
+        },
+        nutrition_data: {
+          calories: healthData.calories || 0,
+          protein: healthData.protein,
+          carbs: healthData.carbs,
+          fat: healthData.fat,
+        },
       };
-
-      // Update last sync time
-      await supabase
-        .from('profiles')
-        .update({ samsung_health_last_sync_at: new Date().toISOString() })
-        .eq('id', profileId);
-
-      // Log successful data collection
-      await logTransferStatus("Samsung Health", "success", "Samsung Health 연동 확인 완료. 네이티브 구현이 필요합니다.");
-      
-      return healthData;
     } catch (error) {
-      console.error("Samsung Health error:", error);
-      
-      // Log failed connection
-      await logTransferStatus("Samsung Health", "error", error instanceof Error ? error.message : "Samsung Health 연동 실패");
-      
+      await logTransferStatus("data_collection", "error", `데이터 수집 실패: ${error}`);
       throw error;
     }
   };
