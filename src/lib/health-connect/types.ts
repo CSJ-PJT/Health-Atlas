@@ -106,6 +106,7 @@ export interface TodaySnapshot {
   heartRate: HeartRateSample[];
   exerciseSessions: ExerciseSessionWithCalories[];
   sleepSessions: SleepSessionWithStages[];
+  sleepStageSummary: SleepStageSummary;
   weight: WeightEntry[];
   bodyFat: BodyFatEntry[];
   vo2max: Vo2MaxEntry[];

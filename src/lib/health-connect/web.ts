@@ -43,6 +43,12 @@ export class HealthConnectWeb extends WebPlugin implements HealthConnectPlugin {
       heartRate: [],
       exerciseSessions: [],
       sleepSessions: [],
+      sleepStageSummary: {
+        deepMinutes: 0,
+        lightMinutes: 0,
+        remMinutes: 0,
+        awakeMinutes: 0,
+      },
       weight: [],
       bodyFat: [],
       vo2max: [],
