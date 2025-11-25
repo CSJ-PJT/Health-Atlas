@@ -40,11 +40,18 @@ export interface ExerciseSessionWithCalories {
   title: string | null;
   startTime: string; // ISO 8601 format
   endTime: string; // ISO 8601 format
-  exerciseType: number;
+  exerciseType: string;
   caloriesKcal: number;
 }
 
 // ============= Sleep Session Types =============
+
+export interface SleepStageSummary {
+  deepMinutes: number;
+  lightMinutes: number;
+  remMinutes: number;
+  awakeMinutes: number;
+}
 
 export interface SleepSession {
   title: string | null;
@@ -98,6 +105,7 @@ export interface TodaySnapshot {
   heartRate: HeartRateSample[];
   exerciseSessions: ExerciseSessionWithCalories[];
   sleepSessions: SleepSession[];
+  sleepStageSummary: SleepStageSummary;
   weight: WeightEntry[];
   bodyFat: BodyFatEntry[];
   vo2max: Vo2MaxEntry[];

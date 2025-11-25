@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { CheckCircle2, XCircle, RefreshCw, ArrowUpDown, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, ArrowUpDown, Clock, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -34,13 +34,24 @@ const Monitor = () => {
   const [syncTime, setSyncTime] = useState("09:00");
   const [samsungHealthLastSync, setSamsungHealthLastSync] = useState<string>("");
   const [gptLastSync, setGptLastSync] = useState<string>("");
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<string | null>(null);
   const logsPerPage = 5;
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    checkConnections();
+    const initConnections = async () => {
+      await checkConnections();
+    };
+    initConnections();
     fetchRecentLogs(currentPage);
+    
+    // Load last sync time
+    const savedLastSync = localStorage.getItem('lastSync');
+    if (savedLastSync) {
+      setLastSync(savedLastSync);
+    }
     
     // Set default date range (last 7 days)
     const today = new Date();
@@ -61,17 +72,33 @@ const Monitor = () => {
     }
   }, []);
 
-  const checkConnections = () => {
-    // Check Samsung Health connection
-    const samsungConnected = localStorage.getItem("samsung_health_connected") === "true";
-    const samsungLastSyncTime = localStorage.getItem("samsung_health_last_sync");
-    
-    if (samsungConnected && samsungLastSyncTime) {
-      setSamsungHealthStatus("connected");
-      setSamsungHealthLastSync(new Date(samsungLastSyncTime).toLocaleString('ko-KR'));
-    } else {
+  const checkConnections = async () => {
+    try {
+      const isNative = (window as any).Capacitor?.isNativePlatform();
+      if (!isNative) {
+        setSamsungHealthStatus("disconnected");
+        checkGPTConnection();
+        return;
+      }
+
+      // Import Health Connect functions
+      const { checkPermissions } = await import("@/lib/health-connect");
+
+      // Check Health Connect permission status
+      const permStatus = await checkPermissions();
+      if (permStatus.hasAll) {
+        setSamsungHealthStatus("connected");
+        const lastSync = localStorage.getItem("samsung_health_last_sync");
+        if (lastSync) {
+          setSamsungHealthLastSync(new Date(lastSync).toLocaleString('ko-KR'));
+        }
+      } else {
+        setSamsungHealthStatus("disconnected");
+        setSamsungHealthLastSync("");
+      }
+    } catch (error) {
+      console.error("Failed to check Health Connect permissions:", error);
       setSamsungHealthStatus("disconnected");
-      setSamsungHealthLastSync("");
     }
     
     checkGPTConnection();
@@ -176,18 +203,27 @@ const Monitor = () => {
     setSamsungHealthStatus("checking");
     
     try {
-      // Check if Samsung Health is actually connected
-      const samsungConnected = localStorage.getItem("samsung_health_connected") === "true";
-      const samsungLastSyncTime = localStorage.getItem("samsung_health_last_sync");
-      
-      // Simulate API check
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (!samsungConnected || !samsungLastSyncTime) {
+      const isNative = (window as any).Capacitor?.isNativePlatform();
+      if (!isNative) {
         setSamsungHealthStatus("disconnected");
         toast({
-          title: "Samsung Health 연동 오류",
-          description: "Samsung Health가 연동되지 않았습니다. 홈에서 연동을 완료해주세요.",
+          title: "네이티브 환경 필요",
+          description: "Samsung Health는 네이티브 앱에서만 사용할 수 있습니다.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Import Health Connect functions
+      const { checkHealthConnectAvailability, checkPermissions } = await import("@/lib/health-connect");
+
+      // Check if Health Connect is available
+      const available = await checkHealthConnectAvailability();
+      if (!available) {
+        setSamsungHealthStatus("disconnected");
+        toast({
+          title: "Health Connect 미지원",
+          description: "이 기기는 Health Connect를 지원하지 않습니다.",
           variant: "destructive",
         });
         
@@ -198,15 +234,43 @@ const Monitor = () => {
             profile_id: profileId,
             log_type: "삼성헬스 연동",
             status: "error",
-            message: "Samsung Health 연동 오류: 연동되지 않음"
+            message: "Health Connect 미지원 기기"
+          });
+        }
+        fetchRecentLogs(currentPage);
+        return;
+      }
+
+      // Check permissions
+      const permStatus = await checkPermissions();
+      if (!permStatus.hasAll) {
+        setSamsungHealthStatus("disconnected");
+        toast({
+          title: "권한 필요",
+          description: `Health Connect 권한이 필요합니다. (${permStatus.grantedCount}/${permStatus.requiredCount})`,
+          variant: "destructive",
+        });
+        
+        // Log error
+        const profileId = localStorage.getItem("profile_id");
+        if (profileId) {
+          await supabase.from("transfer_logs").insert({
+            profile_id: profileId,
+            log_type: "삼성헬스 연동",
+            status: "error",
+            message: `권한 부족: ${permStatus.grantedCount}/${permStatus.requiredCount}`
           });
         }
         fetchRecentLogs(currentPage);
         return;
       }
       
+      // All permissions granted
       setSamsungHealthStatus("connected");
-      setSamsungHealthLastSync(new Date(samsungLastSyncTime).toLocaleString('ko-KR'));
+      const now = new Date().toISOString();
+      localStorage.setItem("samsung_health_last_sync", now);
+      setSamsungHealthLastSync(new Date(now).toLocaleString('ko-KR'));
+      
       toast({
         title: "Samsung Health",
         description: "정상적으로 연결되어 있습니다.",
@@ -219,7 +283,7 @@ const Monitor = () => {
           profile_id: profileId,
           log_type: "삼성헬스 연동",
           status: "success",
-          message: "Samsung Health 상태 확인 완료"
+          message: "Health Connect 정상 연동됨"
         });
         fetchRecentLogs(currentPage);
       }
@@ -330,6 +394,160 @@ const Monitor = () => {
   const handleSyncTimeChange = (time: string) => {
     setSyncTime(time);
     localStorage.setItem("sync_time", time);
+  };
+
+  const logTransferStatus = async (logType: string, status: "success" | "error" | "pending", message: string) => {
+    try {
+      const profileId = localStorage.getItem("profile_id");
+      if (!profileId) return;
+
+      await supabase.from('transfer_logs').insert({
+        profile_id: profileId,
+        log_type: logType,
+        status,
+        message,
+      });
+    } catch (error) {
+      console.error("Failed to log transfer status:", error);
+    }
+  };
+
+  const collectSamsungHealthData = async () => {
+    const profileId = localStorage.getItem("profile_id");
+    if (!profileId) {
+      throw new Error("프로필 정보를 찾을 수 없습니다.");
+    }
+
+    // Import Health Connect functions
+    const { checkPermissions, getTodayHealthData } = await import("@/lib/health-connect");
+
+    // Check Health Connect permission status
+    const permStatus = await checkPermissions();
+    if (!permStatus.hasAll) {
+      throw new Error("Health Connect 권한이 필요합니다.");
+    }
+
+    await logTransferStatus("data_collection", "pending", "Health Connect 데이터 수집 시작");
+
+    try {
+      const snapshot = await getTodayHealthData();
+      await logTransferStatus("data_collection", "success", "Health Connect 데이터 수집 완료");
+      
+      // Format data for GPT
+      const avgHeartRate = snapshot.heartRate.length > 0
+        ? Math.round(snapshot.heartRate.reduce((sum, hr) => sum + hr.bpm, 0) / snapshot.heartRate.length)
+        : 0;
+
+      const latestWeight = snapshot.weight.length > 0 ? snapshot.weight[snapshot.weight.length - 1].weightKg : 0;
+      const latestBodyFat = snapshot.bodyFat.length > 0 ? snapshot.bodyFat[snapshot.bodyFat.length - 1].percentage : 0;
+      const distanceKm = (snapshot.aggregate.distanceMeter / 1000).toFixed(2);
+
+      const exerciseData = snapshot.exerciseSessions.map(session => ({
+        type: session.title || "운동",
+        duration: Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 60000),
+        calories: session.caloriesKcal,
+        exerciseType: session.exerciseType,
+      }));
+
+      const totalNutritionCalories = snapshot.nutrition.reduce((sum, n) => sum + n.energyKcal, 0);
+
+      return {
+        steps_data: {
+          count: snapshot.aggregate.steps,
+          distance: distanceKm,
+          calories: Math.round(snapshot.aggregate.activeCaloriesKcal),
+        },
+        exercise_data: exerciseData.length > 0 ? exerciseData : [{
+          type: "운동",
+          duration: snapshot.aggregate.exerciseDurationMinutes,
+          calories: Math.round(snapshot.aggregate.activeCaloriesKcal),
+        }],
+        sleep_data: {
+          totalMinutes: snapshot.aggregate.sleepDurationMinutes,
+          stages: snapshot.sleepStageSummary,
+        },
+        body_composition_data: {
+          weight: latestWeight,
+          bodyFat: latestBodyFat,
+        },
+        nutrition_data: {
+          calories: Math.round(totalNutritionCalories),
+          nutrition: snapshot.nutrition,
+        },
+        heart_rate: avgHeartRate,
+        hydration: snapshot.hydration,
+        vo2max: snapshot.vo2max,
+      };
+    } catch (error) {
+      await logTransferStatus("data_collection", "error", `데이터 수집 실패: ${error}`);
+      throw error;
+    }
+  };
+
+  const syncHealthData = async () => {
+    setIsSyncing(true);
+    
+    try {
+      // First, collect Samsung Health data
+      const healthData = await collectSamsungHealthData();
+      
+      if (!healthData) {
+        throw new Error("삼성헬스 데이터를 가져올 수 없습니다. 삼성헬스 연동을 먼저 완료해주세요.");
+      }
+
+      // Check GPT connection before sending
+      const profileId = localStorage.getItem("profile_id");
+      if (!profileId) {
+        throw new Error("사용자 프로필을 찾을 수 없습니다. Setup을 다시 진행해주세요.");
+      }
+
+      const { data: credentials } = await supabase
+        .from("openai_credentials")
+        .select("*")
+        .eq("profile_id", profileId)
+        .maybeSingle();
+
+      if (!credentials || !credentials.api_key) {
+        throw new Error("GPT 연동이 필요합니다. Setup 메뉴에서 OpenAI API Key를 설정해주세요.");
+      }
+
+      // Log GPT connection attempt
+      await logTransferStatus("GPT 연동", "pending", "GPT로 데이터 전송 시도 중...");
+      
+      // Send data to GPT
+      const { data, error } = await supabase.functions.invoke('send-health-data', {
+        body: { healthData }
+      });
+
+      if (error) {
+        await logTransferStatus("GPT 연동", "error", `GPT 전송 실패: ${error.message}`);
+        throw error;
+      }
+
+      // Log successful GPT transfer
+      await logTransferStatus("GPT 연동", "success", "건강 데이터가 GPT로 성공적으로 전송되었습니다.");
+
+      const now = new Date().toLocaleString('ko-KR');
+      setLastSync(now);
+      localStorage.setItem('lastSync', now);
+
+      toast({
+        title: "동기화 완료",
+        description: "건강 데이터가 GPT로 성공적으로 전송되었습니다.",
+      });
+      
+      // Refresh logs
+      fetchRecentLogs(currentPage);
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast({
+        title: "동기화 실패",
+        description: error instanceof Error ? error.message : "데이터 전송 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   return (
@@ -450,6 +668,35 @@ const Monitor = () => {
                 </Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Manual Sync Section */}
+        <Card className="bg-card/50 backdrop-blur-sm border-primary/20">
+          <CardHeader>
+            <CardTitle>수동 동기화</CardTitle>
+            <CardDescription>
+              마지막 동기화: {lastSync ? new Date(lastSync).toLocaleString('ko-KR') : '동기화 기록 없음'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              onClick={syncHealthData} 
+              disabled={isSyncing}
+              className="w-full"
+            >
+              {isSyncing ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  동기화 중...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  지금 동기화
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
 

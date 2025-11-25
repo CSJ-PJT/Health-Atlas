@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, RefreshCw, Activity, Clock } from "lucide-react";
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { HealthConnect, checkHealthConnectAvailability, checkPermissions, getTodayHealthData, type TodaySnapshot } from "@/lib/health-connect";
+import { HealthConnect, checkHealthConnectAvailability, checkPermissions, requestPermissions, getTodayHealthData, type TodaySnapshot } from "@/lib/health-connect";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Switch } from "@/components/ui/switch";
@@ -44,24 +44,41 @@ const Index = () => {
     loadTodayData();
   }, []);
 
+  const shouldShowPermissionDialog = (): boolean => {
+    // Check if dialog was dismissed for 24 hours
+    const dismissedUntil = localStorage.getItem("permission_dialog_dismissed_until");
+    if (dismissedUntil) {
+      const dismissedTime = new Date(dismissedUntil).getTime();
+      if (Date.now() < dismissedTime) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const checkSamsungHealthPermission = async () => {
     try {
       const profileId = localStorage.getItem("profile_id");
       if (!profileId) {
-        setShowPermissionDialog(true);
+        if (shouldShowPermissionDialog()) {
+          setShowPermissionDialog(true);
+        }
         return;
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('samsung_health_device_id, samsung_health_connected_at')
-        .eq('id', profileId)
-        .maybeSingle();
-
-      const isConnected = profile?.samsung_health_device_id && profile?.samsung_health_connected_at;
       const isNative = (window as any).Capacitor?.isNativePlatform();
-      
-      if (isNative && !isConnected) {
+      if (!isNative) return;
+
+      // Check Health Connect permission status
+      const permStatus = await checkPermissions();
+      if (permStatus.hasAll) {
+        // Permission granted, hide dialog
+        setShowPermissionDialog(false);
+        return;
+      }
+
+      // Permission not granted, show dialog if allowed
+      if (shouldShowPermissionDialog()) {
         setShowPermissionDialog(true);
       }
     } catch (error) {
@@ -92,12 +109,12 @@ const Index = () => {
         return;
       }
 
-      // Check permissions
-      const permStatus = await checkPermissions();
-      if (!permStatus.hasAll) {
+      // Request permissions
+      const granted = await requestPermissions();
+      if (!granted) {
         toast({
           title: "권한 필요",
-          description: `Health Connect 권한이 필요합니다. (${permStatus.grantedCount}/${permStatus.requiredCount})`,
+          description: "Health Connect 권한을 승인해주세요.",
           variant: "destructive",
         });
         return;
@@ -209,15 +226,10 @@ const Index = () => {
       throw new Error("프로필 정보를 찾을 수 없습니다.");
     }
 
-    // Check if Health Connect is connected
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("samsung_health_device_id")
-      .eq("id", profileId)
-      .single();
-
-    if (!profile?.samsung_health_device_id) {
-      throw new Error("Health Connect가 연결되지 않았습니다.");
+    // Check Health Connect permission status
+    const permStatus = await checkPermissions();
+    if (!permStatus.hasAll) {
+      throw new Error("Health Connect 권한이 필요합니다.");
     }
 
     await logTransferStatus("data_collection", "pending", "Health Connect 데이터 수집 시작");
@@ -565,7 +577,19 @@ const Index = () => {
               </ol>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                // Dismiss for 24 hours
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                localStorage.setItem("permission_dialog_dismissed_until", tomorrow.toISOString());
+                setShowPermissionDialog(false);
+              }}
+            >
+              하루동안 보지 않기
+            </Button>
             <AlertDialogAction onClick={handleGrantPermission}>
               확인
             </AlertDialogAction>
@@ -615,34 +639,6 @@ const Index = () => {
             </TabsContent>
           </Tabs>
         )}
-
-        <Card className="bg-secondary/20">
-          <CardHeader>
-            <CardTitle>동기화 상태</CardTitle>
-            <CardDescription>
-              마지막 동기화: {lastSync ? new Date(lastSync).toLocaleString('ko-KR') : '동기화 기록 없음'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button 
-              onClick={syncHealthData} 
-              disabled={isSyncing}
-              className="w-full"
-            >
-              {isSyncing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  동기화 중...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  수동 동기화
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
 
       </div>
     </div>
