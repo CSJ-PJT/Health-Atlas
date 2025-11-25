@@ -4,8 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, RefreshCw, Activity, Clock } from "lucide-react";
 import { LocalNotifications } from '@capacitor/local-notifications';
-import HealthConnect, { HEALTH_CONNECT_PERMISSIONS } from "@/plugins/HealthConnectPlugin";
-import { readTodaySnapshot, ensurePermissions } from "@/lib/healthConnect";
+import { HealthConnect, checkHealthConnectAvailability, checkPermissions, getTodayHealthData, type TodaySnapshot } from "@/lib/health-connect";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Switch } from "@/components/ui/switch";
@@ -83,7 +82,7 @@ const Index = () => {
       }
 
       // Check if Health Connect is available
-      const { available } = await HealthConnect.isAvailable();
+      const available = await checkHealthConnectAvailability();
       if (!available) {
         toast({
           title: "Health Connect 미지원",
@@ -93,14 +92,12 @@ const Index = () => {
         return;
       }
 
-      // Request all Health Connect permissions
-      const permissions = Object.values(HEALTH_CONNECT_PERMISSIONS);
-      const { granted } = await HealthConnect.requestPermissions({ permissions });
-
-      if (!granted) {
+      // Check permissions
+      const permStatus = await checkPermissions();
+      if (!permStatus.hasAll) {
         toast({
-          title: "권한 거부됨",
-          description: "Health Connect 권한이 필요합니다.",
+          title: "권한 필요",
+          description: `Health Connect 권한이 필요합니다. (${permStatus.grantedCount}/${permStatus.requiredCount})`,
           variant: "destructive",
         });
         return;
@@ -227,32 +224,58 @@ const Index = () => {
 
     try {
       // Use new Kotlin native plugin
-      const snapshot = await readTodaySnapshot();
+      const snapshot: TodaySnapshot = await getTodayHealthData();
 
       await logTransferStatus("data_collection", "success", "Health Connect 데이터 수집 완료");
 
+      // Calculate average heart rate from samples
+      const avgHeartRate = snapshot.heartRate.length > 0
+        ? Math.round(snapshot.heartRate.reduce((sum, hr) => sum + hr.bpm, 0) / snapshot.heartRate.length)
+        : 0;
+
+      // Get latest weight and body fat
+      const latestWeight = snapshot.weight.length > 0 ? snapshot.weight[snapshot.weight.length - 1].weightKg : 0;
+      const latestBodyFat = snapshot.bodyFat.length > 0 ? snapshot.bodyFat[snapshot.bodyFat.length - 1].percentage : 0;
+
+      // Convert distance from meters to km
+      const distanceKm = (snapshot.aggregate.distanceMeter / 1000).toFixed(2);
+
+      // Map exercise sessions to exercise data format
+      const exerciseData = snapshot.exerciseSessions.map(session => ({
+        type: session.title || "운동",
+        duration: Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 60000),
+        calories: 0, // Kotlin doesn't provide per-session calories
+        exerciseType: session.exerciseType,
+      }));
+
+      // Calculate total nutrition calories
+      const totalNutritionCalories = snapshot.nutrition.reduce((sum, n) => sum + n.energyKcal, 0);
+
       return {
         steps_data: {
-          count: snapshot.steps || 0,
-          distance: (snapshot.distance || 0).toFixed(2),
-          calories: snapshot.calories || 0,
+          count: snapshot.aggregate.steps,
+          distance: distanceKm,
+          calories: Math.round(snapshot.aggregate.activeCaloriesKcal),
         },
-        exercise_data: snapshot.exercises ? [{
+        exercise_data: exerciseData.length > 0 ? exerciseData : [{
           type: "운동",
-          duration: snapshot.exercises,
-          calories: 0,
-        }] : [],
-        sleep_data: snapshot.sleep ? {
-          totalMinutes: Math.round(snapshot.sleep * 60),
-        } : null,
+          duration: snapshot.aggregate.exerciseDurationMinutes,
+          calories: Math.round(snapshot.aggregate.activeCaloriesKcal),
+        }],
+        sleep_data: {
+          totalMinutes: snapshot.aggregate.sleepDurationMinutes,
+        },
         body_composition_data: {
-          weight: snapshot.bodyweight,
-          bodyFat: snapshot.bodyfat,
+          weight: latestWeight,
+          bodyFat: latestBodyFat,
         },
         nutrition_data: {
-          calories: snapshot.calories || 0,
+          calories: Math.round(totalNutritionCalories),
+          nutrition: snapshot.nutrition,
         },
-        heart_rate: snapshot.heartRate || 0,
+        heart_rate: avgHeartRate,
+        hydration: snapshot.hydration,
+        vo2max: snapshot.vo2max,
       };
     } catch (error) {
       await logTransferStatus("data_collection", "error", `데이터 수집 실패: ${error}`);
