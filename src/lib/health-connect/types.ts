@@ -7,9 +7,10 @@
 
 export interface HealthConnectStatus {
   status: number;
+  statusText: 'AVAILABLE' | 'UNAVAILABLE' | 'PROVIDER_UPDATE_REQUIRED' | 'UNKNOWN';
 }
 
-export interface PermissionStatus {
+export interface HealthConnectPermissionStatus {
   hasAll: boolean;
   granted: string[];
   requiredCount: number;
@@ -18,7 +19,7 @@ export interface PermissionStatus {
 
 // ============= Aggregate Data Types =============
 
-export interface AggregateData {
+export interface HealthConnectAggregate {
   steps: number;
   distanceMeter: number;
   activeCaloriesKcal: number;
@@ -28,59 +29,68 @@ export interface AggregateData {
 
 // ============= Heart Rate Types =============
 
-export interface HeartRateRecord {
+export interface HeartRateSample {
   bpm: number;
-  time: string;
+  time: string; // ISO 8601 format
 }
 
 // ============= Exercise Session Types =============
 
-export interface ExerciseSessionRecord {
+export interface ExerciseSessionWithCalories {
   title: string | null;
-  startTime: string;
-  endTime: string;
+  startTime: string; // ISO 8601 format
+  endTime: string; // ISO 8601 format
   exerciseType: number;
+  caloriesKcal: number;
 }
 
 // ============= Sleep Session Types =============
 
-export interface SleepSessionRecord {
+export interface SleepStageSummary {
+  deepMinutes: number;
+  lightMinutes: number;
+  remMinutes: number;
+  awakeMinutes: number;
+}
+
+export interface SleepSessionWithStages {
   title: string | null;
-  startTime: string;
-  endTime: string;
+  startTime: string; // ISO 8601 format
+  endTime: string; // ISO 8601 format
   notes: string | null;
+  stages: SleepStageSummary;
 }
 
 // ============= Body Composition Types =============
 
-export interface WeightRecord {
-  time: string;
+export interface WeightEntry {
+  time: string; // ISO 8601 format
   weightKg: number;
 }
 
-export interface BodyFatRecord {
-  time: string;
+export interface BodyFatEntry {
+  time: string; // ISO 8601 format
   percentage: number;
 }
 
-export interface Vo2MaxRecord {
-  time: string;
+export interface Vo2MaxEntry {
+  time: string; // ISO 8601 format
   vo2mlPerKgMin: number;
 }
 
 // ============= Hydration Types =============
 
-export interface HydrationRecord {
-  startTime: string;
-  endTime: string;
+export interface HydrationEntry {
+  startTime: string; // ISO 8601 format
+  endTime: string; // ISO 8601 format
   volumeLiters: number;
 }
 
 // ============= Nutrition Types =============
 
-export interface NutritionRecord {
-  startTime: string;
-  endTime: string;
+export interface NutritionEntry {
+  startTime: string; // ISO 8601 format
+  endTime: string; // ISO 8601 format
   mealType: number;
   name: string;
   energyKcal: number;
@@ -92,15 +102,15 @@ export interface NutritionRecord {
 // ============= Today Snapshot (Complete) =============
 
 export interface TodaySnapshot {
-  aggregate: AggregateData;
-  heartRate: HeartRateRecord[];
-  exerciseSessions: ExerciseSessionRecord[];
-  sleepSessions: SleepSessionRecord[];
-  weight: WeightRecord[];
-  bodyFat: BodyFatRecord[];
-  vo2max: Vo2MaxRecord[];
-  hydration: HydrationRecord[];
-  nutrition: NutritionRecord[];
+  aggregate: HealthConnectAggregate;
+  heartRate: HeartRateSample[];
+  exerciseSessions: ExerciseSessionWithCalories[];
+  sleepSessions: SleepSessionWithStages[];
+  weight: WeightEntry[];
+  bodyFat: BodyFatEntry[];
+  vo2max: Vo2MaxEntry[];
+  hydration: HydrationEntry[];
+  nutrition: NutritionEntry[];
 }
 
 // ============= Range Snapshot Options =============
