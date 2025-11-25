@@ -22,6 +22,19 @@ export async function checkHealthConnectAvailability(): Promise<boolean> {
 }
 
 /**
+ * 권한 요청
+ */
+export async function requestPermissions(): Promise<boolean> {
+  try {
+    const result = await HealthConnect.requestPermissions();
+    return result.granted;
+  } catch (error) {
+    console.error('Failed to request permissions:', error);
+    return false;
+  }
+}
+
+/**
  * 권한 상태 확인
  */
 export async function checkPermissions() {

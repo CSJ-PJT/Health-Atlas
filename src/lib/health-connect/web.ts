@@ -30,6 +30,11 @@ export class HealthConnectWeb extends WebPlugin implements HealthConnectPlugin {
     };
   }
 
+  async requestPermissions(): Promise<{ granted: boolean }> {
+    console.warn('Health Connect permission request not available on web');
+    return { granted: false };
+  }
+
   async getTodaySnapshot(): Promise<TodaySnapshot> {
     console.warn('Health Connect data not available on web platform');
     return {
@@ -43,6 +48,12 @@ export class HealthConnectWeb extends WebPlugin implements HealthConnectPlugin {
       heartRate: [],
       exerciseSessions: [],
       sleepSessions: [],
+      sleepStageSummary: {
+        deepMinutes: 0,
+        lightMinutes: 0,
+        remMinutes: 0,
+        awakeMinutes: 0,
+      },
       weight: [],
       bodyFat: [],
       vo2max: [],

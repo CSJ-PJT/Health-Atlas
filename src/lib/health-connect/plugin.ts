@@ -20,6 +20,12 @@ export interface HealthConnectPlugin {
   getStatus(): Promise<HealthConnectStatus>;
 
   /**
+   * Health Connect 권한 요청
+   * @returns 권한 요청 결과
+   */
+  requestPermissions(): Promise<{ granted: boolean }>;
+
+  /**
    * 현재 부여된 Health Connect 권한 상태 확인
    * @returns 권한 부여 상태 및 목록
    */
