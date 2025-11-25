@@ -114,12 +114,16 @@ class HealthConnectPlugin : Plugin() {
                         timeRangeFilter = range
                     )
                 )
-                hrResp.records.forEach { rec ->
-                    val o = JSObject()
-                    o.put("bpm", rec.beatsPerMinute)
-                    o.put("time", rec.time.toString())
-                    hrArr.put(o)
+
+                for (rec in hrResp.records) {
+                    for (sample in rec.samples) {
+                        val o = JSObject()
+                        o.put("bpm", sample.beatsPerMinute)
+                        o.put("time", sample.time.toString())
+                        hrArr.put(o)
+                    }
                 }
+
                 result.put("heartRate", hrArr)
 
                 // Exercise sessions + calories

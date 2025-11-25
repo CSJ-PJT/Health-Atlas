@@ -42,7 +42,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation "androidx.health.connect:connect-client:1.1.0"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
-    implementation project(':capacitor-android')
+    implementation "com.getcapacitor:capacitor-android:7.0.3"
     implementation project(':capacitor-cordova-android-plugins')
 }
 
@@ -55,19 +55,4 @@ try {
     }
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
-}
-
-buildscript {
-    ext.kotlin_version = '1.9.22'
-
-    repositories {
-        google()
-        mavenCentral()
-    }
-
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.1'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"   // ✅ 이 줄
-        classpath 'com.google.gms:google-services:4.4.2'
-    }
 }
