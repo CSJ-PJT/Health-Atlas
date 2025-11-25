@@ -46,19 +46,11 @@ export interface ExerciseSessionWithCalories {
 
 // ============= Sleep Session Types =============
 
-export interface SleepStageSummary {
-  deepMinutes: number;
-  lightMinutes: number;
-  remMinutes: number;
-  awakeMinutes: number;
-}
-
-export interface SleepSessionWithStages {
+export interface SleepSession {
   title: string | null;
   startTime: string; // ISO 8601 format
   endTime: string; // ISO 8601 format
   notes: string | null;
-  stages: SleepStageSummary;
 }
 
 // ============= Body Composition Types =============
@@ -105,8 +97,7 @@ export interface TodaySnapshot {
   aggregate: HealthConnectAggregate;
   heartRate: HeartRateSample[];
   exerciseSessions: ExerciseSessionWithCalories[];
-  sleepSessions: SleepSessionWithStages[];
-  sleepStageSummary: SleepStageSummary;
+  sleepSessions: SleepSession[];
   weight: WeightEntry[];
   bodyFat: BodyFatEntry[];
   vo2max: Vo2MaxEntry[];

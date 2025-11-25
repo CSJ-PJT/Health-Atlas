@@ -31,7 +31,7 @@ export interface HealthConnectPlugin {
    * - aggregate: 집계 데이터 (걸음수, 거리, 칼로리, 운동시간, 수면시간)
    * - heartRate: 심박수 샘플 배열
    * - exerciseSessions: 운동 세션 배열 (세션별 칼로리 포함)
-   * - sleepSessions: 수면 세션 배열 (수면 단계 상세 포함)
+   * - sleepSessions: 수면 세션 배열 (제목, 시작/종료 시각, 메모)
    * - weight: 체중 기록 배열
    * - bodyFat: 체지방 기록 배열
    * - vo2max: VO2Max 기록 배열
