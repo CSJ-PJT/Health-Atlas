@@ -1,36 +1,30 @@
 import { registerPlugin } from '@capacitor/core';
 
-const HealthConnect = registerPlugin<HealthConnectPluginInterface>('HealthConnect');
-
-export interface HealthConnectPluginInterface {
-  readTodaySnapshot(): Promise<TodaySnapshot>;
-  ensurePermissions(): Promise<{ granted: boolean }>;
+export interface HealthSummary {
+  timeRangeStart: string;
+  timeRangeEnd: string;
+  steps: any[];
+  heartRate: any[];
+  exercises: any[];
+  sleepSessions: any[];
+  body: {
+    weight: any[];
+    bodyFat: any[];
+  };
+  nutrition: any[];
 }
 
-export interface TodaySnapshot {
-  startTime: string;
-  endTime: string;
-  steps: number;
-  distance: number;
-  calories: number;
-  heartRate: number;
-  sleep: number;
-  exercises: number;
-  bodyweight: number;
-  bodyfat: number;
+export interface CheckPermissionsResult {
+  hasAllPermissions: boolean;
+  granted: string[];
+  missing: string[];
 }
 
-export async function readTodaySnapshot(): Promise<TodaySnapshot> {
-  const result = await HealthConnect.readTodaySnapshot();
-  return result as TodaySnapshot;
+export interface HealthConnectPlugin {
+  ping(): Promise<{ value: string }>;
+  checkPermissions(): Promise<CheckPermissionsResult>;
+  openHealthConnectSettings(): Promise<{ opened: boolean }>;
+  readSummary(): Promise<HealthSummary>;
 }
 
-export async function ensurePermissions(): Promise<boolean> {
-  try {
-    const result = await HealthConnect.ensurePermissions();
-    return result.granted;
-  } catch (error) {
-    console.error('Failed to ensure permissions:', error);
-    return false;
-  }
-}
+export const HealthConnect = registerPlugin<HealthConnectPlugin>('HealthConnect');
