@@ -2,7 +2,7 @@ import { WebPlugin } from '@capacitor/core';
 import type { HealthConnectPlugin } from './plugin';
 import type {
   HealthConnectStatus,
-  PermissionStatus,
+  HealthConnectPermissionStatus,
   TodaySnapshot,
   SnapshotRangeOptions,
 } from './types';
@@ -14,10 +14,13 @@ import type {
 export class HealthConnectWeb extends WebPlugin implements HealthConnectPlugin {
   async getStatus(): Promise<HealthConnectStatus> {
     console.warn('Health Connect is not available on web platform');
-    return { status: 0 };
+    return { 
+      status: 0,
+      statusText: 'UNAVAILABLE'
+    };
   }
 
-  async getPermissionStatus(): Promise<PermissionStatus> {
+  async getPermissionStatus(): Promise<HealthConnectPermissionStatus> {
     console.warn('Health Connect permissions not available on web');
     return {
       hasAll: false,
