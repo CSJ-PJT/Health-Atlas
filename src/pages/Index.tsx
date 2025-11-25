@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, RefreshCw, Activity, Clock } from "lucide-react";
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { HealthConnect, checkHealthConnectAvailability, checkPermissions, requestPermissions, getTodayHealthData, type TodaySnapshot } from "@/lib/health-connect";
+import { HealthConnect as HealthConnectNew } from "@/lib/healthConnect";
+import { checkHealthConnectAvailability, checkPermissions, requestPermissions, getTodayHealthData, type TodaySnapshot } from "@/lib/health-connect";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Switch } from "@/components/ui/switch";
@@ -32,6 +33,10 @@ const Index = () => {
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
   const { toast } = useToast();
+
+  // New Health Connect Test States
+  const [permissionResult, setPermissionResult] = useState<any>(null);
+  const [healthSummary, setHealthSummary] = useState<any>(null);
 
   useEffect(() => {
     checkSamsungHealthPermission();
@@ -388,6 +393,59 @@ const Index = () => {
     return { totalBurned, totalConsumed, calorieDiff, totalExerciseDistance, totalExerciseTime };
   };
 
+  const handleCheckPermissions = async () => {
+    try {
+      const result = await HealthConnectNew.checkPermissions();
+      setPermissionResult(result);
+      toast({
+        title: "권한 확인 완료",
+        description: `모든 권한: ${result.hasAllPermissions ? '승인됨' : '필요'}`,
+      });
+    } catch (error) {
+      console.error("권한 확인 실패:", error);
+      toast({
+        title: "권한 확인 실패",
+        description: error instanceof Error ? error.message : "알 수 없는 오류",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOpenSettings = async () => {
+    try {
+      const result = await HealthConnectNew.openHealthConnectSettings();
+      toast({
+        title: result.opened ? "설정 열림" : "설정 열기 실패",
+        description: result.opened ? "Health Connect 설정이 열렸습니다." : "설정을 열 수 없습니다.",
+      });
+    } catch (error) {
+      console.error("설정 열기 실패:", error);
+      toast({
+        title: "설정 열기 실패",
+        description: error instanceof Error ? error.message : "알 수 없는 오류",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReadSummary = async () => {
+    try {
+      const result = await HealthConnectNew.readSummary();
+      setHealthSummary(result);
+      toast({
+        title: "데이터 읽기 완료",
+        description: "Health Connect 데이터를 성공적으로 읽었습니다.",
+      });
+    } catch (error) {
+      console.error("데이터 읽기 실패:", error);
+      toast({
+        title: "데이터 읽기 실패",
+        description: error instanceof Error ? error.message : "알 수 없는 오류",
+        variant: "destructive",
+      });
+    }
+  };
+
   const renderHealthCard = (data: any, period: string) => {
     if (!data) return null;
     
@@ -598,6 +656,91 @@ const Index = () => {
       </AlertDialog>
 
       <div className="max-w-4xl mx-auto p-4 space-y-6">
+        {/* Health Connect Test UI */}
+        <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200">
+          <CardHeader>
+            <CardTitle className="text-purple-700">Health Connect 테스트</CardTitle>
+            <CardDescription>Kotlin 플러그인 연동 테스트</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-2 flex-wrap">
+              <Button onClick={handleCheckPermissions} variant="outline">
+                권한 확인
+              </Button>
+              <Button onClick={handleOpenSettings} variant="outline">
+                Health Connect 설정 열기
+              </Button>
+              <Button onClick={handleReadSummary} variant="outline">
+                데이터 읽기
+              </Button>
+            </div>
+
+            {permissionResult && (
+              <Card className="bg-white">
+                <CardHeader>
+                  <CardTitle className="text-sm">권한 상태</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <pre className="text-xs overflow-auto bg-slate-50 p-3 rounded">
+                    {JSON.stringify(permissionResult, null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+            )}
+
+            {healthSummary && (
+              <>
+                <Card className="bg-white">
+                  <CardHeader>
+                    <CardTitle className="text-sm">데이터 요약</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">걸음수</p>
+                      <p className="text-lg font-bold">{healthSummary.steps?.length || 0}건</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">심박수</p>
+                      <p className="text-lg font-bold">{healthSummary.heartRate?.length || 0}건</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">운동</p>
+                      <p className="text-lg font-bold">{healthSummary.exercises?.length || 0}건</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">수면</p>
+                      <p className="text-lg font-bold">{healthSummary.sleepSessions?.length || 0}건</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">체중</p>
+                      <p className="text-lg font-bold">{healthSummary.body?.weight?.length || 0}건</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">체지방</p>
+                      <p className="text-lg font-bold">{healthSummary.body?.bodyFat?.length || 0}건</p>
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                      <p className="text-xs text-muted-foreground">영양</p>
+                      <p className="text-lg font-bold">{healthSummary.nutrition?.length || 0}건</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white">
+                  <CardHeader>
+                    <CardTitle className="text-sm">전체 JSON (개발용)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="text-xs overflow-auto bg-slate-50 p-3 rounded max-h-96">
+                      {JSON.stringify(healthSummary, null, 2)}
+                    </pre>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {!todayData ? (
           <Card className="bg-accent/10">
             <CardHeader>
