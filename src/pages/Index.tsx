@@ -411,6 +411,36 @@ const Index = () => {
     }
   };
 
+  const handleRequestPermissions = async () => {
+    try {
+      const result = await HealthConnectNew.requestPermissions();
+      
+      if (result.hasAllPermissions) {
+        toast({
+          title: "권한 요청 완료",
+          description: "모든 권한이 허용되었습니다.",
+        });
+      } else {
+        toast({
+          title: "권한 일부 미허용",
+          description: `허용 안 된 권한: ${result.missing.join(', ')}`,
+          variant: "destructive",
+        });
+      }
+
+      // 권한 상태 업데이트
+      const status = await HealthConnectNew.checkPermissions();
+      setPermissionResult(status);
+    } catch (error) {
+      console.error("권한 요청 실패:", error);
+      toast({
+        title: "권한 요청 실패",
+        description: error instanceof Error ? error.message : "알 수 없는 오류",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleOpenSettings = async () => {
     try {
       const result = await HealthConnectNew.openHealthConnectSettings();
@@ -667,10 +697,13 @@ const Index = () => {
               <Button onClick={handleCheckPermissions} variant="outline">
                 권한 확인
               </Button>
+              <Button onClick={handleRequestPermissions} variant="default">
+                모든 권한 요청
+              </Button>
               <Button onClick={handleOpenSettings} variant="outline">
                 Health Connect 설정 열기
               </Button>
-              <Button onClick={handleReadSummary} variant="outline">
+              <Button onClick={handleReadSummary} variant="default">
                 데이터 읽기
               </Button>
             </div>
