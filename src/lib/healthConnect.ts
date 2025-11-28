@@ -23,6 +23,7 @@ export interface CheckPermissionsResult {
 export interface HealthConnectPlugin {
   ping(): Promise<{ value: string }>;
   checkPermissions(): Promise<CheckPermissionsResult>;
+  requestPermissions(): Promise<CheckPermissionsResult>;
   openHealthConnectSettings(): Promise<{ opened: boolean }>;
   readSummary(): Promise<HealthSummary>;
 }
