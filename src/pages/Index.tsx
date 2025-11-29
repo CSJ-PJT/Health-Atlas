@@ -2,17 +2,14 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCw, Activity, Clock } from "lucide-react";
+import { Activity, Clock } from "lucide-react";
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { HealthConnect as HealthConnectNew } from "@/lib/healthConnect";
-import { checkHealthConnectAvailability, checkPermissions, requestPermissions, getTodayHealthData, type TodaySnapshot } from "@/lib/health-connect";
+import { checkHealthConnectAvailability, checkPermissions, requestPermissions } from "@/lib/health-connect";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { ScrollToTop } from "@/components/ScrollToTop";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTodayHealth } from "@/hooks/useHealthData";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,29 +21,18 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const Index = () => {
-  const [lastSync, setLastSync] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [todayData, setTodayData] = useState<any>(null);
-  const [weekData, setWeekData] = useState<any>(null);
-  const [monthData, setMonthData] = useState<any>(null);
-  const [yearData, setYearData] = useState<any>(null);
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState("today");
   const { toast } = useToast();
 
   // New Health Connect Test States
   const [permissionResult, setPermissionResult] = useState<any>(null);
   const [healthSummary, setHealthSummary] = useState<any>(null);
 
+  // Use React Query for today's health data
+  const { data: todayData, isLoading, error } = useTodayHealth();
+
   useEffect(() => {
     checkSamsungHealthPermission();
-    
-    const savedLastSync = localStorage.getItem('lastSync');
-    if (savedLastSync) {
-      setLastSync(savedLastSync);
-    }
-
-    loadTodayData();
   }, []);
 
   const shouldShowPermissionDialog = (): boolean => {
@@ -156,9 +142,6 @@ const Index = () => {
       // Request notification permissions
       await requestNotificationPermission();
       await scheduleDailyNotification();
-
-      // Load initial data
-      await loadTodayData();
     } catch (error) {
       console.error("Error granting Health Connect permission:", error);
       await logTransferStatus("Samsung Health", "error", error instanceof Error ? error.message : "Health Connect 연동 실패");
@@ -222,161 +205,6 @@ const Index = () => {
       });
     } catch (error) {
       console.error("Failed to log transfer status:", error);
-    }
-  };
-
-  const collectSamsungHealthData = async () => {
-    const profileId = localStorage.getItem("profile_id");
-    if (!profileId) {
-      throw new Error("프로필 정보를 찾을 수 없습니다.");
-    }
-
-    // Check Health Connect permission status
-    const permStatus = await checkPermissions();
-    if (!permStatus.hasAll) {
-      throw new Error("Health Connect 권한이 필요합니다.");
-    }
-
-    await logTransferStatus("data_collection", "pending", "Health Connect 데이터 수집 시작");
-
-    try {
-      // Use new Kotlin native plugin
-      const snapshot: TodaySnapshot = await getTodayHealthData();
-
-      await logTransferStatus("data_collection", "success", "Health Connect 데이터 수집 완료");
-
-      // Calculate average heart rate from samples
-      const avgHeartRate = snapshot.heartRate.length > 0
-        ? Math.round(snapshot.heartRate.reduce((sum, hr) => sum + hr.bpm, 0) / snapshot.heartRate.length)
-        : 0;
-
-      // Get latest weight and body fat
-      const latestWeight = snapshot.weight.length > 0 ? snapshot.weight[snapshot.weight.length - 1].weightKg : 0;
-      const latestBodyFat = snapshot.bodyFat.length > 0 ? snapshot.bodyFat[snapshot.bodyFat.length - 1].percentage : 0;
-
-      // Convert distance from meters to km
-      const distanceKm = (snapshot.aggregate.distanceMeter / 1000).toFixed(2);
-
-      // Map exercise sessions to exercise data format
-      const exerciseData = snapshot.exerciseSessions.map(session => ({
-        type: session.title || "운동",
-        duration: Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 60000),
-        calories: 0, // Kotlin doesn't provide per-session calories
-        exerciseType: session.exerciseType,
-      }));
-
-      // Calculate total nutrition calories
-      const totalNutritionCalories = snapshot.nutrition.reduce((sum, n) => sum + n.energyKcal, 0);
-
-      return {
-        steps_data: {
-          count: snapshot.aggregate.steps,
-          distance: distanceKm,
-          calories: Math.round(snapshot.aggregate.activeCaloriesKcal),
-        },
-        exercise_data: exerciseData.length > 0 ? exerciseData : [{
-          type: "운동",
-          duration: snapshot.aggregate.exerciseDurationMinutes,
-          calories: Math.round(snapshot.aggregate.activeCaloriesKcal),
-        }],
-        sleep_data: {
-          totalMinutes: snapshot.aggregate.sleepDurationMinutes,
-        },
-        body_composition_data: {
-          weight: latestWeight,
-          bodyFat: latestBodyFat,
-        },
-        nutrition_data: {
-          calories: Math.round(totalNutritionCalories),
-          nutrition: snapshot.nutrition,
-        },
-        heart_rate: avgHeartRate,
-        hydration: snapshot.hydration,
-        vo2max: snapshot.vo2max,
-      };
-    } catch (error) {
-      await logTransferStatus("data_collection", "error", `데이터 수집 실패: ${error}`);
-      throw error;
-    }
-  };
-
-  const loadTodayData = async () => {
-    try {
-      const data = await collectSamsungHealthData();
-      setTodayData(data);
-      // Mock data for week, month, year (실제로는 네이티브에서 기간별로 가져와야 함)
-      setWeekData(data);
-      setMonthData(data);
-      setYearData(data);
-    } catch (error) {
-      console.error("Failed to load today data:", error);
-      setTodayData(null);
-      setWeekData(null);
-      setMonthData(null);
-      setYearData(null);
-    }
-  };
-
-  const syncHealthData = async () => {
-    setIsSyncing(true);
-    
-    try {
-      // First, collect Samsung Health data
-      const healthData = await collectSamsungHealthData();
-      
-      if (!healthData) {
-        throw new Error("삼성헬스 데이터를 가져올 수 없습니다. 삼성헬스 연동을 먼저 완료해주세요.");
-      }
-
-      // Check GPT connection before sending
-      const profileId = localStorage.getItem("profile_id");
-      if (!profileId) {
-        throw new Error("사용자 프로필을 찾을 수 없습니다. Setup을 다시 진행해주세요.");
-      }
-
-      const { data: credentials } = await supabase
-        .from("openai_credentials")
-        .select("*")
-        .eq("profile_id", profileId)
-        .maybeSingle();
-
-      if (!credentials || !credentials.api_key) {
-        throw new Error("GPT 연동이 필요합니다. Setup 메뉴에서 OpenAI API Key를 설정해주세요.");
-      }
-
-      // Log GPT connection attempt
-      await logTransferStatus("GPT 연동", "pending", "GPT로 데이터 전송 시도 중...");
-      
-      // Send data to GPT
-      const { data, error } = await supabase.functions.invoke('send-health-data', {
-        body: { healthData }
-      });
-
-      if (error) {
-        await logTransferStatus("GPT 연동", "error", `GPT 전송 실패: ${error.message}`);
-        throw error;
-      }
-
-      // Log successful GPT transfer
-      await logTransferStatus("GPT 연동", "success", "건강 데이터가 GPT로 성공적으로 전송되었습니다.");
-
-      const now = new Date().toLocaleString('ko-KR');
-      setLastSync(now);
-      localStorage.setItem('lastSync', now);
-
-      toast({
-        title: "동기화 완료",
-        description: "건강 데이터가 GPT로 성공적으로 전송되었습니다.",
-      });
-    } catch (error) {
-      console.error('Sync error:', error);
-      toast({
-        title: "동기화 실패",
-        description: error instanceof Error ? error.message : "데이터 전송 중 오류가 발생했습니다.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -476,7 +304,7 @@ const Index = () => {
     }
   };
 
-  const renderHealthCard = (data: any, period: string) => {
+  const renderHealthCard = (data: any) => {
     if (!data) return null;
     
     const { totalBurned, totalConsumed, calorieDiff, totalExerciseDistance, totalExerciseTime } = calculateStats(data);
@@ -484,7 +312,10 @@ const Index = () => {
     return (
       <Card className="bg-gradient-to-br from-primary/10 via-secondary/20 to-accent/10 border-primary/20">
         <CardHeader>
-          <CardTitle className="text-primary">{period}</CardTitle>
+          <CardTitle className="text-primary">Today</CardTitle>
+          <CardDescription className="text-sm text-muted-foreground">
+            마지막 동기화: {localStorage.getItem('lastSync') || '동기화 기록 없음'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2 p-3 rounded-lg bg-card">
@@ -774,7 +605,13 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {!todayData ? (
+        {isLoading ? (
+          <Card className="bg-accent/10">
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">데이터 로딩 중...</p>
+            </CardContent>
+          </Card>
+        ) : error || !todayData ? (
           <Card className="bg-accent/10">
             <CardHeader>
               <CardTitle>Samsung Health 연동 필요</CardTitle>
@@ -790,30 +627,7 @@ const Index = () => {
             </CardContent>
           </Card>
         ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="today">Today</TabsTrigger>
-              <TabsTrigger value="week">This Week</TabsTrigger>
-              <TabsTrigger value="month">This Month</TabsTrigger>
-              <TabsTrigger value="year">This Year</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="today" className="mt-4">
-              {renderHealthCard(todayData, "Today")}
-            </TabsContent>
-            
-            <TabsContent value="week" className="mt-4">
-              {renderHealthCard(weekData, "This Week")}
-            </TabsContent>
-            
-            <TabsContent value="month" className="mt-4">
-              {renderHealthCard(monthData, "This Month")}
-            </TabsContent>
-            
-            <TabsContent value="year" className="mt-4">
-              {renderHealthCard(yearData, "This Year")}
-            </TabsContent>
-          </Tabs>
+          renderHealthCard(todayData)
         )}
 
       </div>

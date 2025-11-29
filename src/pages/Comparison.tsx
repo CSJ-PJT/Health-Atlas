@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +10,7 @@ import { format, subDays, subMonths, subYears, startOfDay, startOfWeek, startOfM
 import { ko } from "date-fns/locale";
 import { Header } from "@/components/Header";
 import { CalendarIcon } from "lucide-react";
+import { useHealthStats } from "@/hooks/useHealthData";
 
 type Period = "day" | "week" | "month" | "year";
 
@@ -24,59 +24,38 @@ interface HealthRecord {
 }
 
 const Comparison = () => {
-  const [records, setRecords] = useState<HealthRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("day");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"general" | "running">("general");
   const [endDateOpen, setEndDateOpen] = useState(false);
 
-  useEffect(() => {
-    fetchRecords();
-  }, [period, startDate, endDate]);
-
-  const fetchRecords = async () => {
-    setLoading(true);
-    try {
-      let query = supabase
-        .from("health_data")
-        .select("synced_at, exercise_data, body_composition_data, nutrition_data, running_data, sleep_data")
-        .order("synced_at", { ascending: true });
-
-      if (startDate && endDate) {
-        query = query
-          .gte("synced_at", startDate.toISOString())
-          .lte("synced_at", endDate.toISOString());
-      } else {
-        let calculatedStartDate: Date;
-        switch (period) {
-          case "day":
-            calculatedStartDate = subDays(new Date(), 30);
-            break;
-          case "week":
-            calculatedStartDate = subDays(new Date(), 14);
-            break;
-          case "month":
-            calculatedStartDate = subMonths(new Date(), 2);
-            break;
-          case "year":
-            calculatedStartDate = subYears(new Date(), 2);
-            break;
-        }
-        query = query.gte("synced_at", calculatedStartDate.toISOString());
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setRecords(data || []);
-    } catch (error) {
-      console.error("Error fetching records:", error);
-    } finally {
-      setLoading(false);
+  // Calculate date range based on period if not manually set
+  const calculateDateRange = () => {
+    if (startDate && endDate) {
+      return { from: startDate, to: endDate };
     }
+
+    let calculatedStartDate: Date;
+    switch (period) {
+      case "day":
+        calculatedStartDate = subDays(new Date(), 30);
+        break;
+      case "week":
+        calculatedStartDate = subDays(new Date(), 14);
+        break;
+      case "month":
+        calculatedStartDate = subMonths(new Date(), 2);
+        break;
+      case "year":
+        calculatedStartDate = subYears(new Date(), 2);
+        break;
+    }
+    return { from: calculatedStartDate, to: new Date() };
   };
+
+  const dateRange = calculateDateRange();
+  const { data: records = [], isLoading: loading } = useHealthStats(period, dateRange.from, dateRange.to);
 
   const aggregateData = () => {
     if (!records.length) return [];
@@ -147,55 +126,59 @@ const Comparison = () => {
 
       // 운동 데이터 집계
       if (record.exercise_data) {
+        const exerciseData = record.exercise_data as any;
         groupedData[key].exerciseCount += 1;
-        if (record.exercise_data.duration) {
-          groupedData[key].exerciseDuration += Number(record.exercise_data.duration) || 0;
+        if (exerciseData.duration) {
+          groupedData[key].exerciseDuration += Number(exerciseData.duration) || 0;
         }
-        if (record.exercise_data.distance) {
-          groupedData[key].exerciseDistance += Number(record.exercise_data.distance) || 0;
+        if (exerciseData.distance) {
+          groupedData[key].exerciseDistance += Number(exerciseData.distance) || 0;
         }
-        if (record.exercise_data.calories) {
-          groupedData[key].caloriesBurned += Number(record.exercise_data.calories) || 0;
+        if (exerciseData.calories) {
+          groupedData[key].caloriesBurned += Number(exerciseData.calories) || 0;
         }
       }
 
       // 러닝 데이터 집계
       if (record.running_data) {
+        const runningData = record.running_data as any;
         groupedData[key].runningCount += 1;
-        if (record.running_data.avgPace) groupedData[key].avgPace += Number(record.running_data.avgPace) || 0;
-        if (record.running_data.bestPace) groupedData[key].bestPace += Number(record.running_data.bestPace) || 0;
-        if (record.running_data.worstPace) groupedData[key].worstPace += Number(record.running_data.worstPace) || 0;
-        if (record.running_data.avgHeartRate) groupedData[key].avgHeartRate += Number(record.running_data.avgHeartRate) || 0;
-        if (record.running_data.maxHeartRate) groupedData[key].maxHeartRate += Number(record.running_data.maxHeartRate) || 0;
-        if (record.running_data.minHeartRate) groupedData[key].minHeartRate += Number(record.running_data.minHeartRate) || 0;
-        if (record.running_data.cadence) groupedData[key].cadence += Number(record.running_data.cadence) || 0;
-        if (record.running_data.speed) groupedData[key].speed += Number(record.running_data.speed) || 0;
-        if (record.running_data.vo2max) groupedData[key].vo2max += Number(record.running_data.vo2max) || 0;
-        if (record.running_data.elevation) groupedData[key].elevation += Number(record.running_data.elevation) || 0;
+        if (runningData.avgPace) groupedData[key].avgPace += Number(runningData.avgPace) || 0;
+        if (runningData.bestPace) groupedData[key].bestPace += Number(runningData.bestPace) || 0;
+        if (runningData.worstPace) groupedData[key].worstPace += Number(runningData.worstPace) || 0;
+        if (runningData.avgHeartRate) groupedData[key].avgHeartRate += Number(runningData.avgHeartRate) || 0;
+        if (runningData.maxHeartRate) groupedData[key].maxHeartRate += Number(runningData.maxHeartRate) || 0;
+        if (runningData.minHeartRate) groupedData[key].minHeartRate += Number(runningData.minHeartRate) || 0;
+        if (runningData.cadence) groupedData[key].cadence += Number(runningData.cadence) || 0;
+        if (runningData.speed) groupedData[key].speed += Number(runningData.speed) || 0;
+        if (runningData.vo2max) groupedData[key].vo2max += Number(runningData.vo2max) || 0;
+        if (runningData.elevation) groupedData[key].elevation += Number(runningData.elevation) || 0;
       }
 
       // 체성분 데이터 집계
       if (record.body_composition_data) {
-        if (record.body_composition_data.weight) {
-          groupedData[key].weight += Number(record.body_composition_data.weight) || 0;
+        const bodyData = record.body_composition_data as any;
+        if (bodyData.weight) {
+          groupedData[key].weight += Number(bodyData.weight) || 0;
           groupedData[key].weightCount += 1;
         }
-        if (record.body_composition_data.bodyFat) {
-          groupedData[key].bodyFat += Number(record.body_composition_data.bodyFat) || 0;
+        if (bodyData.bodyFat) {
+          groupedData[key].bodyFat += Number(bodyData.bodyFat) || 0;
           groupedData[key].bodyFatCount += 1;
         }
-        if (record.body_composition_data.muscleMass) {
-          groupedData[key].muscleMass += Number(record.body_composition_data.muscleMass) || 0;
+        if (bodyData.muscleMass) {
+          groupedData[key].muscleMass += Number(bodyData.muscleMass) || 0;
           groupedData[key].muscleMassCount += 1;
         }
-        if (record.body_composition_data.bodyFatMass) {
-          groupedData[key].bodyFatMass += Number(record.body_composition_data.bodyFatMass) || 0;
+        if (bodyData.bodyFatMass) {
+          groupedData[key].bodyFatMass += Number(bodyData.bodyFatMass) || 0;
           groupedData[key].bodyFatMassCount += 1;
         }
       }
 
       // 수면 데이터 집계
       if (record.sleep_data) {
+        const sleepData = record.sleep_data as any;
         groupedData[key].sleepCount += 1;
         
         const parseDuration = (duration: string) => {
@@ -206,47 +189,48 @@ const Comparison = () => {
           return 0;
         };
         
-        if (record.sleep_data.duration) {
-          groupedData[key].totalSleep += parseDuration(record.sleep_data.duration);
+        if (sleepData.duration) {
+          groupedData[key].totalSleep += parseDuration(sleepData.duration);
         }
-        if (record.sleep_data.deep_sleep) {
-          groupedData[key].deepSleep += parseDuration(record.sleep_data.deep_sleep);
+        if (sleepData.deep_sleep) {
+          groupedData[key].deepSleep += parseDuration(sleepData.deep_sleep);
         }
-        if (record.sleep_data.light_sleep) {
-          groupedData[key].lightSleep += parseDuration(record.sleep_data.light_sleep);
+        if (sleepData.light_sleep) {
+          groupedData[key].lightSleep += parseDuration(sleepData.light_sleep);
         }
-        if (record.sleep_data.rem_sleep) {
-          groupedData[key].remSleep += parseDuration(record.sleep_data.rem_sleep);
+        if (sleepData.rem_sleep) {
+          groupedData[key].remSleep += parseDuration(sleepData.rem_sleep);
         }
       }
 
       // 영양 데이터 집계
       if (record.nutrition_data) {
-        if (record.nutrition_data.calories) {
-          groupedData[key].caloriesIntake += Number(record.nutrition_data.calories) || 0;
+        const nutritionData = record.nutrition_data as any;
+        if (nutritionData.calories) {
+          groupedData[key].caloriesIntake += Number(nutritionData.calories) || 0;
         }
-        if (record.nutrition_data.protein) {
-          const proteinValue = typeof record.nutrition_data.protein === 'string' 
-            ? parseFloat(record.nutrition_data.protein.replace(/[^0-9.]/g, ''))
-            : Number(record.nutrition_data.protein);
+        if (nutritionData.protein) {
+          const proteinValue = typeof nutritionData.protein === 'string' 
+            ? parseFloat(nutritionData.protein.replace(/[^0-9.]/g, ''))
+            : Number(nutritionData.protein);
           if (!isNaN(proteinValue)) {
             groupedData[key].protein += proteinValue;
             groupedData[key].proteinCount += 1;
           }
         }
-        if (record.nutrition_data.carbs) {
-          const carbsValue = typeof record.nutrition_data.carbs === 'string'
-            ? parseFloat(record.nutrition_data.carbs.replace(/[^0-9.]/g, ''))
-            : Number(record.nutrition_data.carbs);
+        if (nutritionData.carbs) {
+          const carbsValue = typeof nutritionData.carbs === 'string'
+            ? parseFloat(nutritionData.carbs.replace(/[^0-9.]/g, ''))
+            : Number(nutritionData.carbs);
           if (!isNaN(carbsValue)) {
             groupedData[key].carbs += carbsValue;
             groupedData[key].carbsCount += 1;
           }
         }
-        if (record.nutrition_data.fat) {
-          const fatValue = typeof record.nutrition_data.fat === 'string'
-            ? parseFloat(record.nutrition_data.fat.replace(/[^0-9.]/g, ''))
-            : Number(record.nutrition_data.fat);
+        if (nutritionData.fat) {
+          const fatValue = typeof nutritionData.fat === 'string'
+            ? parseFloat(nutritionData.fat.replace(/[^0-9.]/g, ''))
+            : Number(nutritionData.fat);
           if (!isNaN(fatValue)) {
             groupedData[key].fat += fatValue;
             groupedData[key].fatCount += 1;

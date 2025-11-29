@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity } from "lucide-react";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { useHealthHistory } from "@/hooks/useHealthData";
 
 interface HealthRecord {
   id: string;
@@ -19,29 +18,7 @@ interface HealthRecord {
 }
 
 const History = () => {
-  const [records, setRecords] = useState<HealthRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchRecords();
-  }, []);
-
-  const fetchRecords = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("health_data")
-        .select("*")
-        .order("synced_at", { ascending: false })
-        .limit(30);
-
-      if (error) throw error;
-      setRecords(data || []);
-    } catch (error) {
-      console.error("Error fetching records:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: records = [], isLoading: loading } = useHealthHistory();
 
   const formatDataItem = (key: string, value: any): string => {
     const keyMap: Record<string, string> = {
