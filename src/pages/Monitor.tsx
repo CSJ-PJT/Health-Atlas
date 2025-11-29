@@ -11,6 +11,7 @@ import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { useInvalidateHealthData } from "@/hooks/useHealthData";
 
 interface LogEntry {
   id: string;
@@ -39,6 +40,9 @@ const Monitor = () => {
   const logsPerPage = 5;
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Hook to invalidate all health data queries after sync
+  const invalidateHealthData = useInvalidateHealthData();
 
   useEffect(() => {
     const initConnections = async () => {
@@ -535,6 +539,9 @@ const Monitor = () => {
         title: "동기화 완료",
         description: "건강 데이터가 GPT로 성공적으로 전송되었습니다.",
       });
+      
+      // Invalidate all health data queries to refresh UI
+      invalidateHealthData();
       
       // Refresh logs
       fetchRecentLogs(currentPage);
