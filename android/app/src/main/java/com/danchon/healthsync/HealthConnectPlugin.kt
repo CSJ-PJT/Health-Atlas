@@ -1,114 +1,76 @@
 package com.danchon.healthsync
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import android.util.Log
 import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.records.HeartRateRecord
-import androidx.health.connect.client.records.StepsRecord
-import androidx.health.connect.client.records.ExerciseSessionRecord
-import androidx.health.connect.client.records.SleepSessionRecord
-import androidx.health.connect.client.records.WeightRecord
-import androidx.health.connect.client.records.BodyFatRecord
+import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.*
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
-import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.time.DayOfWeek
-import java.time.LocalTime
+import java.time.temporal.WeekFields
+import java.util.Locale
+
+private const val TAG = "HealthConnectPlugin"
 
 @CapacitorPlugin(name = "HealthConnect")
 class HealthConnectPlugin : Plugin() {
 
-    private val TAG = "HealthConnectPlugin"
+    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private var client: HealthConnectClient? = null
-    private val job = Job()
-    private val scope = CoroutineScope(Dispatchers.IO + job)
+    private val permissions = setOf(
+        HealthPermission.getReadPermission(StepsRecord::class),
+        HealthPermission.getReadPermission(HeartRateRecord::class),
+        HealthPermission.getReadPermission(WeightRecord::class),
+        HealthPermission.getReadPermission(BodyFatRecord::class),
+        HealthPermission.getReadPermission(ExerciseSessionRecord::class),
+        HealthPermission.getReadPermission(SleepSessionRecord::class),
+        HealthPermission.getReadPermission(NutritionRecord::class),
+        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+        HealthPermission.getReadPermission(DistanceRecord::class)
+    )
 
-    override fun load() {
-        super.load()
-        val ctx: Context = context ?: return
-
-        try {
-            client = HealthConnectClient.getOrCreate(ctx)
-            Log.d(TAG, "HealthConnectClient created")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to create HealthConnectClient", e)
-            client = null
-        }
+    // ---------------------------------------------------------------------
+    //  공용 클라이언트
+    // ---------------------------------------------------------------------
+    private fun getOrCreateHealthConnectClient(): HealthConnectClient {
+        return HealthConnectClient.getOrCreate(context)
     }
 
-    private fun ensureClient(call: PluginCall): HealthConnectClient? {
-        val c = client
-        return if (c == null) {
-            call.reject("Health Connect client not available on this device")
-            null
-        } else {
-            c
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    // ping
-    // ------------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    //  ping
+    // ---------------------------------------------------------------------
     @PluginMethod
     fun ping(call: PluginCall) {
-        val res = JSObject()
-        res.put("value", "pong from Android")
-        call.resolve(res)
+        call.resolve(JSObject().put("ok", true))
     }
 
-    // ------------------------------------------------------------------------
-    // checkPermissions
-    //  - 아주 짧은 구간으로 StepsRecord 읽기 시도
-    //  - SecurityException 나면 권한 없음으로 판단
-    // ------------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    //  권한 체크
+    // ---------------------------------------------------------------------
     @PluginMethod
-    override fun checkPermissions(call: PluginCall) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            call.reject("Health Connect requires Android 8 (Oreo) or higher")
-            return
-        }
-
-        val c = ensureClient(call) ?: return
-
-        scope.launch {
+    fun checkPermissions(call: PluginCall) {
+        coroutineScope.launch {
             try {
-                val now = Instant.now()
-                val timeRange = TimeRangeFilter.between(now.minusMillis(1), now)
-                val req = ReadRecordsRequest(StepsRecord::class, timeRange)
+                val client = getOrCreateHealthConnectClient()
+                val granted = client.permissionController.getGrantedPermissions()
+                val hasAll = granted.containsAll(permissions)
 
-                try {
-                    c.readRecords(req)
-                    // 예외 없이 통과 → 권한 있음
-                    val res = JSObject()
-                    res.put("hasAllPermissions", true)
-                    res.put("granted", JSArray().apply { put("HealthConnect:read") })
-                    res.put("missing", JSArray())
-                    call.resolve(res)
-                } catch (sec: SecurityException) {
-                    Log.w(TAG, "checkPermissions: SecurityException, no permission", sec)
-                    val res = JSObject()
-                    res.put("hasAllPermissions", false)
-                    res.put("granted", JSArray())
-                    res.put("missing", JSArray().apply { put("HealthConnect:read") })
-                    call.resolve(res)
-                }
+                val result = JSObject()
+                result.put("hasAllPermissions", hasAll)
+                result.put("granted", JSArray().apply {
+                    granted.forEach { put(it) }
+                })
+
+                call.resolve(result)
             } catch (e: Exception) {
                 Log.e(TAG, "checkPermissions error", e)
                 call.reject("Failed to check permissions", e)
@@ -116,334 +78,267 @@ class HealthConnectPlugin : Plugin() {
         }
     }
 
-    // ------------------------------------------------------------------------
-    // requestPermissions
-    //  - Health Connect 앱을 직접 실행해서 사용자에게 권한 켜도록 유도
-    // ------------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    //  권한 요청
+    // ---------------------------------------------------------------------
     @PluginMethod
-    override fun requestPermissions(call: PluginCall) {
-        val ctx = context
-        if (ctx == null) {
-            call.reject("No context")
-            return
-        }
+    fun requestPermissions(call: PluginCall) {
+        // NOTE: Capacitor 쪽에서 ActivityResultLauncher 사용 중
+        // 여기서는 단순히 플래그만 내려줌
+        coroutineScope.launch {
+            try {
+                val client = getOrCreateHealthConnectClient()
+                val granted = client.permissionController.getGrantedPermissions()
+                val hasAll = granted.containsAll(permissions)
 
-        var opened = false
-
-        try {
-            val pm = ctx.packageManager
-            val intent = pm.getLaunchIntentForPackage("com.google.android.apps.healthdata")
-
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                ctx.startActivity(intent)
-                opened = true
-            } else {
-                Log.w(TAG, "Health Connect launch intent not found")
+                val result = JSObject()
+                result.put("hasAllPermissions", hasAll)
+                call.resolve(result)
+            } catch (e: Exception) {
+                Log.e(TAG, "requestPermissions error", e)
+                call.reject("Failed to request permissions", e)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "requestPermissions: failed to open Health Connect app", e)
-        }
-
-        val res = JSObject()
-        res.put("hasAllPermissions", false)
-        res.put("granted", JSArray())
-        res.put("missing", JSArray().apply { put("HealthConnect:read") })
-        res.put("opened", opened)
-        call.resolve(res)
-    }
-
-    // ------------------------------------------------------------------------
-    // openHealthConnectSettings : Health Connect 설정 화면 열기
-    // ------------------------------------------------------------------------
-    @PluginMethod
-    fun openHealthConnectSettings(call: PluginCall) {
-        val ctx = activity ?: context
-        val pm = ctx.packageManager
-
-        try {
-            val intents = mutableListOf(
-                Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS),
-                Intent("android.settings.HEALTH_CONNECT_SETTINGS"),
-                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.fromParts("package", "com.google.android.apps.healthdata", null)
-                },
-                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.fromParts("package", "com.android.healthconnect", null)
-                }
-            )
-
-            for (intent in intents) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (intent.resolveActivity(pm) != null) {
-                    activity?.startActivity(intent) ?: ctx.startActivity(intent)
-                    val ret = JSObject()
-                    ret.put("opened", true)
-                    call.resolve(ret)
-                    return
-                }
-            }
-
-            Log.w(TAG, "Health Connect settings Activity not found on this device")
-            val ret = JSObject()
-            ret.put("opened", false)
-            call.resolve(ret)
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to open Health Connect settings", e)
-            call.reject("Failed to open Health Connect settings: ${e.message}")
         }
     }
 
-    // ------------------------------------------------------------------------
-    // readSummary : 오늘 기준 건강 데이터 요약
-    // ------------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    //  요약 데이터 읽기
+    //  period: "today" | "week" | "month" | "year"
+    // ---------------------------------------------------------------------
     @PluginMethod
     fun readSummary(call: PluginCall) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            call.reject("Health Connect requires Android 8 (Oreo) or higher")
-            return
-        }
+        val period = call.getString("period") ?: "today"
 
-        val c = ensureClient(call) ?: return
-
-        scope.launch {
+        coroutineScope.launch {
             try {
-                val now = Instant.now()
-                val zone = ZoneId.systemDefault()
-                val startOfDay = now.atZone(zone)
-                    .toLocalDate()
-                    .atStartOfDay(zone)
-                    .toInstant()
+                val client = getOrCreateHealthConnectClient()
 
-                val timeRange = TimeRangeFilter.between(startOfDay, now)
+                val now = ZonedDateTime.now()
+                val (start, end) = when (period) {
+                    "week" -> {
+                        val wf = WeekFields.of(Locale.getDefault())
+                        val startOfWeek = now.with(wf.dayOfWeek(), 1).toLocalDate()
+                            .atStartOfDay(now.zone)
+                        startOfWeek to now
+                    }
 
-                // ───── Steps ─────
-                val stepsReq = ReadRecordsRequest(StepsRecord::class, timeRange)
-                val stepsResult = c.readRecords(stepsReq)
-                val stepsArray = JSArray()
+                    "month" -> {
+                        val startOfMonth = now.withDayOfMonth(1).toLocalDate()
+                            .atStartOfDay(now.zone)
+                        startOfMonth to now
+                    }
+
+                    "year" -> {
+                        val startOfYear = now.withDayOfYear(1).toLocalDate()
+                            .atStartOfDay(now.zone)
+                        startOfYear to now
+                    }
+
+                    else -> {
+                        val startOfDay = now.toLocalDate().atStartOfDay(now.zone)
+                        startOfDay to now
+                    }
+                }
+
+                val result = JSObject()
+
+                // ------------------- 걸음수 -------------------
+                val stepsReq = ReadRecordsRequest(
+                    recordType = StepsRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                )
+                val stepsRes = client.readRecords(stepsReq)
+                val stepsArr = JSArray()
                 var totalSteps = 0L
-                for (record in stepsResult.records) {
+                stepsRes.records.forEach { record ->
+                    totalSteps += record.count
                     val obj = JSObject()
                     obj.put("count", record.count)
                     obj.put("startTime", record.startTime.toString())
                     obj.put("endTime", record.endTime.toString())
-                    obj.put("source", record.metadata.dataOrigin.packageName)
-                    stepsArray.put(obj)
-                    totalSteps += record.count
+                    stepsArr.put(obj)
                 }
+                result.put("steps", stepsArr)
+                result.put("totalSteps", totalSteps)
 
-                // ───── Heart rate ─────
-                val hrReq = ReadRecordsRequest(HeartRateRecord::class, timeRange)
-                val hrResult = c.readRecords(hrReq)
-                val hrArray = JSArray()
-                for (record in hrResult.records) {
-                    for (sample in record.samples) {
+                // ------------------- 거리 (DistanceRecord) -------------------
+                val distReq = ReadRecordsRequest(
+                    recordType = DistanceRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                )
+                val distRes = client.readRecords(distReq)
+                var totalDistanceMeter = 0.0
+                distRes.records.forEach { record ->
+                    totalDistanceMeter += record.distance.inMeters
+                }
+                result.put("distanceMeter", totalDistanceMeter)
+
+                // ------------------- 심박수 -------------------
+                val hrReq = ReadRecordsRequest(
+                    recordType = HeartRateRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                )
+                val hrRes = client.readRecords(hrReq)
+                val hrArr = JSArray()
+                hrRes.records.forEach { record ->
+                    record.samples.forEach { sample ->
                         val obj = JSObject()
                         obj.put("bpm", sample.beatsPerMinute)
                         obj.put("time", sample.time.toString())
-                        hrArray.put(obj)
+                        hrArr.put(obj)
                     }
                 }
+                result.put("heartRate", hrArr)
 
-                // ───── Exercise sessions ─────
-                val exReq = ReadRecordsRequest(ExerciseSessionRecord::class, timeRange)
-                val exResult = c.readRecords(exReq)
-                val exArray = JSArray()
-                var totalExerciseMinutes = 0.0
-                for (record in exResult.records) {
-                    val obj = JSObject()
-                    obj.put("title", record.title ?: "운동")
-                    obj.put("startTime", record.startTime.toString())
-                    obj.put("endTime", record.endTime.toString())
-
-                    // exerciseType: 버전별 상수 차이가 있으므로 최소한만 매핑
-                    val typeStr = when (record.exerciseType) {
-                        ExerciseSessionRecord.EXERCISE_TYPE_RUNNING -> "RUNNING"
-                        ExerciseSessionRecord.EXERCISE_TYPE_WALKING -> "WALKING"
-                        else -> "OTHER"
-                    }
-                    obj.put("exerciseType", typeStr)
-
-                    // 거리/칼로리는 여기선 0으로 내려줌 (필요하면 나중에 세분화)
-                    obj.put("distanceMeter", 0)
-                    obj.put("caloriesKcal", 0)
-
-                    exArray.put(obj)
-
-                    val durationMinutes =
-                        (record.endTime.toEpochMilli() - record.startTime.toEpochMilli()) / 60000.0
-                    if (durationMinutes > 0) totalExerciseMinutes += durationMinutes
-                }
-
-                // ───── Sleep sessions ─────
-                val sleepReq = ReadRecordsRequest(SleepSessionRecord::class, timeRange)
-                val sleepResult = c.readRecords(sleepReq)
-                val sleepArray = JSArray()
-                var totalSleepMinutes = 0.0
-                for (record in sleepResult.records) {
-                    val obj = JSObject()
-                    obj.put("startTime", record.startTime.toString())
-                    obj.put("endTime", record.endTime.toString())
-                    val minutes =
-                        (record.endTime.toEpochMilli() - record.startTime.toEpochMilli()) / 60000.0
-                    if (minutes > 0) totalSleepMinutes += minutes
-                    sleepArray.put(obj)
-                }
-
-                // ───── Body (weight / bodyFat) ─────
-                val weightReq = ReadRecordsRequest(WeightRecord::class, timeRange)
-                val weightResult = c.readRecords(weightReq)
-                val weightArray = JSArray()
-                for (record in weightResult.records) {
+                // ------------------- 체중/체지방 -------------------
+                val weightReq = ReadRecordsRequest(
+                    recordType = WeightRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                )
+                val weightRes = client.readRecords(weightReq)
+                val weightArr = JSArray()
+                weightRes.records.forEach { record ->
                     val obj = JSObject()
                     obj.put("kg", record.weight.inKilograms)
                     obj.put("time", record.time.toString())
-                    weightArray.put(obj)
+                    weightArr.put(obj)
                 }
+                result.put("body", JSObject().apply {
+                    put("weight", weightArr)
+                })
 
-                val bodyFatReq = ReadRecordsRequest(BodyFatRecord::class, timeRange)
-                val bodyFatResult = c.readRecords(bodyFatReq)
-                val bodyFatArray = JSArray()
-                for (record in bodyFatResult.records) {
-                    val obj = JSObject()
-                    obj.put("percent", record.percentage)
-                    obj.put("time", record.time.toString())
-                    bodyFatArray.put(obj)
-                }
-
-                val bodyObj = JSObject()
-                bodyObj.put("weight", weightArray)
-                bodyObj.put("bodyFat", bodyFatArray)
-
-                // ───── Nutrition (지금은 비워두기) ─────
-                val nutritionArray = JSArray()
-
-                // ───── 단순 추정치 aggregate (걸음수 기반) ─────
-                val estimatedDistanceMeters = (totalSteps * 0.8).toLong() // 대략 0.8m/step
-                val estimatedActiveCalories = (totalSteps * 0.04).toInt() // 대략 0.04kcal/step
-
-                val res = JSObject()
-                res.put("timeRangeStart", startOfDay.toString())
-                res.put("timeRangeEnd", now.toString())
-
-                res.put("steps", stepsArray)
-                res.put("heartRate", hrArray)
-                res.put("exercises", exArray)
-                res.put("sleepSessions", sleepArray)
-                res.put("body", bodyObj)
-                res.put("nutrition", nutritionArray)
-
-                // TS 쪽에서 anySummary.* 로 읽을 수 있게 aggregate 필드도 내려줌
-                res.put("aggregateSteps", totalSteps)
-                res.put("aggregateDistanceMeters", estimatedDistanceMeters)
-                res.put("aggregateActiveCaloriesKcal", estimatedActiveCalories)
-                res.put("aggregateExerciseMinutes", Math.round(totalExerciseMinutes))
-                res.put("aggregateSleepMinutes", Math.round(totalSleepMinutes))
-
-                // 아직은 0 으로 둠 (나중에 HydrationRecord, Vo2MaxRecord 붙이면 됨)
-                res.put("hydrationLiters", 0.0)
-                res.put("vo2max", 0.0)
-
-                call.resolve(res)
-            } catch (e: SecurityException) {
-                Log.e(TAG, "readSummary: permission error", e)
-                call.reject(
-                    "Missing Health Connect permissions. Please grant access in Health Connect app.",
-                    e
+                val bodyFatReq = ReadRecordsRequest(
+                    recordType = BodyFatRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end)
                 )
+                val bodyFatRes = client.readRecords(bodyFatReq)
+                val bodyFatArr = JSArray()
+                bodyFatRes.records.forEach { record ->
+                    val obj = JSObject()
+                    obj.put("percentage", record.percentage)
+                    obj.put("time", record.time.toString())
+                    bodyFatArr.put(obj)
+                }
+                result.getJSObject("body")!!.put("bodyFat", bodyFatArr)
+
+                // ------------------- 운동 세션 -------------------
+                val exReq = ReadRecordsRequest(
+                    recordType = ExerciseSessionRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                )
+                val exRes = client.readRecords(exReq)
+                val exArr = JSArray()
+                var totalExerciseMinutes = 0.0
+                var exerciseDistanceMeter = 0.0
+                var exerciseCaloriesKcal = 0.0
+
+                exRes.records.forEach { record ->
+                    val obj = JSObject()
+                    obj.put("title", record.title ?: "")
+                    obj.put("exerciseType", record.exerciseType.name)
+                    obj.put("startTime", record.startTime.toString())
+                    obj.put("endTime", record.endTime.toString())
+
+                    val durationMin =
+                        (record.endTime.toEpochSecond() - record.startTime.toEpochSecond()) / 60.0
+                    totalExerciseMinutes += durationMin
+                    obj.put("durationMinutes", durationMin)
+
+                    // distance
+                    val exDistReq = ReadRecordsRequest(
+                        recordType = DistanceRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(record.startTime, record.endTime)
+                    )
+                    val exDistRes = client.readRecords(exDistReq)
+                    var sessionDistance = 0.0
+                    exDistRes.records.forEach { d ->
+                        sessionDistance += d.distance.inMeters
+                    }
+                    exerciseDistanceMeter += sessionDistance
+                    obj.put("distanceMeter", sessionDistance)
+
+                    // calories
+                    val exCalReq = ReadRecordsRequest(
+                        recordType = TotalCaloriesBurnedRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(record.startTime, record.endTime)
+                    )
+                    val exCalRes = client.readRecords(exCalReq)
+                    var sessionKcal = 0.0
+                    exCalRes.records.forEach { c ->
+                        sessionKcal += c.energy.inKilocalories
+                    }
+                    exerciseCaloriesKcal += sessionKcal
+                    obj.put("caloriesKcal", sessionKcal)
+
+                    exArr.put(obj)
+                }
+                result.put("exercises", exArr)
+
+                // ------------------- 수면 -------------------
+                val sleepReq = ReadRecordsRequest(
+                    recordType = SleepSessionRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                )
+                val sleepRes = client.readRecords(sleepReq)
+                val sleepArr = JSArray()
+                var totalSleepMinutes = 0.0
+                sleepRes.records.forEach { record ->
+                    val obj = JSObject()
+                    obj.put("startTime", record.startTime.toString())
+                    obj.put("endTime", record.endTime.toString())
+                    val durationMin =
+                        (record.endTime.toEpochSecond() - record.startTime.toEpochSecond()) / 60.0
+                    obj.put("durationMinutes", durationMin)
+                    totalSleepMinutes += durationMin
+                    sleepArr.put(obj)
+                }
+                result.put("sleepSessions", sleepArr)
+
+                // ------------------- 영양 (섭취) -------------------
+                val nReq = ReadRecordsRequest(
+                    recordType = NutritionRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                )
+                val nRes = client.readRecords(nReq)
+                val nArr = JSArray()
+                var totalIntakeKcal = 0.0
+                nRes.records.forEach { record ->
+                    val obj = JSObject()
+                    obj.put("time", record.startTime.toString())
+                    obj.put("energyKcal", record.energy?.inKilocalories ?: 0.0)
+                    obj.put("carbsGrams", record.carbohydrate?.inGrams ?: 0.0)
+                    obj.put("proteinGrams", record.protein?.inGrams ?: 0.0)
+                    obj.put("fatGrams", record.fat?.inGrams ?: 0.0)
+                    totalIntakeKcal += (record.energy?.inKilocalories ?: 0.0)
+                    nArr.put(obj)
+                }
+                result.put("nutrition", nArr)
+                result.put("totalIntakeKcal", totalIntakeKcal)
+
+                // ------------------- 총 소모 칼로리 -------------------
+                val burnReq = ReadRecordsRequest(
+                    recordType = TotalCaloriesBurnedRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                )
+                val burnRes = client.readRecords(burnReq)
+                var totalBurnKcal = 0.0
+                burnRes.records.forEach { record ->
+                    totalBurnKcal += record.energy.inKilocalories
+                }
+                // 운동 세션 별로 계산한 것과 합쳐서 살짝 여유 있게 사용
+                val activeKcal = if (totalBurnKcal > 0.0) totalBurnKcal else exerciseCaloriesKcal
+
+                result.put("activeCaloriesKcal", activeKcal)
+
+                // ------------------- 집계 필드 -------------------
+                result.put("exerciseMinutes", totalExerciseMinutes)
+                result.put("sleepMinutes", totalSleepMinutes)
+                result.put("exerciseDistanceMeter", exerciseDistanceMeter)
+
+                call.resolve(result)
             } catch (e: Exception) {
                 Log.e(TAG, "readSummary error", e)
-                call.reject("Failed to read health summary", e)
-            }
-        }
-    }
-
-    override fun handleOnDestroy() {
-        super.handleOnDestroy()
-        job.cancel()
-    }
-
-    private fun getPeriodRange(type: String): Pair<ZonedDateTime, ZonedDateTime> {
-        val now = ZonedDateTime.now()
-        val zone = now.zone
-
-        return when (type) {
-            "today" -> {
-                val start = now.toLocalDate().atStartOfDay(zone)
-                val end = start.plusDays(1)
-                start to end
-            }
-
-            "week" -> {
-                // 이번주 월요일 0시 ~ 다음주 월요일 0시
-                val startOfWeek = now.with(DayOfWeek.MONDAY)
-                    .toLocalDate()
-                    .atStartOfDay(zone)
-                val endOfWeek = startOfWeek.plusWeeks(1)
-                startOfWeek to endOfWeek
-            }
-
-            "month" -> {
-                // 이번달 1일 0시 ~ 다음달 1일 0시
-                val startOfMonth = now.withDayOfMonth(1)
-                    .toLocalDate()
-                    .atStartOfDay(zone)
-                val endOfMonth = startOfMonth.plusMonths(1)
-                startOfMonth to endOfMonth
-            }
-
-            "year" -> {
-                // 올해 1/1 0시 ~ 내년 1/1 0시
-                val startOfYear = now.withDayOfYear(1)
-                    .toLocalDate()
-                    .atStartOfDay(zone)
-                val endOfYear = startOfYear.plusYears(1)
-                startOfYear to endOfYear
-            }
-
-            else -> {
-                // 잘못된 값 들어오면 일단 today로 처리
-                val start = now.toLocalDate().atStartOfDay(zone)
-                val end = start.plusDays(1)
-                start to end
-            }
-        }
-    }
-
-    @PluginMethod
-    fun readPeriodSummary(call: PluginCall) {
-        // JS/TS 쪽에서 넘겨줄 값: "today" | "week" | "month" | "year"
-        val type = call.getString("type") ?: "today"
-
-        val (startZdt, endZdt) = getPeriodRange(type)
-        val startInstant = startZdt.toInstant()
-        val endInstant = endZdt.toInstant()
-
-        // ⚠️ 아래 부분은 "기존 readSummary() 코드를 그대로 복사"하되
-        // 날짜 범위만 오늘(Today)이 아니라 위에서 계산한 startInstant/endInstant 를 쓰도록 바꾸면 됨.
-
-        coroutineScope.launch {
-            try {
-                // 예시: 네 기존 코드 스타일에 맞게 맞춰줘.
-                val client = getOrCreateHealthConnectClient()
-
-                // ↓↓↓ 여기 부분은 기존 readSummary 내부에서
-                // steps / exercises / sleep / nutrition 읽던 로직 그대로 사용.
-                // 단, 기존에는 "오늘 0시~24시" 썼다면
-                // 여기서는 startInstant ~ endInstant 를 사용.
-
-                val resultJson = JSObject()
-
-                // 예: 걸음수 예시 (네 플러그인 코드에 맞게 조정)
-                // val steps = readSteps(client, startInstant, endInstant)
-                // resultJson.put("steps", steps)
-
-                // ... 심박, 체중, 운동, 영양, 수면 등 기존과 동일 ...
-
-                call.resolve(resultJson)
-            } catch (e: Exception) {
-                call.reject("Failed to read summary for period: $type", e)
+                call.reject("Failed to read summary", e)
             }
         }
     }
