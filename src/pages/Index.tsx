@@ -1,50 +1,51 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { LocalNotifications } from "@capacitor/local-notifications";
+import { Activity, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { Activity, Clock } from "lucide-react";
-import { LocalNotifications } from '@capacitor/local-notifications';
-import { HealthConnect as HealthConnectNew } from "@/lib/healthConnect";
-import { checkHealthConnectAvailability, checkPermissions, requestPermissions } from "@/lib/health-connect";
-import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { useToast } from "@/hooks/use-toast";
 import { useTodayHealth } from "@/hooks/useHealthData";
+import type { CheckPermissionsResult, HealthSummary } from "@/lib/healthConnect";
+import { getActiveProvider } from "@/providers/shared";
+import { SamsungHealthDebugCard } from "@/providers/samsung/components/SamsungHealthDebugCard";
+import { SamsungPermissionDialog } from "@/providers/samsung/components/SamsungPermissionDialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  checkSamsungHealthBridgePermissions,
+  logSamsungTransferStatus,
+  openSamsungHealthConnectSettings,
+  readSamsungHealthSummary,
+} from "@/providers/samsung/services/healthConnectClient";
+import { persistSamsungConnection } from "@/providers/samsung/services/samsungConnectionStore";
+import type { NormalizedHealthData } from "@/providers/shared/types/provider";
+
+interface CalculatedStats {
+  totalBurned: number;
+  totalConsumed: number;
+  calorieDiff: number;
+  totalExerciseDistance: number;
+  totalExerciseTime: number;
+}
 
 const Index = () => {
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  const [permissionResult, setPermissionResult] = useState<CheckPermissionsResult | null>(null);
+  const [healthSummary, setHealthSummary] = useState<HealthSummary | null>(null);
   const { toast } = useToast();
-
-  // New Health Connect Test States
-  const [permissionResult, setPermissionResult] = useState<any>(null);
-  const [healthSummary, setHealthSummary] = useState<any>(null);
-
-  // Use React Query for today's health data
   const { data: todayData, isLoading, error } = useTodayHealth();
 
   useEffect(() => {
-    checkSamsungHealthPermission();
+    void checkSamsungHealthPermission();
   }, []);
 
-  const shouldShowPermissionDialog = (): boolean => {
-    // Check if dialog was dismissed for 24 hours
+  const shouldShowPermissionDialog = () => {
     const dismissedUntil = localStorage.getItem("permission_dialog_dismissed_until");
-    if (dismissedUntil) {
-      const dismissedTime = new Date(dismissedUntil).getTime();
-      if (Date.now() < dismissedTime) {
-        return false;
-      }
+    if (!dismissedUntil) {
+      return true;
     }
-    return true;
+
+    return Date.now() >= new Date(dismissedUntil).getTime();
   };
 
   const checkSamsungHealthPermission = async () => {
@@ -57,23 +58,18 @@ const Index = () => {
         return;
       }
 
-      const isNative = (window as any).Capacitor?.isNativePlatform();
-      if (!isNative) return;
-
-      // Check Health Connect permission status
-      const permStatus = await checkPermissions();
-      if (permStatus.hasAll) {
-        // Permission granted, hide dialog
+      const provider = getActiveProvider();
+      const status = await provider.getConnectionStatus();
+      if (status.connected) {
         setShowPermissionDialog(false);
         return;
       }
 
-      // Permission not granted, show dialog if allowed
       if (shouldShowPermissionDialog()) {
         setShowPermissionDialog(true);
       }
-    } catch (error) {
-      console.error("Failed to check Samsung Health permission:", error);
+    } catch (providerError) {
+      console.error("Failed to check Samsung Health permission:", providerError);
     }
   };
 
@@ -89,62 +85,39 @@ const Index = () => {
         return;
       }
 
-      // Check if Health Connect is available
-      const available = await checkHealthConnectAvailability();
+      const provider = getActiveProvider();
+      const available = await provider.isAvailable();
       if (!available) {
         toast({
           title: "Health Connect 미지원",
-          description: "이 기기는 Health Connect를 지원하지 않습니다.",
+          description: "현재 기기에서는 Health Connect를 사용할 수 없습니다.",
           variant: "destructive",
         });
         return;
       }
 
-      // Request permissions
-      const granted = await requestPermissions();
-      if (!granted) {
-        toast({
-          title: "권한 필요",
-          description: "Health Connect 권한을 승인해주세요.",
-          variant: "destructive",
-        });
-        return;
-      }
+      await provider.connect();
 
-      // Generate a unique device ID
-      const deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // Update profile with Samsung Health connection info
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          samsung_health_device_id: deviceId,
-          samsung_health_connected_at: new Date().toISOString(),
-        })
-        .eq("id", profileId);
-
-      if (updateError) throw updateError;
-
-      // Save to localStorage
-      localStorage.setItem("samsung_health_device_id", deviceId);
-      localStorage.setItem("samsung_health_connected", "true");
-
-      // Log successful connection
-      await logTransferStatus("Samsung Health", "success", "Health Connect가 성공적으로 연동되었습니다.");
+      const deviceId = `device_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      await persistSamsungConnection(deviceId);
+      await logSamsungTransferStatus("success", "Health Connect가 성공적으로 연결되었습니다.");
 
       toast({
-        title: "연동 완료",
-        description: "Health Connect와 성공적으로 연동되었습니다.",
+        title: "연결 완료",
+        description: "Health Connect가 성공적으로 연결되었습니다.",
       });
 
       setShowPermissionDialog(false);
-
-      // Request notification permissions
       await requestNotificationPermission();
       await scheduleDailyNotification();
-    } catch (error) {
-      console.error("Error granting Health Connect permission:", error);
-      await logTransferStatus("Samsung Health", "error", error instanceof Error ? error.message : "Health Connect 연동 실패");
+    } catch (grantError) {
+      console.error("Error granting Health Connect permission:", grantError);
+      await logSamsungTransferStatus(
+        "error",
+        grantError instanceof Error ? grantError.message : "Health Connect 연결 실패",
+      ).catch((logError) => {
+        console.error("Failed to write Samsung transfer log:", logError);
+      });
       toast({
         title: "권한 설정 실패",
         description: "권한 설정 중 오류가 발생했습니다.",
@@ -156,19 +129,19 @@ const Index = () => {
   const requestNotificationPermission = async () => {
     try {
       await LocalNotifications.requestPermissions();
-    } catch (error) {
-      console.error('Error requesting notification permissions:', error);
+    } catch (notificationError) {
+      console.error("Error requesting notification permissions:", notificationError);
     }
   };
 
   const scheduleDailyNotification = async () => {
     try {
       await LocalNotifications.cancel({ notifications: [{ id: 1 }] });
-      
+
       const now = new Date();
       const scheduledTime = new Date();
       scheduledTime.setHours(9, 0, 0, 0);
-      
+
       if (scheduledTime <= now) {
         scheduledTime.setDate(scheduledTime.getDate() + 1);
       }
@@ -177,63 +150,45 @@ const Index = () => {
         notifications: [
           {
             id: 1,
-            title: '삼성헬스 데이터 동기화',
-            body: '오늘의 건강 데이터를 ChatGPT로 전송할 시간입니다.',
+            title: "삼성헬스 데이터 동기화",
+            body: "오늘의 건강 데이터를 ChatGPT로 전송할 시간입니다.",
             schedule: {
               at: scheduledTime,
               repeats: true,
-              every: 'day',
+              every: "day",
             },
           },
         ],
       });
-    } catch (error) {
-      console.error('Error scheduling notification:', error);
+    } catch (notificationError) {
+      console.error("Error scheduling notification:", notificationError);
     }
   };
 
-  const logTransferStatus = async (logType: string, status: "success" | "error" | "pending", message: string) => {
-    try {
-      const profileId = localStorage.getItem("profile_id");
-      if (!profileId) return;
-
-      await supabase.from('transfer_logs').insert({
-        profile_id: profileId,
-        log_type: logType,
-        status,
-        message,
-      });
-    } catch (error) {
-      console.error("Failed to log transfer status:", error);
-    }
-  };
-
-  const calculateStats = (data: any) => {
-    const totalBurned = data ? (
-      (data.steps_data?.calories || 0) + 
-      (data.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.calories || 0), 0) || 0)
-    ) : 0;
+  const calculateStats = (data: NormalizedHealthData): CalculatedStats => {
+    const totalBurned = (data.steps_data?.calories || 0)
+      + (data.exercise_data?.reduce((sum, exercise) => sum + (exercise.calories || 0), 0) || 0);
     const totalConsumed = data?.nutrition_data?.calories || 0;
     const calorieDiff = totalConsumed - totalBurned;
-    const totalExerciseDistance = data?.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.distance || 0), 0) || 0;
-    const totalExerciseTime = data?.exercise_data?.reduce((sum: number, ex: any) => sum + (ex.duration || 0), 0) || 0;
+    const totalExerciseDistance = data?.exercise_data?.reduce((sum, exercise) => sum + (exercise.distance || 0), 0) || 0;
+    const totalExerciseTime = data?.exercise_data?.reduce((sum, exercise) => sum + (exercise.duration || 0), 0) || 0;
 
     return { totalBurned, totalConsumed, calorieDiff, totalExerciseDistance, totalExerciseTime };
   };
 
   const handleCheckPermissions = async () => {
     try {
-      const result = await HealthConnectNew.checkPermissions();
+      const result = await checkSamsungHealthBridgePermissions();
       setPermissionResult(result);
       toast({
         title: "권한 확인 완료",
-        description: `모든 권한: ${result.hasAllPermissions ? '승인됨' : '필요'}`,
+        description: `모든 권한: ${result.hasAllPermissions ? "확인됨" : "필요"}`,
       });
-    } catch (error) {
-      console.error("권한 확인 실패:", error);
+    } catch (permissionError) {
+      console.error("권한 확인 실패:", permissionError);
       toast({
         title: "권한 확인 실패",
-        description: error instanceof Error ? error.message : "알 수 없는 오류",
+        description: permissionError instanceof Error ? permissionError.message : "알 수 없는 오류",
         variant: "destructive",
       });
     }
@@ -241,29 +196,18 @@ const Index = () => {
 
   const handleRequestPermissions = async () => {
     try {
-      const result = await HealthConnectNew.requestPermissions();
-      
-      if (result.hasAllPermissions) {
-        toast({
-          title: "권한 요청 완료",
-          description: "모든 권한이 허용되었습니다.",
-        });
-      } else {
-        toast({
-          title: "권한 일부 미허용",
-          description: `허용 안 된 권한: ${result.missing.join(', ')}`,
-          variant: "destructive",
-        });
-      }
-
-      // 권한 상태 업데이트
-      const status = await HealthConnectNew.checkPermissions();
+      await getActiveProvider().connect();
+      const status = await checkSamsungHealthBridgePermissions();
       setPermissionResult(status);
-    } catch (error) {
-      console.error("권한 요청 실패:", error);
+      toast({
+        title: "권한 요청 완료",
+        description: status.hasAllPermissions ? "모든 권한이 허용되었습니다." : "일부 권한이 아직 필요합니다.",
+      });
+    } catch (permissionError) {
+      console.error("권한 요청 실패:", permissionError);
       toast({
         title: "권한 요청 실패",
-        description: error instanceof Error ? error.message : "알 수 없는 오류",
+        description: permissionError instanceof Error ? permissionError.message : "알 수 없는 오류",
         variant: "destructive",
       });
     }
@@ -271,16 +215,18 @@ const Index = () => {
 
   const handleOpenSettings = async () => {
     try {
-      const result = await HealthConnectNew.openHealthConnectSettings();
+      const result = await openSamsungHealthConnectSettings();
       toast({
         title: result.opened ? "설정 열림" : "설정 열기 실패",
-        description: result.opened ? "Health Connect 설정이 열렸습니다." : "설정을 열 수 없습니다.",
+        description: result.opened
+          ? "Health Connect 설정을 열었습니다."
+          : "설정을 열 수 없습니다.",
       });
-    } catch (error) {
-      console.error("설정 열기 실패:", error);
+    } catch (settingsError) {
+      console.error("설정 열기 실패:", settingsError);
       toast({
         title: "설정 열기 실패",
-        description: error instanceof Error ? error.message : "알 수 없는 오류",
+        description: settingsError instanceof Error ? settingsError.message : "알 수 없는 오류",
         variant: "destructive",
       });
     }
@@ -288,25 +234,27 @@ const Index = () => {
 
   const handleReadSummary = async () => {
     try {
-      const result = await HealthConnectNew.readSummary();
+      const result = await readSamsungHealthSummary();
       setHealthSummary(result);
       toast({
         title: "데이터 읽기 완료",
         description: "Health Connect 데이터를 성공적으로 읽었습니다.",
       });
-    } catch (error) {
-      console.error("데이터 읽기 실패:", error);
+    } catch (summaryError) {
+      console.error("데이터 읽기 실패:", summaryError);
       toast({
         title: "데이터 읽기 실패",
-        description: error instanceof Error ? error.message : "알 수 없는 오류",
+        description: summaryError instanceof Error ? summaryError.message : "알 수 없는 오류",
         variant: "destructive",
       });
     }
   };
 
-  const renderHealthCard = (data: any) => {
-    if (!data) return null;
-    
+  const renderHealthCard = (data: NormalizedHealthData) => {
+    if (!data) {
+      return null;
+    }
+
     const { totalBurned, totalConsumed, calorieDiff, totalExerciseDistance, totalExerciseTime } = calculateStats(data);
 
     return (
@@ -314,14 +262,14 @@ const Index = () => {
         <CardHeader>
           <CardTitle className="text-primary">Today</CardTitle>
           <CardDescription className="text-sm text-muted-foreground">
-            마지막 동기화: {localStorage.getItem('lastSync') || '동기화 기록 없음'}
+            마지막 동기화 {localStorage.getItem("lastSync") || "동기화 기록 없음"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2 p-3 rounded-lg bg-card">
             <h3 className="font-semibold flex items-center gap-2 text-primary">
               <Activity className="h-4 w-4" />
-              운동 요약
+              활동 요약
             </h3>
             <div className="grid grid-cols-2 gap-4 text-center">
               <div>
@@ -351,8 +299,9 @@ const Index = () => {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">차이</p>
-                <p className={`text-2xl font-bold ${calorieDiff > 0 ? 'text-primary' : 'text-destructive'}`}>
-                  {calorieDiff > 0 ? '+' : ''}{calorieDiff} kcal
+                <p className={`text-2xl font-bold ${calorieDiff > 0 ? "text-primary" : "text-destructive"}`}>
+                  {calorieDiff > 0 ? "+" : ""}
+                  {calorieDiff} kcal
                 </p>
               </div>
             </div>
@@ -372,19 +321,22 @@ const Index = () => {
               </div>
             </div>
           )}
-          
+
           {data.exercise_data && Array.isArray(data.exercise_data) && (
             <div className="space-y-2 p-3 rounded-lg bg-card">
               <h3 className="font-semibold flex items-center gap-2 text-primary">
                 <Activity className="h-4 w-4" />
                 운동
               </h3>
-              {data.exercise_data.map((ex: any, idx: number) => (
-                <div key={idx} className="grid grid-cols-2 gap-2 text-sm border-t border-border/50 pt-2 first:border-t-0 first:pt-0">
-                  <div className="col-span-2 font-semibold">{ex.type}</div>
-                  <div>시간 {ex.duration}분</div>
-                  <div>칼로리 {ex.calories}kcal</div>
-                  {ex.distance && <div className="col-span-2">거리 {ex.distance}km</div>}
+              {data.exercise_data.map((exercise, index) => (
+                <div
+                  key={index}
+                  className="grid grid-cols-2 gap-2 text-sm border-t border-border/50 pt-2 first:border-t-0 first:pt-0"
+                >
+                  <div className="col-span-2 font-semibold">{exercise.type}</div>
+                  <div>시간 {exercise.duration}분</div>
+                  <div>칼로리 {exercise.calories}kcal</div>
+                  {exercise.distance && <div className="col-span-2">거리 {exercise.distance}km</div>}
                 </div>
               ))}
             </div>
@@ -398,15 +350,6 @@ const Index = () => {
               </h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>총 수면 {data.sleep_data.totalMinutes}분</div>
-                <div>수면 점수 {data.sleep_data.score || 'N/A'}</div>
-                {data.sleep_data.deepSleepMinutes && (
-                  <>
-                    <div>깊은 수면 {data.sleep_data.deepSleepMinutes}분</div>
-                    <div>얕은 수면 {data.sleep_data.lightSleepMinutes}분</div>
-                    <div>렘 수면 {data.sleep_data.remSleepMinutes}분</div>
-                    <div>깬 시간 {data.sleep_data.awakeMinutes}분</div>
-                  </>
-                )}
               </div>
             </div>
           )}
@@ -431,9 +374,7 @@ const Index = () => {
               </h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {data.body_composition_data.weight && <div>체중 {data.body_composition_data.weight}kg</div>}
-                {data.body_composition_data.bodyFat && <div>체지방률 {data.body_composition_data.bodyFat}%</div>}
-                {data.body_composition_data.muscleMass && <div>근육량 {data.body_composition_data.muscleMass}kg</div>}
-                {data.body_composition_data.bmi && <div>BMI {data.body_composition_data.bmi}</div>}
+                {data.body_composition_data.bodyFat && <div>체지방 {data.body_composition_data.bodyFat}%</div>}
               </div>
             </div>
           )}
@@ -446,9 +387,6 @@ const Index = () => {
               </h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>칼로리 {data.nutrition_data.calories}kcal</div>
-                <div>탄수화물 {data.nutrition_data.carbs}g</div>
-                <div>단백질 {data.nutrition_data.protein}g</div>
-                <div>지방 {data.nutrition_data.fat}g</div>
               </div>
             </div>
           )}
@@ -461,149 +399,22 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <Header showNav={true} />
       <ScrollToTop />
-      
-      <AlertDialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Samsung Health 및 앱 권한 필요</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p className="font-semibold">건강 데이터를 수집하려면 다음 권한이 필요합니다:</p>
-              
-              <div className="space-y-2 text-sm">
-                <p className="font-medium">필수 권한:</p>
-                <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>건강, 피트니스, 웰니스 (Samsung Health 데이터)</li>
-                  <li>신체 활동 (활동 추적)</li>
-                  <li>위치 (운동 경로 기록)</li>
-                </ul>
-              </div>
-              
-              <div className="space-y-2 text-sm">
-                <p className="font-medium">선택 권한:</p>
-                <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>사진 및 동영상 (프로필 이미지)</li>
-                  <li>카메라 (프로필 사진 촬영)</li>
-                  <li>알림 (동기화 알림)</li>
-                </ul>
-              </div>
-              
-              <p className="text-sm font-medium mt-4">권한 설정 방법:</p>
-              <ol className="list-decimal list-inside space-y-1 text-sm ml-2">
-                <li>휴대폰 설정 &gt; 앱 &gt; RH Healthcare</li>
-                <li>권한 탭에서 필요한 권한 허용</li>
-                <li>Samsung Health 앱 &gt; 설정 &gt; 연결된 앱</li>
-                <li>'RH Healthcare' 찾아서 데이터 접근 허용</li>
-              </ol>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                // Dismiss for 24 hours
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                localStorage.setItem("permission_dialog_dismissed_until", tomorrow.toISOString());
-                setShowPermissionDialog(false);
-              }}
-            >
-              하루동안 보지 않기
-            </Button>
-            <AlertDialogAction onClick={handleGrantPermission}>
-              확인
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
+      <SamsungPermissionDialog
+        open={showPermissionDialog}
+        onOpenChange={setShowPermissionDialog}
+        onConfirm={handleGrantPermission}
+      />
 
       <div className="max-w-4xl mx-auto p-4 space-y-6">
-        {/* Health Connect Test UI */}
-        <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200">
-          <CardHeader>
-            <CardTitle className="text-purple-700">Health Connect 테스트</CardTitle>
-            <CardDescription>Kotlin 플러그인 연동 테스트</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2 flex-wrap">
-              <Button onClick={handleCheckPermissions} variant="outline">
-                권한 확인
-              </Button>
-              <Button onClick={handleRequestPermissions} variant="default">
-                모든 권한 요청
-              </Button>
-              <Button onClick={handleOpenSettings} variant="outline">
-                Health Connect 설정 열기
-              </Button>
-              <Button onClick={handleReadSummary} variant="default">
-                데이터 읽기
-              </Button>
-            </div>
-
-            {permissionResult && (
-              <Card className="bg-white">
-                <CardHeader>
-                  <CardTitle className="text-sm">권한 상태</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <pre className="text-xs overflow-auto bg-slate-50 p-3 rounded">
-                    {JSON.stringify(permissionResult, null, 2)}
-                  </pre>
-                </CardContent>
-              </Card>
-            )}
-
-            {healthSummary && (
-              <>
-                <Card className="bg-white">
-                  <CardHeader>
-                    <CardTitle className="text-sm">데이터 요약</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">걸음수</p>
-                      <p className="text-lg font-bold">{healthSummary.steps?.length || 0}건</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">심박수</p>
-                      <p className="text-lg font-bold">{healthSummary.heartRate?.length || 0}건</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">운동</p>
-                      <p className="text-lg font-bold">{healthSummary.exercises?.length || 0}건</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">수면</p>
-                      <p className="text-lg font-bold">{healthSummary.sleepSessions?.length || 0}건</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">체중</p>
-                      <p className="text-lg font-bold">{healthSummary.body?.weight?.length || 0}건</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">체지방</p>
-                      <p className="text-lg font-bold">{healthSummary.body?.bodyFat?.length || 0}건</p>
-                    </div>
-                    <div className="space-y-1 col-span-2">
-                      <p className="text-xs text-muted-foreground">영양</p>
-                      <p className="text-lg font-bold">{healthSummary.nutrition?.length || 0}건</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-white">
-                  <CardHeader>
-                    <CardTitle className="text-sm">전체 JSON (개발용)</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <pre className="text-xs overflow-auto bg-slate-50 p-3 rounded max-h-96">
-                      {JSON.stringify(healthSummary, null, 2)}
-                    </pre>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        <SamsungHealthDebugCard
+          permissionResult={permissionResult}
+          healthSummary={healthSummary}
+          onCheckPermissions={handleCheckPermissions}
+          onRequestPermissions={handleRequestPermissions}
+          onOpenSettings={handleOpenSettings}
+          onReadSummary={handleReadSummary}
+        />
 
         {isLoading ? (
           <Card className="bg-accent/10">
@@ -614,22 +425,20 @@ const Index = () => {
         ) : error || !todayData ? (
           <Card className="bg-accent/10">
             <CardHeader>
-              <CardTitle>Samsung Health 연동 필요</CardTitle>
+              <CardTitle>Samsung Health 연결 필요</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                오늘의 건강 데이터를 보려면 Samsung Health 연동이 필요합니다.
+                오늘의 건강 데이터를 보려면 Samsung Health 연결이 필요합니다.
               </p>
               <p className="text-sm text-muted-foreground">
-                이 기능은 Android 네이티브 앱에서만 사용 가능합니다. 
-                앱을 다운로드하여 Samsung Health와 연동해주세요.
+                이 기능은 Android 네이티브 앱에서만 사용할 수 있습니다.
               </p>
             </CardContent>
           </Card>
         ) : (
           renderHealthCard(todayData)
         )}
-
       </div>
     </div>
   );
