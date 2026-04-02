@@ -412,7 +412,7 @@ const AccountSettings = () => {
           </CardContent>
         </Card>
 
-        <Button onClick={() => navigate("/admin")} variant="outline" className="w-full">
+        <Button onClick={() => navigate(-1)} variant="outline" className="w-full">
           설정으로 돌아가기
         </Button>
       </div>

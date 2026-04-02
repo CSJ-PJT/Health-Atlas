@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { DeviceContacts, type DeviceContact } from "@/lib/deviceContacts";
+import { supabase } from "@/integrations/supabase/client";
 import { ensureSocialSeed, getFriends, saveFriend, upsertDirectRoom } from "@/services/socialStore";
 
 const Friends = () => {
@@ -15,6 +16,7 @@ const Friends = () => {
   const [search, setSearch] = useState("");
   const [manualName, setManualName] = useState("");
   const [manualPhone, setManualPhone] = useState("");
+  const [userIdQuery, setUserIdQuery] = useState("");
 
   useEffect(() => {
     ensureSocialSeed();
@@ -89,6 +91,25 @@ const Friends = () => {
     setManualPhone("");
   };
 
+  const handleUserIdAdd = async () => {
+    if (!userIdQuery.trim()) {
+      return;
+    }
+
+    const { data } = await supabase.from("profiles").select("user_id, nickname").eq("user_id", userIdQuery.trim()).maybeSingle();
+    if (!data) {
+      toast({ title: "사용자 없음", description: "해당 사용자 ID를 찾지 못했습니다.", variant: "destructive" });
+      return;
+    }
+
+    handleAddFriend({
+      id: data.user_id,
+      name: data.nickname || data.user_id,
+      phone: `id:${data.user_id}`,
+    });
+    setUserIdQuery("");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
@@ -154,6 +175,19 @@ const Friends = () => {
                 <Button onClick={handleManualAdd} className="w-full gap-2">
                   <Plus className="h-4 w-4" />
                   친구 추가
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>사용자 ID로 친구 추가</CardTitle>
+                <CardDescription>앱 사용자 ID를 알고 있으면 직접 검색해 친구로 추가합니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Input value={userIdQuery} onChange={(event) => setUserIdQuery(event.target.value)} placeholder="user_xxx" />
+                <Button onClick={() => void handleUserIdAdd()} className="w-full">
+                  사용자 ID로 추가
                 </Button>
               </CardContent>
             </Card>

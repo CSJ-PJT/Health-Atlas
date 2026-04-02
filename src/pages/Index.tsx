@@ -12,6 +12,7 @@ import type { CheckPermissionsResult, HealthSummary } from "@/lib/healthConnect"
 import { getActiveProvider, getProviderMeta, getStoredProviderId } from "@/providers/shared";
 import type { NormalizedHealthData } from "@/providers/shared/types/provider";
 import { buildAiRecommendation } from "@/services/aiCoach";
+import { isDisplayMetricEnabled } from "@/services/displaySettings";
 import { SamsungHealthDebugCard } from "@/providers/samsung/components/SamsungHealthDebugCard";
 import { SamsungPermissionDialog } from "@/providers/samsung/components/SamsungPermissionDialog";
 import {
@@ -22,6 +23,7 @@ import {
 } from "@/providers/samsung/services/healthConnectClient";
 import { persistSamsungConnection } from "@/providers/samsung/services/samsungConnectionStore";
 import { getMockHealthHistory } from "@/providers/shared/services/mockData";
+import { formatMinutesToClock } from "@/utils/formatDuration";
 
 const formatPace = (minutesPerKm: number) => {
   const minutes = Math.floor(minutesPerKm);
@@ -291,7 +293,7 @@ const Index = () => {
   const renderDashboard = (data: NormalizedHealthData) => {
     const stepGoal = 12000;
     const sleepGoal = 480;
-    const hydrationGoal = 2500;
+    const calorieGoal = 900;
     const hydrationAmount = data.hydration.reduce((sum: number, item: any) => {
       if (typeof item?.milliliters === "number") {
         return sum + item.milliliters;
@@ -307,7 +309,15 @@ const Index = () => {
       { label: "운동 시간", value: `${totalExerciseMinutes}분` },
       { label: "운동 칼로리", value: `${totalExerciseCalories} kcal` },
       { label: "평균 심박", value: `${data.heart_rate} bpm` },
-    ];
+    ].filter((item) => {
+      const mapping: Record<string, string> = {
+        걸음수: "steps",
+        "운동 시간": "highlights",
+        "운동 칼로리": "calories",
+        "평균 심박": "heart",
+      };
+      return isDisplayMetricEnabled("home", mapping[item.label] || "steps");
+    });
 
     return (
       <div className="space-y-6">
@@ -331,6 +341,7 @@ const Index = () => {
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
+                {isDisplayMetricEnabled("home", "highlights") ? (
                 <div className="rounded-2xl border bg-background/80 p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <Activity className="h-4 w-4 text-primary" />
@@ -352,7 +363,9 @@ const Index = () => {
                     ))}
                   </div>
                 </div>
+                ) : null}
 
+                {isDisplayMetricEnabled("home", "body-balance") ? (
                 <div className="rounded-2xl border bg-background/80 p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <Timer className="h-4 w-4 text-primary" />
@@ -361,7 +374,7 @@ const Index = () => {
                   <div className="mt-3">
                     <MetricGrid
                       items={[
-                        { label: "수면", value: `${data.sleep_data.totalMinutes}분` },
+                        { label: "수면", value: formatMinutesToClock(data.sleep_data.totalMinutes) },
                         { label: "체중", value: `${data.body_composition_data.weight} kg` },
                         { label: "체지방", value: `${data.body_composition_data.bodyFat} %` },
                         { label: "영양", value: `${data.nutrition_data.calories} kcal` },
@@ -373,10 +386,12 @@ const Index = () => {
                     />
                   </div>
                 </div>
+                ) : null}
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-1">
+              {isDisplayMetricEnabled("home", "steps") ? (
               <Card className="border-0 bg-background/85 shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -395,7 +410,9 @@ const Index = () => {
                   />
                 </CardContent>
               </Card>
+              ) : null}
 
+              {isDisplayMetricEnabled("home", "sleep") ? (
               <Card className="border-0 bg-background/85 shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -409,35 +426,39 @@ const Index = () => {
                     total={sleepGoal}
                     color="#06b6d4"
                     centerLabel="총 수면"
-                    centerValue={`${data.sleep_data.totalMinutes}분`}
+                    centerValue={formatMinutesToClock(data.sleep_data.totalMinutes)}
                     subLabel={`${Math.round((data.sleep_data.totalMinutes / sleepGoal) * 100)}% 달성`}
                   />
                 </CardContent>
               </Card>
+              ) : null}
 
+              {isDisplayMetricEnabled("home", "calories") ? (
               <Card className="border-0 bg-background/85 shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Droplets className="h-4 w-4" />
-                    수분 목표
+                    칼로리 목표
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <MetricDonutChart
-                    value={hydrationAmount}
-                    total={hydrationGoal}
+                    value={totalExerciseCalories}
+                    total={calorieGoal}
                     color="#14b8a6"
-                    centerLabel="수분 섭취"
-                    centerValue={`${hydrationAmount}ml`}
-                    subLabel={`${Math.round((hydrationAmount / hydrationGoal) * 100)}% 달성`}
+                    centerLabel="활동 칼로리"
+                    centerValue={`${totalExerciseCalories} kcal`}
+                    subLabel={`${Math.round((totalExerciseCalories / calorieGoal) * 100)}% 달성`}
                   />
                 </CardContent>
               </Card>
+              ) : null}
             </div>
           </CardContent>
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {isDisplayMetricEnabled("home", "heart") ? (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -447,7 +468,9 @@ const Index = () => {
             </CardHeader>
             <CardContent className="text-3xl font-bold text-primary">{data.heart_rate} bpm</CardContent>
           </Card>
+          ) : null}
 
+          {isDisplayMetricEnabled("home", "body") ? (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -460,7 +483,9 @@ const Index = () => {
               <div>체지방 {data.body_composition_data.bodyFat} %</div>
             </CardContent>
           </Card>
+          ) : null}
 
+          {isDisplayMetricEnabled("home", "nutrition") ? (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -473,7 +498,9 @@ const Index = () => {
               <div>운동 칼로리 {totalExerciseCalories} kcal</div>
             </CardContent>
           </Card>
+          ) : null}
 
+          {isDisplayMetricEnabled("home", "running") ? (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -486,6 +513,7 @@ const Index = () => {
               <div>{averagePace ? `평균 페이스 ${formatPace(averagePace)}` : "평균 페이스 없음"}</div>
             </CardContent>
           </Card>
+          ) : null}
         </div>
       </div>
     );

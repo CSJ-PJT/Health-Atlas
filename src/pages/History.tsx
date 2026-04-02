@@ -15,6 +15,7 @@ import { useHealthHistory } from "@/hooks/useHealthData";
 import { getProviderMeta, getStoredProviderId } from "@/providers/shared";
 import { getMockHealthHistory } from "@/providers/shared/services/mockData";
 import type { HealthViewMode } from "@/providers/shared/types/provider";
+import { isDisplayMetricEnabled } from "@/services/displaySettings";
 import { buildRangeFromMode, getModeLabel } from "@/utils/dateRange";
 import { aggregateRunningChartData } from "@/utils/healthCharts";
 
@@ -103,7 +104,19 @@ const History = () => {
         { label: "운동 시간", value: `${summary.durationMinutes} 분` },
         { label: "평균 심박수", value: `${summary.avgHeartRate} bpm` },
         { label: "평균 케이던스", value: `${summary.cadence} spm` },
-      ]
+      ].filter((item) => {
+        const mapping: Record<string, string> = {
+          "평균 페이스": "avgPace",
+          "최고 페이스": "bestPace",
+          "평균 시속": "averageSpeed",
+          "최고 시속": "maxSpeed",
+          "운동 거리": "distanceKm",
+          "운동 시간": "durationMinutes",
+          "평균 심박수": "avgHeartRate",
+          "평균 케이던스": "cadence",
+        };
+        return isDisplayMetricEnabled("history", mapping[item.label]);
+      })
     : [];
 
   const sessionCards = selectedSession
@@ -123,7 +136,18 @@ const History = () => {
         { label: "고도 하강", value: `${selectedSession.elevationLossMeters} m` },
         { label: "VO2 Max", value: selectedSession.vo2Max },
         { label: "칼로리", value: `${selectedSession.calories} kcal` },
-      ]
+      ].filter((item) => {
+        const mapping: Record<string, string> = {
+          "평균 페이스": "avgPace",
+          "최고 페이스": "bestPace",
+          "평균 시속": "averageSpeed",
+          "최고 시속": "maxSpeed",
+          "평균 심박수": "avgHeartRate",
+          "평균 케이던스": "cadence",
+          "운동 시간": "durationMinutes",
+        };
+        return !mapping[item.label] || isDisplayMetricEnabled("history", mapping[item.label]);
+      })
     : [];
 
   const summaryLineOptions = [
@@ -235,10 +259,10 @@ const History = () => {
                 <MetricLineChart
                   data={summaryChartData}
                   xKey={viewMode === "day" ? "time" : "date"}
-                  lines={summaryLineOptions.filter((line) => visibleSummaryKeys.includes(line.key))}
+                  lines={summaryLineOptions.filter((line) => visibleSummaryKeys.includes(line.key) && isDisplayMetricEnabled("history", line.key))}
                 />
                 <div className="flex flex-wrap gap-3 text-sm">
-                  {summaryLineOptions.map((line) => {
+                  {summaryLineOptions.filter((line) => isDisplayMetricEnabled("history", line.key)).map((line) => {
                     const active = visibleSummaryKeys.includes(line.key);
                     return (
                       <button
@@ -284,10 +308,10 @@ const History = () => {
                     <MetricLineChart
                       data={selectedSessionChartData}
                       xKey="time"
-                      lines={sessionLineOptions.filter((line) => visibleSessionKeys.includes(line.key))}
+                      lines={sessionLineOptions.filter((line) => visibleSessionKeys.includes(line.key) && isDisplayMetricEnabled("history", line.key))}
                     />
                     <div className="flex flex-wrap gap-3 text-sm">
-                      {sessionLineOptions.map((line) => {
+                      {sessionLineOptions.filter((line) => isDisplayMetricEnabled("history", line.key)).map((line) => {
                         const active = visibleSessionKeys.includes(line.key);
                         return (
                           <button

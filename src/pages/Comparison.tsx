@@ -9,14 +9,17 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useHealthStats } from "@/hooks/useHealthData";
 import { getProviderMeta, getStoredProviderId } from "@/providers/shared";
 import { getMockHealthHistory } from "@/providers/shared/services/mockData";
 import type { HealthViewMode } from "@/providers/shared/types/provider";
+import { isDisplayMetricEnabled } from "@/services/displaySettings";
+import { buildAiRecommendation } from "@/services/aiCoach";
 import { buildRangeFromMode, getModeLabel } from "@/utils/dateRange";
 import { aggregateRunningChartData } from "@/utils/healthCharts";
 
-const overviewMetricOptions = [
+const metricOptions = [
   { key: "distanceKm", name: "거리(km)", color: "#8b5cf6" },
   { key: "durationMinutes", name: "시간(분)", color: "#06b6d4" },
   { key: "avgPace", name: "평균 페이스", color: "#ef4444" },
@@ -43,7 +46,9 @@ const Comparison = () => {
   const initialRange = buildRangeFromMode("day");
   const [startDate, setStartDate] = useState<Date | undefined>(initialRange.start);
   const [endDate, setEndDate] = useState<Date | undefined>(initialRange.end);
-  const [visibleKeys, setVisibleKeys] = useState<string[]>(overviewMetricOptions.map((metric) => metric.key));
+  const [visibleKeys, setVisibleKeys] = useState<string[]>(metricOptions.map((metric) => metric.key));
+  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const [analysisTab, setAnalysisTab] = useState<"summary" | "laps">("summary");
 
   useEffect(() => {
     const nextRange = buildRangeFromMode(viewMode);
@@ -54,31 +59,64 @@ const Comparison = () => {
   const { data: records = [], isLoading } = useHealthStats(viewMode, startDate, endDate);
   const fallbackRecords = useMemo(() => getMockHealthHistory(providerId), [providerId]);
   const effectiveRecords = records.length > 0 ? records : fallbackRecords;
+  const latestRecord = effectiveRecords[effectiveRecords.length - 1];
+  const sessions = latestRecord?.running_data?.sessions || [];
 
-  const chartData = useMemo(() => aggregateRunningChartData(effectiveRecords, viewMode), [effectiveRecords, viewMode]);
+  useEffect(() => {
+    if (!selectedSessionId && sessions[0]?.activityId) {
+      setSelectedSessionId(sessions[0].activityId);
+    }
+  }, [sessions, selectedSessionId]);
 
+  const selectedSession = sessions.find((session: any) => session.activityId === selectedSessionId) || sessions[0];
+  const dayTimeline = selectedSession ? latestRecord?.running_data?.session_timelines?.[selectedSession.activityId] || [] : [];
+  const laps = selectedSession ? latestRecord?.running_data?.session_laps?.[selectedSession.activityId] || [] : [];
+
+  const aggregateChartData = useMemo(() => aggregateRunningChartData(effectiveRecords, viewMode), [effectiveRecords, viewMode]);
+  const chartData = viewMode === "day" ? dayTimeline : aggregateChartData;
   const latest = chartData[chartData.length - 1];
 
   const toggleMetric = (key: string) => {
     setVisibleKeys((previous) => (previous.includes(key) ? previous.filter((item) => item !== key) : [...previous, key]));
   };
 
-  const visibleLines = overviewMetricOptions.filter((metric) => visibleKeys.includes(metric.key));
-
+  const visibleLines = metricOptions.filter((metric) => visibleKeys.includes(metric.key) && isDisplayMetricEnabled("comparison", metric.key));
   const summaryCards = latest
-    ? [
-        { label: "거리", value: `${latest.distanceKm} km` },
-        { label: "시간", value: `${latest.durationMinutes} 분` },
-        { label: "평균 페이스", value: toPaceLabel(latest.avgPace) },
-        { label: "최고 페이스", value: toPaceLabel(latest.bestPace) },
-        { label: "평균 시속", value: `${latest.averageSpeed} km/h` },
-        { label: "최고 시속", value: `${latest.maxSpeed} km/h` },
-        { label: "평균 심박수", value: `${latest.avgHeartRate} bpm` },
-        { label: "평균 케이던스", value: `${latest.cadence} spm` },
-        { label: "VO2 Max", value: latest.vo2max },
-        { label: "고도 상승", value: `${latest.elevationGain} m` },
-      ]
+    ? metricOptions
+        .filter((metric) => isDisplayMetricEnabled("comparison", metric.key))
+        .map((metric) => ({
+          label: metric.name.replace("(km)", "").replace("(분)", ""),
+          value:
+            metric.key === "avgPace" || metric.key === "bestPace"
+              ? toPaceLabel(Number((latest as any)[metric.key] || 0))
+              : metric.key === "distanceKm"
+                ? `${(latest as any)[metric.key]} km`
+                : metric.key === "durationMinutes"
+                  ? `${(latest as any)[metric.key]} 분`
+                  : metric.key.includes("Speed")
+                    ? `${(latest as any)[metric.key]} km/h`
+                    : metric.key.includes("HeartRate")
+                      ? `${(latest as any)[metric.key]} bpm`
+                      : metric.key === "cadence"
+                        ? `${(latest as any)[metric.key]} spm`
+                        : metric.key === "elevationGain"
+                          ? `${(latest as any)[metric.key]} m`
+                          : `${(latest as any)[metric.key]}`,
+        }))
     : [];
+
+  const sessionAiSummary = selectedSession
+    ? [
+        `${selectedSession.activityName}은 ${Math.round(selectedSession.durationSeconds / 60)}분 동안 ${(
+          selectedSession.distanceMeters / 1000
+        ).toFixed(2)}km를 수행한 ${selectedSession.activityType} 운동입니다.`,
+        `평균 심박 ${selectedSession.averageHR}bpm, 최대 심박 ${selectedSession.maxHR}bpm, 평균 케이던스 ${selectedSession.averageRunCadence}spm입니다.`,
+        `운동 부하 ${selectedSession.trainingLoad || 0} 기준으로 보면 ${
+          selectedSession.trainingEffectAerobic && selectedSession.trainingEffectAerobic > 3 ? "강도가 충분히 확보된 세션" : "회복 중심 세션"
+        }입니다.`,
+        buildAiRecommendation(effectiveRecords as any[], new Date()),
+      ].join(" ")
+    : "";
 
   if (isLoading) {
     return (
@@ -137,66 +175,107 @@ const Comparison = () => {
           </div>
         </div>
 
-        {chartData.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center text-muted-foreground">표시할 비교 데이터가 없습니다.</CardContent>
-          </Card>
-        ) : (
-          <>
-            <Card>
-              <CardHeader>
-                <CardTitle>러닝 요약</CardTitle>
-                <CardDescription>아래 색상 텍스트를 눌러 그래프 항목을 켜고 끌 수 있습니다.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <MetricLineChart data={chartData} xKey="date" lines={visibleLines} />
+        <Card>
+          <CardHeader>
+            <CardTitle>러닝 요약</CardTitle>
+            <CardDescription>{viewMode === "day" ? "선택한 운동의 시작부터 종료 시점까지 시간 흐름으로 표시합니다." : "선택한 기간 단위로 집계해 표시합니다."}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <MetricLineChart data={chartData} xKey={viewMode === "day" ? "time" : "date"} lines={visibleLines} />
+            <div className="flex flex-wrap gap-3 text-sm">
+              {metricOptions
+                .filter((metric) => isDisplayMetricEnabled("comparison", metric.key))
+                .map((metric) => {
+                  const active = visibleKeys.includes(metric.key);
+                  return (
+                    <button
+                      key={metric.key}
+                      type="button"
+                      onClick={() => toggleMetric(metric.key)}
+                      className="font-medium transition-opacity"
+                      style={{ color: active ? metric.color : "#9ca3af", opacity: active ? 1 : 0.8 }}
+                    >
+                      {metric.name}
+                    </button>
+                  );
+                })}
+            </div>
+            <MetricGrid items={summaryCards} />
+          </CardContent>
+        </Card>
 
-                <div className="flex flex-wrap gap-3 text-sm">
-                  {overviewMetricOptions.map((metric) => {
-                    const active = visibleKeys.includes(metric.key);
-                    return (
-                      <button
-                        key={metric.key}
-                        type="button"
-                        onClick={() => toggleMetric(metric.key)}
-                        className="font-medium transition-opacity"
-                        style={{ color: active ? metric.color : "#9ca3af", opacity: active ? 1 : 0.8 }}
-                      >
-                        {metric.name}
-                      </button>
-                    );
-                  })}
-                </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>러닝 분석</CardTitle>
+            <CardDescription>A운동, B운동처럼 운동별 탭을 전환해 종합 평가와 랩 데이터를 봅니다.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Tabs value={selectedSessionId} onValueChange={setSelectedSessionId}>
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+                {sessions.map((session: any, index: number) => (
+                  <TabsTrigger key={session.activityId} value={session.activityId}>{String.fromCharCode(65 + index)} 운동</TabsTrigger>
+                ))}
+              </TabsList>
+              {sessions.map((session: any) => (
+                <TabsContent key={session.activityId} value={session.activityId} className="space-y-6">
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant={analysisTab === "summary" ? "default" : "outline"} onClick={() => setAnalysisTab("summary")}>종합 분석</Button>
+                    <Button variant={analysisTab === "laps" ? "default" : "outline"} onClick={() => setAnalysisTab("laps")}>랩 분석</Button>
+                  </div>
 
-                <MetricGrid items={summaryCards} />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>러닝 분석</CardTitle>
-                <CardDescription>거리, 시간, 페이스, 시속, 심박수, 케이던스, VO2 Max, 고도 데이터를 함께 봅니다.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <MetricLineChart
-                  data={chartData}
-                  xKey="date"
-                  lines={[
-                    { key: "distanceKm", name: "거리(km)", color: "#8b5cf6" },
-                    { key: "durationMinutes", name: "시간(분)", color: "#06b6d4" },
-                    { key: "avgPace", name: "평균 페이스", color: "#ef4444" },
-                    { key: "averageSpeed", name: "평균 시속", color: "#22c55e" },
-                    { key: "avgHeartRate", name: "평균 심박수", color: "#ec4899" },
-                    { key: "cadence", name: "평균 케이던스", color: "#6366f1" },
-                    { key: "vo2max", name: "VO2 Max", color: "#14b8a6" },
-                    { key: "elevationGain", name: "고도 상승", color: "#84cc16" },
-                  ]}
-                />
-                <MetricGrid items={summaryCards} />
-              </CardContent>
-            </Card>
-          </>
-        )}
+                  {analysisTab === "summary" ? (
+                    <>
+                      <div className="rounded-lg border p-4 text-sm text-muted-foreground">{sessionAiSummary}</div>
+                      <MetricGrid
+                        items={[
+                          { label: "기본 효과", value: session.trainingEffectLabel || "-" },
+                          { label: "평균 심박수", value: `${session.averageHR} bpm` },
+                          { label: "최대 심박수", value: `${session.maxHR} bpm` },
+                          { label: "유산소", value: session.trainingEffectAerobic || "-" },
+                          { label: "무산소", value: session.trainingEffectAnaerobic || "-" },
+                          { label: "운동 부하", value: session.trainingLoad || "-" },
+                          { label: "총 상승", value: `${session.elevationGainMeters} m` },
+                          { label: "총 하강", value: `${session.elevationLossMeters} m` },
+                          { label: "예상 수분 손실", value: `${session.estimatedSweatLossMl || 0} ml` },
+                          { label: "보행", value: `${session.steps || 0} 걸음` },
+                          { label: "평균 보폭", value: `${session.averageStrideLengthMeters} m` },
+                          { label: "VO2 Max", value: session.vo2Max },
+                        ]}
+                      />
+                    </>
+                  ) : (
+                    <div className="overflow-x-auto rounded-lg border">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/40">
+                          <tr>
+                            <th className="px-3 py-2 text-left">랩</th>
+                            <th className="px-3 py-2 text-left">거리</th>
+                            <th className="px-3 py-2 text-left">시간</th>
+                            <th className="px-3 py-2 text-left">페이스</th>
+                            <th className="px-3 py-2 text-left">심박수</th>
+                            <th className="px-3 py-2 text-left">케이던스</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {laps.map((lap: any) => (
+                            <tr key={lap.lapNumber} className="border-t">
+                              <td className="px-3 py-2">{lap.lapNumber}</td>
+                              <td className="px-3 py-2">{lap.distanceKm} km</td>
+                              <td className="px-3 py-2">{lap.duration}</td>
+                              <td className="px-3 py-2">{lap.pace}</td>
+                              <td className="px-3 py-2">{lap.avgHeartRate} bpm</td>
+                              <td className="px-3 py-2">{lap.cadence} spm</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </TabsContent>
+              ))}
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

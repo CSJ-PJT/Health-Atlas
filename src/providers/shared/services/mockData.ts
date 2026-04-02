@@ -120,6 +120,29 @@ function buildSessionTimeline(session: {
   });
 }
 
+function buildSessionLaps(session: {
+  distanceMeters: number;
+  durationSeconds: number;
+  averagePaceSecondsPerKilometer: number;
+  averageHR: number;
+  averageRunCadence: number;
+}) {
+  return Array.from({ length: 4 }, (_, index) => {
+    const paceMinutes = session.averagePaceSecondsPerKilometer / 60 + (index - 1.5) * 0.08;
+    const minutes = Math.floor(paceMinutes);
+    const seconds = Math.round((paceMinutes - minutes) * 60);
+
+    return {
+      lapNumber: index + 1,
+      distanceKm: Number(((session.distanceMeters / 1000) / 4).toFixed(2)),
+      duration: `${Math.round((session.durationSeconds / 60) / 4)}분`,
+      pace: `${minutes}:${seconds.toString().padStart(2, "0")} /km`,
+      avgHeartRate: session.averageHR + index * 2,
+      cadence: session.averageRunCadence + index,
+    };
+  });
+}
+
 export function getMockSamsungTodaySnapshot(): TodaySnapshot {
   const now = new Date();
   const startOfDay = new Date(now);
@@ -377,6 +400,14 @@ export function getMockHealthHistory(providerId = getStoredProviderId()) {
       elevationGainMeters: elevationGain,
       elevationLossMeters: elevationLoss,
       vo2Max: Number((base.vo2Max - index * 0.01).toFixed(1)),
+      trainingEffectAerobic: Number((3.2 + Math.sin(index / 7) * 0.4).toFixed(1)),
+      trainingEffectAnaerobic: Number((1.3 + Math.cos(index / 6) * 0.3).toFixed(1)),
+      trainingEffectLabel: "기본 효과",
+      trainingLoad: Math.round(68 + Math.sin(index / 5) * 14),
+      estimatedSweatLossMl: Math.round(640 + Math.sin(index / 4) * 90),
+      steps: Math.round(distanceKm * 1320),
+      recoveryHours: Math.round(12 + Math.sin(index / 3) * 3),
+      bodyBatteryImpact: Math.round(-18 - Math.sin(index / 5) * 4),
       calories,
       routePoints: buildRoutePoints(index + providerId.length),
     };
@@ -419,6 +450,12 @@ export function getMockHealthHistory(providerId = getStoredProviderId()) {
       distanceKm,
       durationMinutes,
       calories,
+      trainingEffectAerobic: runningSession.trainingEffectAerobic,
+      trainingEffectAnaerobic: runningSession.trainingEffectAnaerobic,
+      trainingLoad: runningSession.trainingLoad,
+      estimatedSweatLossMl: runningSession.estimatedSweatLossMl,
+      recoveryHours: runningSession.recoveryHours,
+      bodyBatteryImpact: runningSession.bodyBatteryImpact,
     };
 
     return {
@@ -450,6 +487,10 @@ export function getMockHealthHistory(providerId = getStoredProviderId()) {
         session_timelines: {
           [runningSession.activityId]: buildSessionTimeline(runningSession),
           [recoverySession.activityId]: buildSessionTimeline(recoverySession),
+        },
+        session_laps: {
+          [runningSession.activityId]: buildSessionLaps(runningSession),
+          [recoverySession.activityId]: buildSessionLaps(recoverySession),
         },
       },
       sleep_data: {
