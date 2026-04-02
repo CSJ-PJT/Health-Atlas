@@ -81,6 +81,8 @@ const Chat = () => {
 
   const activeRoom = rooms.find((room) => room.id === activeRoomId) ?? null;
   const messages = useMemo(() => (activeRoom ? getRoomMessages(activeRoom.id) : []), [activeRoom, rooms]);
+  const shouldScrollFriendsList = friends.length > 5;
+  const shouldScrollRoomsList = rooms.length > 5;
 
   const clearLongPress = () => {
     if (longPressTimer.current) {
@@ -447,59 +449,63 @@ const Chat = () => {
               {listTab === "friends" ? (
                 <div className="space-y-3">
                   <div className="text-sm font-medium">친구목록</div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {friends.slice(0, 15).map((friend) => (
-                      <button
-                        key={friend.id}
-                        type="button"
-                        onPointerDown={() => startLongPress(friend, "friend")}
-                        onPointerUp={clearLongPress}
-                        onPointerLeave={clearLongPress}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          setActionTarget({ kind: "friend", item: friend });
-                          setRenameValue(friend.name);
-                        }}
-                        className="rounded-xl border p-3 text-left transition-colors hover:bg-muted/40"
-                      >
-                        <div className="font-medium">{friend.name}</div>
-                        <div className="text-xs text-muted-foreground">{friend.phone}</div>
-                      </button>
-                    ))}
-                  </div>
+                  <ScrollArea className={shouldScrollFriendsList ? "h-80 rounded-xl border p-1" : ""}>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {friends.slice(0, 15).map((friend) => (
+                        <button
+                          key={friend.id}
+                          type="button"
+                          onPointerDown={() => startLongPress(friend, "friend")}
+                          onPointerUp={clearLongPress}
+                          onPointerLeave={clearLongPress}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            setActionTarget({ kind: "friend", item: friend });
+                            setRenameValue(friend.name);
+                          }}
+                          className="rounded-xl border p-3 text-left transition-colors hover:bg-muted/40"
+                        >
+                          <div className="font-medium">{friend.name}</div>
+                          <div className="text-xs text-muted-foreground">{friend.phone}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <div className="text-sm font-medium">대화목록</div>
-                  <div className="space-y-3">
-                    {rooms.slice(0, 15).map((room) => (
-                      <button
-                        key={room.id}
-                        type="button"
-                        onClick={() => setActiveRoomId(room.id)}
-                        onPointerDown={() => startLongPress(room, "room")}
-                        onPointerUp={clearLongPress}
-                        onPointerLeave={clearLongPress}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          setActionTarget({ kind: "room", item: room });
-                          setRenameValue(room.name);
-                        }}
-                        className={`w-full rounded-2xl border p-4 text-left transition-colors ${
-                          activeRoomId === room.id ? "border-primary bg-primary/10" : "hover:bg-muted/40"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 font-semibold">
-                            {room.type === "group" ? <Users className="h-4 w-4 text-primary" /> : <MessageSquarePlus className="h-4 w-4 text-primary" />}
-                            {room.name}
+                  <ScrollArea className={shouldScrollRoomsList ? "h-80 rounded-xl border p-1" : ""}>
+                    <div className="space-y-3">
+                      {rooms.slice(0, 15).map((room) => (
+                        <button
+                          key={room.id}
+                          type="button"
+                          onClick={() => setActiveRoomId(room.id)}
+                          onPointerDown={() => startLongPress(room, "room")}
+                          onPointerUp={clearLongPress}
+                          onPointerLeave={clearLongPress}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            setActionTarget({ kind: "room", item: room });
+                            setRenameValue(room.name);
+                          }}
+                          className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                            activeRoomId === room.id ? "border-primary bg-primary/10" : "hover:bg-muted/40"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 font-semibold">
+                              {room.type === "group" ? <Users className="h-4 w-4 text-primary" /> : <MessageSquarePlus className="h-4 w-4 text-primary" />}
+                              {room.name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
                           </div>
-                          <div className="text-xs text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
-                        </div>
-                        <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div>
-                      </button>
-                    ))}
-                  </div>
+                          <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </div>
               )}
             </CardContent>
