@@ -16,8 +16,8 @@ All colors MUST be HSL.
 
   html,
   body {
-    overscroll-behavior-y: none;
     overflow-x: hidden;
+    overflow-y: auto;
   }
 
   :root {
