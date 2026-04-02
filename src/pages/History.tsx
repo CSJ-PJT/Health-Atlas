@@ -98,60 +98,52 @@ const History = () => {
 
   const summaryCards = summary
     ? [
-        { label: "평균 페이스", value: formatPace(summary.avgPace * 60) },
-        { label: "최고 페이스", value: formatPace(summary.bestPace * 60) },
-        { label: "평균 시속", value: `${summary.averageSpeed} km/h` },
-        { label: "최고 시속", value: `${summary.maxSpeed} km/h` },
-        { label: "운동 거리", value: `${summary.distanceKm} km` },
-        { label: "운동 시간", value: `${summary.durationMinutes} 분` },
-        { label: "평균 심박수", value: `${summary.avgHeartRate} bpm` },
-        { label: "평균 케이던스", value: `${summary.cadence} spm` },
-      ].filter((item) => {
-        const mapping: Record<string, string> = {
-          "평균 페이스": "avgPace",
-          "최고 페이스": "bestPace",
-          "평균 시속": "averageSpeed",
-          "최고 시속": "maxSpeed",
-          "운동 거리": "distanceKm",
-          "운동 시간": "durationMinutes",
-          "평균 심박수": "avgHeartRate",
-          "평균 케이던스": "cadence",
-        };
-        return isDisplayMetricEnabled("history", mapping[item.label]);
-      })
+        { key: "avgPace", label: "평균 페이스", value: formatPace(summary.avgPace * 60) },
+        { key: "bestPace", label: "최고 페이스", value: formatPace(summary.bestPace * 60) },
+        { key: "averageSpeed", label: "평균 시속", value: `${summary.averageSpeed} km/h` },
+        { key: "maxSpeed", label: "최고 시속", value: `${summary.maxSpeed} km/h` },
+        { key: "distanceKm", label: "운동 거리", value: `${summary.distanceKm} km` },
+        { key: "durationMinutes", label: "운동 시간", value: `${summary.durationMinutes} 분` },
+        { key: "avgHeartRate", label: "평균 심박수", value: `${summary.avgHeartRate} bpm` },
+        { key: "cadence", label: "평균 케이던스", value: `${summary.cadence} spm` },
+      ]
+        .filter((item) => isDisplayMetricEnabled("history", item.key))
+        .map(({ label, value }) => ({ label, value }))
     : [];
 
   const sessionCards = selectedSession
     ? [
-        { label: "운동 이름", value: selectedSession.activityName },
-        { label: "운동 유형", value: selectedSession.activityType },
-        { label: "운동 시간", value: `${Math.round(selectedSession.durationSeconds / 60)} 분` },
-        { label: "운동 거리", value: `${(selectedSession.distanceMeters / 1000).toFixed(2)} km` },
-        { label: "평균 페이스", value: formatPace(selectedSession.averagePaceSecondsPerKilometer) },
-        { label: "최고 페이스", value: formatPace(selectedSession.bestPaceSecondsPerKilometer) },
-        { label: "평균 시속", value: `${(selectedSession.averageSpeedMetersPerSecond * 3.6).toFixed(1)} km/h` },
-        { label: "최고 시속", value: `${(selectedSession.maxSpeedMetersPerSecond * 3.6).toFixed(1)} km/h` },
-        { label: "평균 심박수", value: `${selectedSession.averageHR} bpm` },
-        { label: "최대 심박수", value: `${selectedSession.maxHR} bpm` },
-        { label: "평균 케이던스", value: `${selectedSession.averageRunCadence} spm` },
-        { label: "최대 케이던스", value: `${selectedSession.maxRunCadence} spm` },
-        { label: "총 상승", value: `${selectedSession.elevationGainMeters} m` },
-        { label: "총 하강", value: `${selectedSession.elevationLossMeters} m` },
-        { label: "VO2 Max", value: selectedSession.vo2Max },
-        { label: "칼로리", value: `${selectedSession.calories} kcal` },
-      ].filter((item) => {
-        const mapping: Record<string, string> = {
-          "운동 시간": "durationMinutes",
-          "운동 거리": "distanceKm",
-          "평균 페이스": "avgPace",
-          "최고 페이스": "bestPace",
-          "평균 시속": "averageSpeed",
-          "최고 시속": "maxSpeed",
-          "평균 심박수": "avgHeartRate",
-          "평균 케이던스": "cadence",
-        };
-        return !mapping[item.label] || isDisplayMetricEnabled("history", mapping[item.label]);
-      })
+        { key: "activityName", label: "운동 이름", value: selectedSession.activityName },
+        { key: "activityType", label: "운동 유형", value: selectedSession.activityType },
+        { key: "durationMinutes", label: "운동 시간", value: `${Math.round(selectedSession.durationSeconds / 60)} 분` },
+        { key: "distanceKm", label: "운동 거리", value: `${(selectedSession.distanceMeters / 1000).toFixed(2)} km` },
+        { key: "avgPace", label: "평균 페이스", value: formatPace(selectedSession.averagePaceSecondsPerKilometer) },
+        { key: "bestPace", label: "최고 페이스", value: formatPace(selectedSession.bestPaceSecondsPerKilometer) },
+        { key: "averageSpeed", label: "평균 시속", value: `${(selectedSession.averageSpeedMetersPerSecond * 3.6).toFixed(1)} km/h` },
+        { key: "maxSpeed", label: "최고 시속", value: `${(selectedSession.maxSpeedMetersPerSecond * 3.6).toFixed(1)} km/h` },
+        { key: "avgHeartRate", label: "평균 심박수", value: `${selectedSession.averageHR} bpm` },
+        { key: "maxHeartRate", label: "최대 심박수", value: `${selectedSession.maxHR} bpm` },
+        { key: "cadence", label: "평균 케이던스", value: `${selectedSession.averageRunCadence} spm` },
+        { key: "maxCadence", label: "최대 케이던스", value: `${selectedSession.maxRunCadence} spm` },
+        { key: "elevationGain", label: "총 상승", value: `${selectedSession.elevationGainMeters} m` },
+        { key: "elevationLoss", label: "총 하강", value: `${selectedSession.elevationLossMeters} m` },
+        { key: "vo2max", label: "VO2 Max", value: selectedSession.vo2Max },
+        { key: "calories", label: "칼로리", value: `${selectedSession.calories} kcal` },
+        { key: "trainingEffectLabel", label: "기본 효과", value: selectedSession.trainingEffectLabel || "-" },
+        { key: "trainingEffectAerobic", label: "유산소 효과", value: selectedSession.trainingEffectAerobic || "-" },
+        { key: "trainingEffectAnaerobic", label: "무산소 효과", value: selectedSession.trainingEffectAnaerobic || "-" },
+        { key: "trainingLoad", label: "운동 부하", value: selectedSession.trainingLoad || "-" },
+        { key: "estimatedSweatLossMl", label: "예상 수분 손실", value: `${selectedSession.estimatedSweatLossMl || 0} ml` },
+        { key: "averageStrideLengthMeters", label: "보폭", value: `${selectedSession.averageStrideLengthMeters || 0} m` },
+        { key: "steps", label: "걸음 수", value: `${selectedSession.steps || 0} 걸음` },
+      ]
+        .filter((item) => {
+          if (item.key === "activityName" || item.key === "activityType") {
+            return true;
+          }
+          return isDisplayMetricEnabled("history", item.key);
+        })
+        .map(({ label, value }) => ({ label, value }))
     : [];
 
   const toggleSummaryMetric = (key: string) => {

@@ -14,8 +14,9 @@ import { useHealthStats } from "@/hooks/useHealthData";
 import { getProviderMeta, getStoredProviderId } from "@/providers/shared";
 import { getMockHealthHistory } from "@/providers/shared/services/mockData";
 import type { HealthViewMode } from "@/providers/shared/types/provider";
-import { isDisplayMetricEnabled } from "@/services/displaySettings";
 import { buildAiRecommendation } from "@/services/aiCoach";
+import { isDisplayMetricEnabled } from "@/services/displaySettings";
+import { generateRunningForecast } from "@/services/runningForecast";
 import { buildRangeFromMode, getModeLabel } from "@/utils/dateRange";
 import { aggregateRunningChartData } from "@/utils/healthCharts";
 
@@ -48,7 +49,10 @@ const Comparison = () => {
   const [endDate, setEndDate] = useState<Date | undefined>(initialRange.end);
   const [visibleKeys, setVisibleKeys] = useState<string[]>(metricOptions.map((metric) => metric.key));
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
-  const [analysisTab, setAnalysisTab] = useState<"summary" | "laps">("summary");
+  const [analysisTab, setAnalysisTab] = useState<"ai-summary" | "laps" | "prediction">("ai-summary");
+  const [predictionSummary, setPredictionSummary] = useState("");
+  const [predictionData, setPredictionData] = useState<any[]>([]);
+  const [predictionLoading, setPredictionLoading] = useState(false);
 
   useEffect(() => {
     const nextRange = buildRangeFromMode(viewMode);
@@ -61,8 +65,7 @@ const Comparison = () => {
   const effectiveRecords = records.length > 0 ? records : fallbackRecords;
   const latestRecord = effectiveRecords[effectiveRecords.length - 1];
   const sessions = latestRecord?.running_data?.sessions || [];
-  const isSingleDayRange =
-    !!startDate && !!endDate && differenceInCalendarDays(endDate, startDate) === 0;
+  const isSingleDayRange = !!startDate && !!endDate && differenceInCalendarDays(endDate, startDate) === 0;
 
   useEffect(() => {
     if (!selectedSessionId && sessions[0]?.activityId) {
@@ -77,6 +80,30 @@ const Comparison = () => {
   const aggregateChartData = useMemo(() => aggregateRunningChartData(effectiveRecords, viewMode), [effectiveRecords, viewMode]);
   const chartData = isSingleDayRange ? dayTimeline : aggregateChartData;
   const latest = chartData[chartData.length - 1];
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPrediction = async () => {
+      if (!selectedSession) {
+        setPredictionData([]);
+        setPredictionSummary("");
+        return;
+      }
+
+      setPredictionLoading(true);
+      const forecast = await generateRunningForecast(effectiveRecords as any[]);
+      if (!cancelled) {
+        setPredictionData(forecast.points);
+        setPredictionSummary(forecast.summary);
+        setPredictionLoading(false);
+      }
+    };
+
+    void loadPrediction();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveRecords, selectedSession]);
 
   const toggleMetric = (key: string) => {
     setVisibleKeys((previous) => (previous.includes(key) ? previous.filter((item) => item !== key) : [...previous, key]));
@@ -107,13 +134,40 @@ const Comparison = () => {
         }))
     : [];
 
-  const sessionAiSummary = selectedSession
+  const predictionCards = predictionData.length
+    ? metricOptions
+        .filter((metric) => isDisplayMetricEnabled("comparison", metric.key))
+        .map((metric) => {
+          const latestPoint = predictionData[predictionData.length - 1];
+          return {
+            label: `${metric.name} 전망`,
+            value:
+              metric.key === "avgPace" || metric.key === "bestPace"
+                ? toPaceLabel(Number(latestPoint?.[metric.key] || 0))
+                : metric.key === "distanceKm"
+                  ? `${latestPoint?.[metric.key]} km`
+                  : metric.key === "durationMinutes"
+                    ? `${latestPoint?.[metric.key]} 분`
+                    : metric.key.includes("Speed")
+                      ? `${latestPoint?.[metric.key]} km/h`
+                      : metric.key.includes("HeartRate")
+                        ? `${latestPoint?.[metric.key]} bpm`
+                        : metric.key === "cadence"
+                          ? `${latestPoint?.[metric.key]} spm`
+                          : metric.key === "elevationGain"
+                            ? `${latestPoint?.[metric.key]} m`
+                            : `${latestPoint?.[metric.key]}`,
+          };
+        })
+    : [];
+
+  const aiSummary = selectedSession
     ? [
-        `${selectedSession.activityName}은 ${Math.round(selectedSession.durationSeconds / 60)}분 동안 ${(selectedSession.distanceMeters / 1000).toFixed(2)}km를 수행한 ${selectedSession.activityType} 운동입니다.`,
+        `${selectedSession.activityName}은 ${Math.round(selectedSession.durationSeconds / 60)}분 동안 ${(selectedSession.distanceMeters / 1000).toFixed(2)}km를 수행한 ${selectedSession.activityType} 세션입니다.`,
         `평균 심박수 ${selectedSession.averageHR}bpm, 최대 심박수 ${selectedSession.maxHR}bpm, 평균 케이던스 ${selectedSession.averageRunCadence}spm입니다.`,
-        `운동 부하 ${selectedSession.trainingLoad || 0}, 유산소 효과 ${selectedSession.trainingEffectAerobic || 0}, 무산소 효과 ${selectedSession.trainingEffectAnaerobic || 0} 기준으로 보면 ${
-          selectedSession.trainingEffectAerobic && selectedSession.trainingEffectAerobic > 3 ? "자극이 충분한 세션" : "회복 중심 세션"
-        }입니다.`,
+        `운동 부하 ${selectedSession.trainingLoad || 0}, 유산소 효과 ${selectedSession.trainingEffectAerobic || 0}, 무산소 효과 ${selectedSession.trainingEffectAnaerobic || 0} 기준으로 ${
+          selectedSession.trainingEffectAerobic && selectedSession.trainingEffectAerobic > 3 ? "훈련 자극이 충분한 편입니다." : "회복 중심으로 가져가는 편이 적절합니다."
+        }`,
         buildAiRecommendation(effectiveRecords as any[], new Date()),
       ].join(" ")
     : "";
@@ -211,7 +265,7 @@ const Comparison = () => {
         <Card>
           <CardHeader>
             <CardTitle>러닝 분석</CardTitle>
-            <CardDescription>운동별로 탭을 나누고 종합 분석과 랩 분석을 확인할 수 있습니다.</CardDescription>
+            <CardDescription>운동별로 AI 종합 분석, 랩 분석, AI 가능성 예측을 확인합니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <Tabs value={selectedSessionId} onValueChange={setSelectedSessionId}>
@@ -225,17 +279,20 @@ const Comparison = () => {
               {sessions.map((session: any) => (
                 <TabsContent key={session.activityId} value={session.activityId} className="space-y-6">
                   <div className="flex flex-wrap gap-2">
-                    <Button variant={analysisTab === "summary" ? "default" : "outline"} onClick={() => setAnalysisTab("summary")}>
-                      종합 분석
+                    <Button variant={analysisTab === "ai-summary" ? "default" : "outline"} onClick={() => setAnalysisTab("ai-summary")}>
+                      AI 종합 분석
                     </Button>
                     <Button variant={analysisTab === "laps" ? "default" : "outline"} onClick={() => setAnalysisTab("laps")}>
                       랩 분석
                     </Button>
+                    <Button variant={analysisTab === "prediction" ? "default" : "outline"} onClick={() => setAnalysisTab("prediction")}>
+                      AI 가능성 예측
+                    </Button>
                   </div>
 
-                  {analysisTab === "summary" ? (
+                  {analysisTab === "ai-summary" ? (
                     <>
-                      <div className="rounded-lg border p-4 text-sm text-muted-foreground">{sessionAiSummary}</div>
+                      <div className="rounded-lg border p-4 text-sm text-muted-foreground">{aiSummary}</div>
                       <MetricGrid
                         items={[
                           { label: "운동 거리", value: `${(session.distanceMeters / 1000).toFixed(2)} km` },
@@ -262,7 +319,9 @@ const Comparison = () => {
                         columnsClassName="grid-cols-2 md:grid-cols-4"
                       />
                     </>
-                  ) : (
+                  ) : null}
+
+                  {analysisTab === "laps" ? (
                     <div className="overflow-x-auto rounded-lg border">
                       <table className="w-full text-sm">
                         <thead className="bg-muted/40">
@@ -289,7 +348,35 @@ const Comparison = () => {
                         </tbody>
                       </table>
                     </div>
-                  )}
+                  ) : null}
+
+                  {analysisTab === "prediction" ? (
+                    <div className="space-y-6">
+                      <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+                        {predictionLoading ? "GPT 기반 러닝 예측을 생성하는 중입니다." : predictionSummary}
+                      </div>
+                      <MetricLineChart data={predictionData} xKey="date" lines={visibleLines} />
+                      <div className="flex flex-wrap gap-3 text-sm">
+                        {metricOptions
+                          .filter((metric) => isDisplayMetricEnabled("comparison", metric.key))
+                          .map((metric) => {
+                            const active = visibleKeys.includes(metric.key);
+                            return (
+                              <button
+                                key={`prediction-${metric.key}`}
+                                type="button"
+                                onClick={() => toggleMetric(metric.key)}
+                                className="font-medium transition-opacity"
+                                style={{ color: active ? metric.color : "#9ca3af", opacity: active ? 1 : 0.8 }}
+                              >
+                                {metric.name}
+                              </button>
+                            );
+                          })}
+                      </div>
+                      <MetricGrid items={predictionCards} columnsClassName="grid-cols-2 md:grid-cols-4" />
+                    </div>
+                  ) : null}
                 </TabsContent>
               ))}
             </Tabs>

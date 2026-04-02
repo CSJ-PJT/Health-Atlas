@@ -69,6 +69,16 @@ export function saveFriend(contact: DeviceContact) {
   return next;
 }
 
+export function renameFriend(friendId: string, name: string) {
+  const next = getFriends().map((friend) => (friend.id === friendId ? { ...friend, name } : friend));
+  writeJson(FRIENDS_KEY, next);
+  const updated = next.find((friend) => friend.id === friendId);
+  if (updated) {
+    renameChatRoom(friendId, name);
+  }
+  return next;
+}
+
 export function removeFriend(friendId: string) {
   const next = getFriends().filter((friend) => friend.id !== friendId);
   writeJson(FRIENDS_KEY, next);
@@ -77,6 +87,20 @@ export function removeFriend(friendId: string) {
 
 export function getChatRooms() {
   return readJson<ChatRoom[]>(CHAT_ROOMS_KEY, []);
+}
+
+export function renameChatRoom(roomId: string, name: string) {
+  const next = getChatRooms().map((room) => (room.id === roomId ? { ...room, name } : room));
+  writeJson(CHAT_ROOMS_KEY, next);
+  return next;
+}
+
+export function deleteChatRoom(roomId: string) {
+  const nextRooms = getChatRooms().filter((room) => room.id !== roomId);
+  const nextMessages = getChatMessages().filter((message) => message.roomId !== roomId);
+  writeJson(CHAT_ROOMS_KEY, nextRooms);
+  writeJson(CHAT_MESSAGES_KEY, nextMessages);
+  return nextRooms;
 }
 
 export function getChatMessages() {
@@ -148,15 +172,15 @@ export function ensureSocialSeed() {
 
   const now = new Date();
   const seedFriends: FriendEntry[] = [
-    { id: "seed-1", name: "민지", phone: "01012345678", addedAt: now.toISOString() },
+    { id: "seed-1", name: "민준", phone: "01012345678", addedAt: now.toISOString() },
     { id: "seed-2", name: "서연", phone: "01087654321", addedAt: now.toISOString() },
     { id: "seed-3", name: "지훈", phone: "01055557777", addedAt: now.toISOString() },
-    { id: "seed-4", name: "도윤", phone: "01011112222", addedAt: now.toISOString() },
+    { id: "seed-4", name: "유나", phone: "01011112222", addedAt: now.toISOString() },
   ];
 
   const directRoom: ChatRoom = {
     id: "room-seed-direct",
-    name: "민지",
+    name: "민준",
     type: "direct",
     memberIds: ["seed-1"],
     createdAt: now.toISOString(),
@@ -164,7 +188,7 @@ export function ensureSocialSeed() {
 
   const groupRoom: ChatRoom = {
     id: "room-seed-group",
-    name: "주말 러닝 모임",
+    name: "주말 러닝 크루",
     type: "group",
     memberIds: ["seed-1", "seed-2", "seed-3"],
     createdAt: now.toISOString(),
@@ -183,8 +207,8 @@ export function ensureSocialSeed() {
       id: "msg-seed-1",
       roomId: directRoom.id,
       senderId: "seed-1",
-      senderName: "민지",
-      content: "오늘 러닝 페이스 좋았어. 저녁에 스트레칭 같이 할래?",
+      senderName: "민준",
+      content: "오늘 러닝 페이스 좋네. 저녁에는 스트레칭 꼭 해.",
       createdAt: new Date(now.getTime() - 1000 * 60 * 36).toISOString(),
     },
     {
@@ -192,15 +216,15 @@ export function ensureSocialSeed() {
       roomId: groupRoom.id,
       senderId: "seed-2",
       senderName: "서연",
-      content: "토요일 오전 7시에 한강 10km 어떄?",
+      content: "토요일 오전 7시에 한강 러닝 어때?",
       createdAt: new Date(now.getTime() - 1000 * 60 * 22).toISOString(),
     },
     {
       id: "msg-seed-3",
       roomId: recoveryRoom.id,
       senderId: "seed-4",
-      senderName: "도윤",
-      content: "어제 장거리 뛰고 나서 HRV 어땠는지 공유해줘.",
+      senderName: "유나",
+      content: "어제 장거리 이후 HRV 흐름 공유해줘.",
       createdAt: new Date(now.getTime() - 1000 * 60 * 8).toISOString(),
     },
   ];

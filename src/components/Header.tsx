@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Home, MessageCircleMore, Settings, UserRoundPlus, Users, View } from "lucide-react";
+import { Gamepad2, Home, MessageCircleMore, Settings, UserRoundPlus, View } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { AdviceDrawer } from "@/components/AdviceDrawer";
 import { NavLink } from "@/components/NavLink";
@@ -55,15 +55,15 @@ export const Header = ({ showNav = false }: HeaderProps) => {
 
         {showNav ? (
           <nav
-            className={`-mx-4 overflow-x-auto border-y border-cyan-500/15 bg-cyan-500/5 px-2 transition-all duration-300 ease-in-out ${
+            className={`-mx-4 overflow-x-auto border-y border-primary/15 bg-primary/5 px-2 transition-all duration-300 ease-in-out ${
               isNavVisible ? "max-h-24 py-3 opacity-100" : "max-h-0 overflow-hidden py-0 opacity-0"
             }`}
           >
             <div className="flex min-w-max gap-1.5">
               <NavLink
                 to="/"
-                className="flex min-w-[72px] flex-1 items-center justify-center rounded-xl bg-cyan-500/12 px-4 py-3.5 transition-colors hover:bg-cyan-500/20"
-                activeClassName="ring-2 ring-cyan-400/40"
+                className="flex min-w-[72px] flex-1 items-center justify-center rounded-xl bg-primary/12 px-4 py-3.5 transition-colors hover:bg-primary/20"
+                activeClassName="ring-2 ring-primary/40"
               >
                 <Home className="h-5 w-5" />
               </NavLink>
@@ -112,9 +112,19 @@ export const Header = ({ showNav = false }: HeaderProps) => {
                 </span>
               </NavLink>
               <NavLink
+                to="/game"
+                className="flex min-w-[84px] flex-1 items-center justify-center rounded-xl bg-primary/10 px-4 py-3.5 text-center transition-colors hover:bg-primary/18"
+                activeClassName="ring-2 ring-primary/40"
+              >
+                <span className="flex items-center gap-2 whitespace-nowrap text-sm font-medium">
+                  <Gamepad2 className="h-4 w-4" />
+                  게임
+                </span>
+              </NavLink>
+              <NavLink
                 to="/admin"
-                className="flex min-w-[72px] flex-1 items-center justify-center rounded-xl bg-cyan-500/12 px-4 py-3.5 transition-colors hover:bg-cyan-500/20"
-                activeClassName="ring-2 ring-cyan-400/40"
+                className="flex min-w-[72px] flex-1 items-center justify-center rounded-xl bg-primary/12 px-4 py-3.5 transition-colors hover:bg-primary/20"
+                activeClassName="ring-2 ring-primary/40"
               >
                 <Settings className="h-5 w-5" />
               </NavLink>

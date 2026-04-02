@@ -38,6 +38,14 @@ import { createTransferLog } from "@/providers/shared/services/transferLogReposi
 import { getSamsungLastSyncAt, setSamsungLastSyncAt } from "@/providers/samsung/services/samsungConnectionStore";
 import { getStravaProviderConfig, setStravaProviderConfig } from "@/providers/strava";
 import { getDisplaySettings, saveDisplaySettings, type DisplaySettings } from "@/services/displaySettings";
+import { startKakaoLogin } from "@/services/auth/kakaoAuth";
+import { startLineLogin } from "@/services/auth/lineAuth";
+import {
+  getKakaoAuthConfig,
+  getLineAuthConfig,
+  setKakaoAuthConfig,
+  setLineAuthConfig,
+} from "@/services/auth/socialAuthStore";
 
 interface LogEntry {
   id: string;
@@ -93,7 +101,7 @@ const Admin = () => {
   const [activeProvider, setActiveProvider] = useState<ProviderId>("samsung");
   const [mockHealthDataEnabled, setMockHealthDataState] = useState(true);
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(getDisplaySettings());
-  const [apiDialog, setApiDialog] = useState<null | "garmin" | "samsung" | "apple" | "strava">(null);
+  const [apiDialog, setApiDialog] = useState<null | "garmin" | "samsung" | "apple" | "strava" | "kakao" | "line">(null);
   const [providerStatus, setProviderStatus] = useState<"checking" | "connected" | "disconnected">("checking");
   const [gptStatus, setGptStatus] = useState<"checking" | "connected" | "disconnected">("checking");
   const [scheduledSyncEnabled, setScheduledSyncEnabled] = useState(true);
@@ -116,11 +124,21 @@ const Admin = () => {
   const [stravaClientSecret, setStravaClientSecret] = useState("");
   const [stravaRefreshToken, setStravaRefreshToken] = useState("");
   const [stravaAthleteId, setStravaAthleteId] = useState("");
+  const [kakaoRestApiKey, setKakaoRestApiKey] = useState("");
+  const [kakaoClientSecret, setKakaoClientSecret] = useState("");
+  const [kakaoRedirectUri, setKakaoRedirectUri] = useState("https://rhhealthcare.app/auth/kakao/callback");
+  const [kakaoConsentScope, setKakaoConsentScope] = useState("profile_nickname,account_email,name,phone_number");
+  const [lineChannelId, setLineChannelId] = useState("");
+  const [lineClientSecret, setLineClientSecret] = useState("");
+  const [lineRedirectUri, setLineRedirectUri] = useState("https://rhhealthcare.app/auth/line/callback");
+  const [lineScope, setLineScope] = useState("profile openid email");
 
   useEffect(() => {
     const garminConfig = getGarminProviderConfig();
     const appleConfig = getAppleHealthProviderConfig();
     const stravaConfig = getStravaProviderConfig();
+    const kakaoConfig = getKakaoAuthConfig();
+    const lineConfig = getLineAuthConfig();
     const savedSyncEnabled = localStorage.getItem("scheduled_sync_enabled");
     const savedSyncTime = localStorage.getItem("sync_time");
 
@@ -137,6 +155,14 @@ const Admin = () => {
     setStravaClientSecret(stravaConfig.clientSecret);
     setStravaRefreshToken(stravaConfig.refreshToken);
     setStravaAthleteId(stravaConfig.athleteId);
+    setKakaoRestApiKey(kakaoConfig.restApiKey);
+    setKakaoClientSecret(kakaoConfig.clientSecret);
+    setKakaoRedirectUri(kakaoConfig.redirectUri);
+    setKakaoConsentScope(kakaoConfig.consentScope);
+    setLineChannelId(lineConfig.channelId);
+    setLineClientSecret(lineConfig.clientSecret);
+    setLineRedirectUri(lineConfig.redirectUri);
+    setLineScope(lineConfig.scope);
     if (savedSyncEnabled !== null) {
       setScheduledSyncEnabled(savedSyncEnabled === "true");
     }
@@ -247,6 +273,28 @@ const Admin = () => {
       athleteId: stravaAthleteId,
     });
     toast({ title: "Strava 설정을 저장했습니다" });
+    setApiDialog(null);
+  };
+
+  const handleKakaoConfigSave = () => {
+    setKakaoAuthConfig({
+      restApiKey: kakaoRestApiKey,
+      clientSecret: kakaoClientSecret,
+      redirectUri: kakaoRedirectUri,
+      consentScope: kakaoConsentScope,
+    });
+    toast({ title: "Kakao 로그인 설정을 저장했습니다" });
+    setApiDialog(null);
+  };
+
+  const handleLineConfigSave = () => {
+    setLineAuthConfig({
+      channelId: lineChannelId,
+      clientSecret: lineClientSecret,
+      redirectUri: lineRedirectUri,
+      scope: lineScope,
+    });
+    toast({ title: "LINE 로그인 설정을 저장했습니다" });
     setApiDialog(null);
   };
 
@@ -538,6 +586,62 @@ const Admin = () => {
                       <DialogFooter>
                         <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
                         <Button onClick={handleStravaConfigSave}>저장</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={apiDialog === "kakao"} onOpenChange={(open) => setApiDialog(open ? "kakao" : null)}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        Kakao 로그인 설정
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Kakao 로그인 설정</DialogTitle>
+                        <DialogDescription>REST API 키, Redirect URI, 동의항목을 입력합니다.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <Input value={kakaoRestApiKey} onChange={(e) => setKakaoRestApiKey(e.target.value)} placeholder="REST API Key" />
+                        <Input value={kakaoClientSecret} onChange={(e) => setKakaoClientSecret(e.target.value)} placeholder="Client Secret" />
+                        <Input value={kakaoRedirectUri} onChange={(e) => setKakaoRedirectUri(e.target.value)} placeholder="Redirect URI" />
+                        <Input value={kakaoConsentScope} onChange={(e) => setKakaoConsentScope(e.target.value)} placeholder="Scopes" />
+                      </div>
+                      <DialogFooter className="sm:justify-between">
+                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
+                        <div className="flex gap-2">
+                          <Button variant="outline" onClick={startKakaoLogin}>로그인 테스트</Button>
+                          <Button onClick={handleKakaoConfigSave}>저장</Button>
+                        </div>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={apiDialog === "line"} onOpenChange={(open) => setApiDialog(open ? "line" : null)}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        LINE 로그인 설정
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>LINE 로그인 설정</DialogTitle>
+                        <DialogDescription>Channel ID, Redirect URI, scope를 입력합니다.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <Input value={lineChannelId} onChange={(e) => setLineChannelId(e.target.value)} placeholder="Channel ID" />
+                        <Input value={lineClientSecret} onChange={(e) => setLineClientSecret(e.target.value)} placeholder="Client Secret" />
+                        <Input value={lineRedirectUri} onChange={(e) => setLineRedirectUri(e.target.value)} placeholder="Redirect URI" />
+                        <Input value={lineScope} onChange={(e) => setLineScope(e.target.value)} placeholder="Scope" />
+                      </div>
+                      <DialogFooter className="sm:justify-between">
+                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
+                        <div className="flex gap-2">
+                          <Button variant="outline" onClick={startLineLogin}>로그인 테스트</Button>
+                          <Button onClick={handleLineConfigSave}>저장</Button>
+                        </div>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>

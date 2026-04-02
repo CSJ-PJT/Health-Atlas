@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ContactRound, Plus, Search, UserCheck, UserPlus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ContactRound, Pencil, Search, Trash2, UserCheck, UserPlus } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,10 +16,11 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { DeviceContacts, type DeviceContact } from "@/lib/deviceContacts";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureSocialSeed, getFriends, saveFriend, upsertDirectRoom } from "@/services/socialStore";
+import { ensureSocialSeed, getFriends, removeFriend, renameFriend, saveFriend, upsertDirectRoom, type FriendEntry } from "@/services/socialStore";
 
 const Friends = () => {
   const { toast } = useToast();
+  const longPressTimer = useRef<number | null>(null);
   const [friends, setFriends] = useState(getFriends());
   const [search, setSearch] = useState("");
   const [contacts, setContacts] = useState<DeviceContact[]>([]);
@@ -27,6 +28,8 @@ const Friends = () => {
   const [manualPhone, setManualPhone] = useState("");
   const [userIdQuery, setUserIdQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [actionTarget, setActionTarget] = useState<FriendEntry | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   useEffect(() => {
     ensureSocialSeed();
@@ -46,6 +49,21 @@ const Friends = () => {
         friend.id.toLowerCase().includes(keyword),
     );
   }, [friends, search]);
+
+  const startLongPress = (friend: FriendEntry) => {
+    clearLongPress();
+    longPressTimer.current = window.setTimeout(() => {
+      setActionTarget(friend);
+      setRenameValue(friend.name);
+    }, 1000);
+  };
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   const handleAddFriend = (contact: DeviceContact) => {
     const next = saveFriend(contact);
@@ -135,6 +153,23 @@ const Friends = () => {
     setOpen(false);
   };
 
+  const handleRename = () => {
+    if (!actionTarget || !renameValue.trim()) {
+      return;
+    }
+
+    setFriends(renameFriend(actionTarget.id, renameValue.trim()));
+    setActionTarget(null);
+  };
+
+  const handleDelete = () => {
+    if (!actionTarget) {
+      return;
+    }
+    setFriends(removeFriend(actionTarget.id));
+    setActionTarget(null);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
@@ -147,7 +182,7 @@ const Friends = () => {
 
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 bg-cyan-500 hover:bg-cyan-600">
+              <Button className="gap-2 bg-primary hover:bg-primary/90">
                 <UserPlus className="h-4 w-4" />
                 친구 추가
               </Button>
@@ -231,7 +266,7 @@ const Friends = () => {
         <Card>
           <CardHeader>
             <CardTitle>친구 목록</CardTitle>
-            <CardDescription>검색으로 친구를 빠르게 찾고, 각 친구와 바로 채팅을 시작할 수 있습니다.</CardDescription>
+            <CardDescription>1초 이상 누르면 이름 변경과 삭제가 가능합니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="relative">
@@ -241,7 +276,18 @@ const Friends = () => {
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredFriends.map((friend) => (
-                <div key={friend.id} className="rounded-2xl border bg-card/70 p-4">
+                <div
+                  key={friend.id}
+                  className="rounded-2xl border bg-card/70 p-4"
+                  onPointerDown={() => startLongPress(friend)}
+                  onPointerUp={clearLongPress}
+                  onPointerLeave={clearLongPress}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setActionTarget(friend);
+                    setRenameValue(friend.name);
+                  }}
+                >
                   <div className="flex items-center gap-2 font-semibold">
                     <UserCheck className="h-4 w-4 text-emerald-500" />
                     {friend.name}
@@ -253,6 +299,28 @@ const Friends = () => {
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={!!actionTarget} onOpenChange={(open) => !open && setActionTarget(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>친구 관리</DialogTitle>
+              <DialogDescription>{actionTarget?.name}님의 표시 이름을 바꾸거나 목록에서 제거합니다.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} placeholder="새 이름" />
+              <div className="grid grid-cols-2 gap-2">
+                <Button onClick={handleRename} className="gap-2">
+                  <Pencil className="h-4 w-4" />
+                  이름 변경
+                </Button>
+                <Button variant="destructive" onClick={handleDelete} className="gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  삭제
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

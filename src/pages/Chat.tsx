@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { MessageCircleMore, Plus, Users } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronsUpDown, MessageCircleMore, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,10 +18,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import {
   createGroupRoom,
+  deleteChatRoom,
   ensureSocialSeed,
   getChatRooms,
   getFriends,
   getRoomMessages,
+  renameChatRoom,
   saveChatMessage,
   upsertDirectRoom,
   type ChatRoom,
@@ -32,6 +34,7 @@ const MY_USER_NAME = localStorage.getItem("user_nickname") || "나";
 
 const Chat = () => {
   const { toast } = useToast();
+  const longPressTimer = useRef<number | null>(null);
   const [friends, setFriends] = useState(getFriends());
   const [rooms, setRooms] = useState(getChatRooms());
   const [activeRoomId, setActiveRoomId] = useState<string | null>(getChatRooms()[0]?.id || null);
@@ -40,6 +43,9 @@ const Chat = () => {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [directDialogOpen, setDirectDialogOpen] = useState(false);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [compressed, setCompressed] = useState(false);
+  const [actionTarget, setActionTarget] = useState<ChatRoom | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   useEffect(() => {
     ensureSocialSeed();
@@ -56,6 +62,21 @@ const Chat = () => {
   const getRoomPreview = (room: ChatRoom) => {
     const roomMessages = getRoomMessages(room.id);
     return roomMessages[roomMessages.length - 1]?.content || "새 대화를 시작해 보세요.";
+  };
+
+  const startLongPress = (room: ChatRoom) => {
+    clearLongPress();
+    longPressTimer.current = window.setTimeout(() => {
+      setActionTarget(room);
+      setRenameValue(room.name);
+    }, 1000);
+  };
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
   };
 
   const handleToggleMember = (friendId: string) => {
@@ -114,6 +135,26 @@ const Chat = () => {
     setRooms(getChatRooms());
   };
 
+  const handleRename = () => {
+    if (!actionTarget || !renameValue.trim()) {
+      return;
+    }
+    setRooms(renameChatRoom(actionTarget.id, renameValue.trim()));
+    setActionTarget(null);
+  };
+
+  const handleDelete = () => {
+    if (!actionTarget) {
+      return;
+    }
+    const nextRooms = deleteChatRoom(actionTarget.id);
+    setRooms(nextRooms);
+    if (activeRoomId === actionTarget.id) {
+      setActiveRoomId(nextRooms[0]?.id || null);
+    }
+    setActionTarget(null);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
@@ -125,9 +166,13 @@ const Chat = () => {
           </div>
 
           <div className="flex gap-2">
+            <Button variant="outline" size="icon" onClick={() => setCompressed((value) => !value)}>
+              <ChevronsUpDown className="h-4 w-4" />
+            </Button>
+
             <Dialog open={directDialogOpen} onOpenChange={setDirectDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-cyan-500/30 text-cyan-700 hover:bg-cyan-500/10">
+                <Button variant="outline" className="gap-2 border-primary/30 text-primary hover:bg-primary/10">
                   <Plus className="h-4 w-4" />
                   채팅 만들기
                 </Button>
@@ -149,7 +194,7 @@ const Chat = () => {
                         <div className="font-medium">{friend.name}</div>
                         <div className="text-xs text-muted-foreground">{friend.phone}</div>
                       </div>
-                      <MessageCircleMore className="h-4 w-4 text-cyan-600" />
+                      <MessageCircleMore className="h-4 w-4 text-primary" />
                     </button>
                   ))}
                 </div>
@@ -158,7 +203,7 @@ const Chat = () => {
 
             <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2 bg-cyan-500 hover:bg-cyan-600">
+                <Button className="gap-2 bg-primary hover:bg-primary/90">
                   <Users className="h-4 w-4" />
                   그룹 채팅
                 </Button>
@@ -197,7 +242,7 @@ const Chat = () => {
           <Card>
             <CardHeader>
               <CardTitle>채팅 목록</CardTitle>
-              <CardDescription>최근 메시지가 있는 순서대로 정렬됩니다.</CardDescription>
+              <CardDescription>1초 이상 누르면 이름 변경과 삭제가 가능합니다.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {rooms.map((room) => (
@@ -205,18 +250,26 @@ const Chat = () => {
                   key={room.id}
                   type="button"
                   onClick={() => setActiveRoomId(room.id)}
+                  onPointerDown={() => startLongPress(room)}
+                  onPointerUp={clearLongPress}
+                  onPointerLeave={clearLongPress}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setActionTarget(room);
+                    setRenameValue(room.name);
+                  }}
                   className={`w-full rounded-2xl border p-4 text-left transition-colors ${
-                    activeRoomId === room.id ? "border-cyan-500 bg-cyan-500/10" : "hover:bg-muted/40"
-                  }`}
+                    activeRoomId === room.id ? "border-primary bg-primary/10" : "hover:bg-muted/40"
+                  } ${compressed ? "py-2" : ""}`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 font-semibold">
-                      {room.type === "group" ? <Users className="h-4 w-4 text-cyan-600" /> : <MessageCircleMore className="h-4 w-4 text-cyan-600" />}
+                      {room.type === "group" ? <Users className="h-4 w-4 text-primary" /> : <MessageCircleMore className="h-4 w-4 text-primary" />}
                       {room.name}
                     </div>
                     <div className="text-xs text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
                   </div>
-                  <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div>
+                  {!compressed ? <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div> : null}
                 </button>
               ))}
             </CardContent>
@@ -236,7 +289,7 @@ const Chat = () => {
                     <div
                       key={message.id}
                       className={`max-w-[85%] rounded-2xl p-3 text-sm ${
-                        message.senderId === MY_USER_ID ? "ml-auto bg-cyan-500 text-white" : "bg-muted"
+                        message.senderId === MY_USER_ID ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"
                       }`}
                     >
                       <div className="mb-1 text-[11px] opacity-70">{message.senderName}</div>
@@ -252,6 +305,28 @@ const Chat = () => {
             </CardContent>
           </Card>
         </div>
+
+        <Dialog open={!!actionTarget} onOpenChange={(open) => !open && setActionTarget(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>채팅방 관리</DialogTitle>
+              <DialogDescription>{actionTarget?.name} 채팅방의 이름을 바꾸거나 삭제합니다.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} placeholder="새 채팅방 이름" />
+              <div className="grid grid-cols-2 gap-2">
+                <Button onClick={handleRename} className="gap-2">
+                  <Pencil className="h-4 w-4" />
+                  이름 변경
+                </Button>
+                <Button variant="destructive" onClick={handleDelete} className="gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  삭제
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
