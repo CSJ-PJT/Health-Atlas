@@ -13,8 +13,6 @@ export const Header = ({ showNav = false }: HeaderProps) => {
   const location = useLocation();
   const [nickname, setNickname] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [isNavVisible, setIsNavVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
 
   useEffect(() => {
     setNickname(localStorage.getItem("user_nickname") || "");
@@ -22,57 +20,44 @@ export const Header = ({ showNav = false }: HeaderProps) => {
   }, [location]);
 
   useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (currentScrollY > lastScrollY && currentScrollY > 24) {
-        setIsNavVisible(false);
-      } else {
-        setIsNavVisible(true);
-      }
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
-
-  useEffect(() => {
     if (!showNav) {
       document.body.style.paddingBottom = "";
       return;
     }
-    document.body.style.paddingBottom = "88px";
+    document.body.style.paddingBottom = "122px";
     return () => {
       document.body.style.paddingBottom = "";
     };
   }, [showNav]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/96 backdrop-blur supports-[backdrop-filter]:bg-background/76">
-      <div className="container px-3">
-        <div className="flex h-16 items-center justify-between gap-2">
-          <Link to="/" className="flex min-w-0 flex-1 items-center gap-2 transition-opacity hover:opacity-80">
-            <img src="/app-icon.png" alt="Logo" className="h-10 w-10 rounded-2xl" />
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-bold leading-tight text-foreground sm:text-2xl">RH Healthcare</h1>
-            </div>
-          </Link>
+    <>
+      <header className="sticky top-0 z-50 w-full border-b bg-background/96 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/76">
+        <div className="container px-3">
+          <div className="flex min-h-[4.5rem] items-center justify-between gap-2 py-2">
+            <Link to="/" className="flex min-w-0 flex-1 items-center gap-2 transition-opacity hover:opacity-80">
+              <img src="/app-icon.png" alt="Logo" className="h-10 w-10 rounded-2xl" />
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl font-bold leading-tight text-foreground sm:text-3xl">RH Healthcare</h1>
+              </div>
+            </Link>
 
-          <div className="flex shrink-0 items-center gap-2">
-            <p className="max-w-[96px] truncate text-xs text-muted-foreground">{nickname}</p>
-            <Avatar className="h-8 w-8 border border-primary/20">
-              <AvatarImage src={avatarUrl} alt={nickname || "profile"} />
-              <AvatarFallback>{(nickname || "U").slice(0, 1)}</AvatarFallback>
-            </Avatar>
-            <AdviceDrawer />
+            <div className="flex shrink-0 items-center gap-2">
+              <AdviceDrawer />
+              <p className="max-w-[96px] truncate text-xs text-muted-foreground">{nickname}</p>
+              <Avatar className="h-8 w-8 border border-primary/20">
+                <AvatarImage src={avatarUrl} alt={nickname || "profile"} />
+                <AvatarFallback>{(nickname || "U").slice(0, 1)}</AvatarFallback>
+              </Avatar>
+            </div>
           </div>
         </div>
+      </header>
 
-        {showNav ? (
+      {showNav ? (
+        <div className="fixed inset-x-0 bottom-0 z-[70] px-2 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2">
           <nav
-            className={`fixed bottom-0 left-0 right-0 z-50 border-t border-primary/15 bg-background/98 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.12)] backdrop-blur supports-[backdrop-filter]:bg-background/84 transition-transform duration-300 ease-in-out ${
-              isNavVisible ? "translate-y-0" : "translate-y-full"
-            }`}
+            className="mx-auto max-w-screen-md rounded-2xl border border-primary/15 bg-background/98 px-2 py-2.5 shadow-[0_-8px_24px_rgba(0,0,0,0.12)] backdrop-blur supports-[backdrop-filter]:bg-background/84"
           >
             <div className="grid grid-cols-8 gap-1.5">
               <NavLink
@@ -133,8 +118,8 @@ export const Header = ({ showNav = false }: HeaderProps) => {
               </NavLink>
             </div>
           </nav>
-        ) : null}
-      </div>
-    </header>
+        </div>
+      ) : null}
+    </>
   );
 };

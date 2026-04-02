@@ -10,6 +10,8 @@ export const SwipeTabNavigator = () => {
   const location = useLocation();
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
+  const currentX = useRef<number | null>(null);
+  const currentY = useRef<number | null>(null);
   const interactiveStart = useRef(false);
 
   useEffect(() => {
@@ -19,23 +21,40 @@ export const SwipeTabNavigator = () => {
       interactiveStart.current = !!target?.closest("input, textarea, select, button, video, [data-no-swipe='true']");
       startX.current = touch.clientX;
       startY.current = touch.clientY;
+      currentX.current = touch.clientX;
+      currentY.current = touch.clientY;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (startX.current === null || startY.current === null) {
+        return;
+      }
+      const touch = event.touches[0];
+      currentX.current = touch.clientX;
+      currentY.current = touch.clientY;
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
       if (interactiveStart.current || startX.current === null || startY.current === null) {
         startX.current = null;
         startY.current = null;
+        currentX.current = null;
+        currentY.current = null;
         return;
       }
 
       const touch = event.changedTouches[0];
-      const deltaX = touch.clientX - startX.current;
-      const deltaY = touch.clientY - startY.current;
+      const endX = currentX.current ?? touch.clientX;
+      const endY = currentY.current ?? touch.clientY;
+      const deltaX = endX - startX.current;
+      const deltaY = endY - startY.current;
 
       startX.current = null;
       startY.current = null;
+      currentX.current = null;
+      currentY.current = null;
 
-      if (Math.abs(deltaX) < 70 || Math.abs(deltaX) < Math.abs(deltaY)) {
+      if (Math.abs(deltaX) < 42 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.15) {
         return;
       }
 
@@ -54,9 +73,11 @@ export const SwipeTabNavigator = () => {
     };
 
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
     window.addEventListener("touchend", handleTouchEnd, { passive: true });
     return () => {
       window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);
     };
   }, [location.pathname, navigate]);
