@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,7 @@ const defaultStravaPermissions = {
 
 const AccountSettings = () => {
   const navigate = useNavigate();
+  useDeviceBackNavigation("/admin");
   const { toast } = useToast();
   const [profileId, setProfileId] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
@@ -96,7 +98,6 @@ const AccountSettings = () => {
       }
 
       const { data, error } = await supabase.from("profiles").select("*").eq("user_id", storedUserId).maybeSingle();
-
       if (error) {
         throw error;
       }
@@ -110,8 +111,8 @@ const AccountSettings = () => {
     } catch (loadError) {
       console.error("Failed to load profile:", loadError);
       toast({
-        title: "오류",
-        description: "프로필 정보를 불러오지 못했습니다.",
+        title: "프로필을 불러오지 못했습니다",
+        description: "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     }
@@ -120,8 +121,8 @@ const AccountSettings = () => {
   const handleUserIdChange = async () => {
     if (userIdChanged) {
       toast({
-        title: "변경 불가",
-        description: "ID는 한 번만 변경할 수 있습니다.",
+        title: "ID는 한 번만 변경할 수 있습니다",
+        description: "현재 계정은 이미 사용자 ID를 변경했습니다.",
         variant: "destructive",
       });
       return;
@@ -132,18 +133,16 @@ const AccountSettings = () => {
       setIsLoading(true);
 
       const { data: existingUser } = await supabase.from("profiles").select("user_id").eq("user_id", validated).maybeSingle();
-
       if (existingUser) {
         toast({
-          title: "중복된 ID",
-          description: "이미 사용 중인 ID입니다.",
+          title: "이미 사용 중인 ID입니다",
+          description: "다른 ID를 입력해 주세요.",
           variant: "destructive",
         });
         return;
       }
 
       const { error } = await supabase.from("profiles").update({ user_id: validated, user_id_changed: true }).eq("id", profileId);
-
       if (error) {
         throw error;
       }
@@ -153,13 +152,13 @@ const AccountSettings = () => {
       setUserIdChanged(true);
       setNewUserId("");
       toast({
-        title: "ID 변경 완료",
-        description: "사용자 ID를 변경했습니다.",
+        title: "사용자 ID를 변경했습니다",
+        description: "이제 새 ID로 친구 추가가 가능합니다.",
       });
     } catch (changeError: any) {
       toast({
-        title: "ID 변경 실패",
-        description: changeError?.errors?.[0]?.message || "ID 변경 중 오류가 발생했습니다.",
+        title: "사용자 ID 변경 실패",
+        description: changeError?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
@@ -170,8 +169,8 @@ const AccountSettings = () => {
   const handlePasswordChange = async () => {
     if (password !== confirmPassword) {
       toast({
-        title: "입력 오류",
-        description: "비밀번호가 서로 일치하지 않습니다.",
+        title: "비밀번호가 일치하지 않습니다",
+        description: "두 입력값을 다시 확인해 주세요.",
         variant: "destructive",
       });
       return;
@@ -184,13 +183,13 @@ const AccountSettings = () => {
       setPassword("");
       setConfirmPassword("");
       toast({
-        title: "비밀번호 변경 완료",
-        description: "비밀번호를 저장했습니다.",
+        title: "비밀번호를 저장했습니다",
+        description: "새 비밀번호가 적용되었습니다.",
       });
     } catch (changeError: any) {
       toast({
-        title: "비밀번호 변경 실패",
-        description: changeError?.errors?.[0]?.message || "비밀번호 변경 중 오류가 발생했습니다.",
+        title: "비밀번호 저장 실패",
+        description: changeError?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
@@ -203,20 +202,19 @@ const AccountSettings = () => {
       const validated = nicknameSchema.parse(nickname);
       setIsLoading(true);
       const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", profileId);
-
       if (error) {
         throw error;
       }
 
       localStorage.setItem("user_nickname", validated);
       toast({
-        title: "닉네임 저장 완료",
-        description: "닉네임을 저장했습니다.",
+        title: "닉네임을 저장했습니다",
+        description: "앱 전체에서 새 닉네임이 보입니다.",
       });
     } catch (saveError: any) {
       toast({
         title: "닉네임 저장 실패",
-        description: saveError?.errors?.[0]?.message || "닉네임 저장 중 오류가 발생했습니다.",
+        description: saveError?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
@@ -244,17 +242,17 @@ const AccountSettings = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="new-user-id">새 ID</Label>
+              <Label htmlFor="new-user-id">새 사용자 ID</Label>
               <Input
                 id="new-user-id"
                 value={newUserId}
                 onChange={(event) => setNewUserId(event.target.value)}
-                placeholder="영문, 숫자, 언더스코어만 사용"
+                placeholder="영문, 숫자, 언더스코어 사용"
                 disabled={userIdChanged || isLoading}
               />
             </div>
             <Button onClick={handleUserIdChange} disabled={userIdChanged || !newUserId || isLoading} className="w-full">
-              ID 변경
+              사용자 ID 저장
             </Button>
           </CardContent>
         </Card>
@@ -262,7 +260,7 @@ const AccountSettings = () => {
         <Card>
           <CardHeader>
             <CardTitle>비밀번호 변경</CardTitle>
-            <CardDescription>영문, 숫자, 특수문자를 포함한 10자 이상 비밀번호를 사용하세요.</CardDescription>
+            <CardDescription>영문, 숫자, 특수문자를 포함한 10자 이상 비밀번호를 사용해 주세요.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -282,7 +280,7 @@ const AccountSettings = () => {
         <Card>
           <CardHeader>
             <CardTitle>닉네임 변경</CardTitle>
-            <CardDescription>설정 탭에서 제거한 닉네임 변경 기능을 사용자 계정 설정으로 옮겼습니다.</CardDescription>
+            <CardDescription>설정 탭에서 제거한 닉네임 변경 기능은 계정 설정에서 관리합니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -298,7 +296,7 @@ const AccountSettings = () => {
         <Card>
           <CardHeader>
             <CardTitle>권한 설정</CardTitle>
-            <CardDescription>Health Connect, Garmin, Apple Health, Strava 권한 항목을 버튼으로 전환해 확인합니다.</CardDescription>
+            <CardDescription>Health Connect, Garmin, Apple Health, Strava 권한 항목을 전환해서 확인합니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs value={permissionTab} onValueChange={(value) => setPermissionTab(value as typeof permissionTab)}>
@@ -313,7 +311,7 @@ const AccountSettings = () => {
             {permissionTab === "health-connect" && (
               <div className="space-y-3">
                 {[
-                  { key: "readSteps", label: "걸음수 읽기" },
+                  { key: "readSteps", label: "걸음 수 읽기" },
                   { key: "readHeartRate", label: "심박수 읽기" },
                   { key: "readSleep", label: "수면 읽기" },
                   { key: "readExercise", label: "운동 읽기" },
@@ -412,7 +410,7 @@ const AccountSettings = () => {
           </CardContent>
         </Card>
 
-        <Button onClick={() => navigate(-1)} variant="outline" className="w-full">
+        <Button onClick={() => navigate("/admin")} variant="outline" className="w-full">
           설정으로 돌아가기
         </Button>
       </div>

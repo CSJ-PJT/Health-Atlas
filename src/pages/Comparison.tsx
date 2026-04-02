@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
+import { differenceInCalendarDays, format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Header } from "@/components/Header";
 import { MetricLineChart } from "@/components/charts/MetricLineChart";
@@ -29,7 +29,7 @@ const metricOptions = [
   { key: "avgHeartRate", name: "평균 심박수", color: "#ec4899" },
   { key: "cadence", name: "평균 케이던스", color: "#6366f1" },
   { key: "vo2max", name: "VO2 Max", color: "#14b8a6" },
-  { key: "elevationGain", name: "고도 상승", color: "#84cc16" },
+  { key: "elevationGain", name: "총 상승", color: "#84cc16" },
 ];
 
 const toPaceLabel = (minutesValue: number) => {
@@ -42,8 +42,8 @@ const toPaceLabel = (minutesValue: number) => {
 const Comparison = () => {
   const providerId = getStoredProviderId();
   const providerMeta = getProviderMeta(providerId);
-  const [viewMode, setViewMode] = useState<HealthViewMode>("day");
-  const initialRange = buildRangeFromMode("day");
+  const initialRange = buildRangeFromMode("week");
+  const [viewMode, setViewMode] = useState<HealthViewMode>("week");
   const [startDate, setStartDate] = useState<Date | undefined>(initialRange.start);
   const [endDate, setEndDate] = useState<Date | undefined>(initialRange.end);
   const [visibleKeys, setVisibleKeys] = useState<string[]>(metricOptions.map((metric) => metric.key));
@@ -61,6 +61,8 @@ const Comparison = () => {
   const effectiveRecords = records.length > 0 ? records : fallbackRecords;
   const latestRecord = effectiveRecords[effectiveRecords.length - 1];
   const sessions = latestRecord?.running_data?.sessions || [];
+  const isSingleDayRange =
+    !!startDate && !!endDate && differenceInCalendarDays(endDate, startDate) === 0;
 
   useEffect(() => {
     if (!selectedSessionId && sessions[0]?.activityId) {
@@ -73,7 +75,7 @@ const Comparison = () => {
   const laps = selectedSession ? latestRecord?.running_data?.session_laps?.[selectedSession.activityId] || [] : [];
 
   const aggregateChartData = useMemo(() => aggregateRunningChartData(effectiveRecords, viewMode), [effectiveRecords, viewMode]);
-  const chartData = viewMode === "day" ? dayTimeline : aggregateChartData;
+  const chartData = isSingleDayRange ? dayTimeline : aggregateChartData;
   const latest = chartData[chartData.length - 1];
 
   const toggleMetric = (key: string) => {
@@ -85,7 +87,7 @@ const Comparison = () => {
     ? metricOptions
         .filter((metric) => isDisplayMetricEnabled("comparison", metric.key))
         .map((metric) => ({
-          label: metric.name.replace("(km)", "").replace("(분)", ""),
+          label: metric.name,
           value:
             metric.key === "avgPace" || metric.key === "bestPace"
               ? toPaceLabel(Number((latest as any)[metric.key] || 0))
@@ -107,12 +109,10 @@ const Comparison = () => {
 
   const sessionAiSummary = selectedSession
     ? [
-        `${selectedSession.activityName}은 ${Math.round(selectedSession.durationSeconds / 60)}분 동안 ${(
-          selectedSession.distanceMeters / 1000
-        ).toFixed(2)}km를 수행한 ${selectedSession.activityType} 운동입니다.`,
-        `평균 심박 ${selectedSession.averageHR}bpm, 최대 심박 ${selectedSession.maxHR}bpm, 평균 케이던스 ${selectedSession.averageRunCadence}spm입니다.`,
-        `운동 부하 ${selectedSession.trainingLoad || 0} 기준으로 보면 ${
-          selectedSession.trainingEffectAerobic && selectedSession.trainingEffectAerobic > 3 ? "강도가 충분히 확보된 세션" : "회복 중심 세션"
+        `${selectedSession.activityName}은 ${Math.round(selectedSession.durationSeconds / 60)}분 동안 ${(selectedSession.distanceMeters / 1000).toFixed(2)}km를 수행한 ${selectedSession.activityType} 운동입니다.`,
+        `평균 심박수 ${selectedSession.averageHR}bpm, 최대 심박수 ${selectedSession.maxHR}bpm, 평균 케이던스 ${selectedSession.averageRunCadence}spm입니다.`,
+        `운동 부하 ${selectedSession.trainingLoad || 0}, 유산소 효과 ${selectedSession.trainingEffectAerobic || 0}, 무산소 효과 ${selectedSession.trainingEffectAnaerobic || 0} 기준으로 보면 ${
+          selectedSession.trainingEffectAerobic && selectedSession.trainingEffectAerobic > 3 ? "자극이 충분한 세션" : "회복 중심 세션"
         }입니다.`,
         buildAiRecommendation(effectiveRecords as any[], new Date()),
       ].join(" ")
@@ -136,7 +136,7 @@ const Comparison = () => {
       <div className="mx-auto max-w-6xl space-y-6 p-4">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold">{providerMeta.shortLabel} 러닝 비교</h1>
-          <p className="text-sm text-muted-foreground">{providerMeta.label} 기준 비교 화면입니다.</p>
+          <p className="text-sm text-muted-foreground">{providerMeta.label} 기준 러닝 비교 화면입니다.</p>
         </div>
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -178,10 +178,14 @@ const Comparison = () => {
         <Card>
           <CardHeader>
             <CardTitle>러닝 요약</CardTitle>
-            <CardDescription>{viewMode === "day" ? "선택한 운동의 시작부터 종료 시점까지 시간 흐름으로 표시합니다." : "선택한 기간 단위로 집계해 표시합니다."}</CardDescription>
+            <CardDescription>
+              {isSingleDayRange
+                ? "하루만 지정하면 선택한 운동의 시작 시점부터 종료 시점까지 시간축으로 보여줍니다."
+                : "하루 이상 선택하면 날짜 단위로 집계해서 비교합니다."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <MetricLineChart data={chartData} xKey={viewMode === "day" ? "time" : "date"} lines={visibleLines} />
+            <MetricLineChart data={chartData} xKey={isSingleDayRange ? "time" : "date"} lines={visibleLines} />
             <div className="flex flex-wrap gap-3 text-sm">
               {metricOptions
                 .filter((metric) => isDisplayMetricEnabled("comparison", metric.key))
@@ -200,27 +204,33 @@ const Comparison = () => {
                   );
                 })}
             </div>
-            <MetricGrid items={summaryCards} />
+            <MetricGrid items={summaryCards} columnsClassName="grid-cols-2 md:grid-cols-4" />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>러닝 분석</CardTitle>
-            <CardDescription>A운동, B운동처럼 운동별 탭을 전환해 종합 평가와 랩 데이터를 봅니다.</CardDescription>
+            <CardDescription>운동별로 탭을 나누고 종합 분석과 랩 분석을 확인할 수 있습니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <Tabs value={selectedSessionId} onValueChange={setSelectedSessionId}>
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
-                {sessions.map((session: any, index: number) => (
-                  <TabsTrigger key={session.activityId} value={session.activityId}>{String.fromCharCode(65 + index)} 운동</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 gap-2 md:grid-cols-4">
+                {sessions.map((session: any) => (
+                  <TabsTrigger key={session.activityId} value={session.activityId}>
+                    {session.activityName}
+                  </TabsTrigger>
                 ))}
               </TabsList>
               {sessions.map((session: any) => (
                 <TabsContent key={session.activityId} value={session.activityId} className="space-y-6">
                   <div className="flex flex-wrap gap-2">
-                    <Button variant={analysisTab === "summary" ? "default" : "outline"} onClick={() => setAnalysisTab("summary")}>종합 분석</Button>
-                    <Button variant={analysisTab === "laps" ? "default" : "outline"} onClick={() => setAnalysisTab("laps")}>랩 분석</Button>
+                    <Button variant={analysisTab === "summary" ? "default" : "outline"} onClick={() => setAnalysisTab("summary")}>
+                      종합 분석
+                    </Button>
+                    <Button variant={analysisTab === "laps" ? "default" : "outline"} onClick={() => setAnalysisTab("laps")}>
+                      랩 분석
+                    </Button>
                   </div>
 
                   {analysisTab === "summary" ? (
@@ -228,19 +238,28 @@ const Comparison = () => {
                       <div className="rounded-lg border p-4 text-sm text-muted-foreground">{sessionAiSummary}</div>
                       <MetricGrid
                         items={[
-                          { label: "기본 효과", value: session.trainingEffectLabel || "-" },
+                          { label: "운동 거리", value: `${(session.distanceMeters / 1000).toFixed(2)} km` },
+                          { label: "운동 시간", value: `${Math.round(session.durationSeconds / 60)} 분` },
+                          { label: "평균 페이스", value: toPaceLabel(Number(session.averagePaceSecondsPerKilometer || 0) / 60) },
+                          { label: "최고 페이스", value: toPaceLabel(Number(session.bestPaceSecondsPerKilometer || 0) / 60) },
+                          { label: "평균 시속", value: `${(session.averageSpeedMetersPerSecond * 3.6).toFixed(1)} km/h` },
+                          { label: "최고 시속", value: `${(session.maxSpeedMetersPerSecond * 3.6).toFixed(1)} km/h` },
                           { label: "평균 심박수", value: `${session.averageHR} bpm` },
                           { label: "최대 심박수", value: `${session.maxHR} bpm` },
-                          { label: "유산소", value: session.trainingEffectAerobic || "-" },
-                          { label: "무산소", value: session.trainingEffectAnaerobic || "-" },
+                          { label: "평균 케이던스", value: `${session.averageRunCadence} spm` },
+                          { label: "최대 케이던스", value: `${session.maxRunCadence} spm` },
+                          { label: "기본 효과", value: session.trainingEffectLabel || "-" },
+                          { label: "유산소 효과", value: session.trainingEffectAerobic || "-" },
+                          { label: "무산소 효과", value: session.trainingEffectAnaerobic || "-" },
                           { label: "운동 부하", value: session.trainingLoad || "-" },
                           { label: "총 상승", value: `${session.elevationGainMeters} m` },
                           { label: "총 하강", value: `${session.elevationLossMeters} m` },
                           { label: "예상 수분 손실", value: `${session.estimatedSweatLossMl || 0} ml` },
-                          { label: "보행", value: `${session.steps || 0} 걸음` },
-                          { label: "평균 보폭", value: `${session.averageStrideLengthMeters} m` },
+                          { label: "보폭", value: `${session.averageStrideLengthMeters} m` },
+                          { label: "걸음 수", value: `${session.steps || 0} 걸음` },
                           { label: "VO2 Max", value: session.vo2Max },
                         ]}
+                        columnsClassName="grid-cols-2 md:grid-cols-4"
                       />
                     </>
                   ) : (

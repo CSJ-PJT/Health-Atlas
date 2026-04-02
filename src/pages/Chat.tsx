@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessageCircleMore, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { MessageCircleMore, Plus, Users } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { createFeedPost, deleteFeedPost, ensureFeedSeed, getFeedPosts, updateFeedPost } from "@/services/feedStore";
 import {
   createGroupRoom,
   ensureSocialSeed,
@@ -17,6 +23,7 @@ import {
   getFriends,
   getRoomMessages,
   saveChatMessage,
+  upsertDirectRoom,
   type ChatRoom,
 } from "@/services/socialStore";
 
@@ -31,23 +38,25 @@ const Chat = () => {
   const [draft, setDraft] = useState("");
   const [groupName, setGroupName] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  const [postDraft, setPostDraft] = useState("");
-  const [editingPostId, setEditingPostId] = useState<string | null>(null);
-  const [feedTick, setFeedTick] = useState(0);
+  const [directDialogOpen, setDirectDialogOpen] = useState(false);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
 
   useEffect(() => {
     ensureSocialSeed();
-    ensureFeedSeed();
     const nextFriends = getFriends();
     const nextRooms = getChatRooms();
     setFriends(nextFriends);
     setRooms(nextRooms);
-    setActiveRoomId((previous) => previous || nextRooms[0]?.id || null);
+    setActiveRoomId(nextRooms[0]?.id || null);
   }, []);
 
   const activeRoom = rooms.find((room) => room.id === activeRoomId) || null;
   const messages = useMemo(() => (activeRoom ? getRoomMessages(activeRoom.id) : []), [activeRoom, rooms]);
-  const feedPosts = useMemo(() => getFeedPosts(), [feedTick]);
+
+  const getRoomPreview = (room: ChatRoom) => {
+    const roomMessages = getRoomMessages(room.id);
+    return roomMessages[roomMessages.length - 1]?.content || "새 대화를 시작해 보세요.";
+  };
 
   const handleToggleMember = (friendId: string) => {
     setSelectedMembers((previous) =>
@@ -55,9 +64,30 @@ const Chat = () => {
     );
   };
 
+  const handleCreateDirectRoom = (friendId: string) => {
+    const friend = friends.find((item) => item.id === friendId);
+    if (!friend) {
+      return;
+    }
+
+    const room = upsertDirectRoom(friend);
+    const nextRooms = getChatRooms();
+    setRooms(nextRooms);
+    setActiveRoomId(room.id);
+    setDirectDialogOpen(false);
+    toast({
+      title: "채팅방을 만들었습니다",
+      description: `${friend.name}님과 바로 대화를 시작할 수 있습니다.`,
+    });
+  };
+
   const handleCreateGroup = () => {
     if (!groupName.trim() || selectedMembers.length < 2) {
-      toast({ title: "그룹 생성 조건 부족", description: "그룹 이름과 2명 이상의 친구를 선택해 주세요.", variant: "destructive" });
+      toast({
+        title: "그룹 채팅 생성 조건이 부족합니다",
+        description: "그룹 이름과 2명 이상의 친구를 선택해 주세요.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -66,183 +96,162 @@ const Chat = () => {
     setActiveRoomId(room.id);
     setGroupName("");
     setSelectedMembers([]);
+    setGroupDialogOpen(false);
   };
 
   const handleSend = () => {
     if (!activeRoom || !draft.trim()) {
       return;
     }
-    saveChatMessage({ roomId: activeRoom.id, senderId: MY_USER_ID, senderName: MY_USER_NAME, content: draft.trim() });
+
+    saveChatMessage({
+      roomId: activeRoom.id,
+      senderId: MY_USER_ID,
+      senderName: MY_USER_NAME,
+      content: draft.trim(),
+    });
     setDraft("");
     setRooms(getChatRooms());
-  };
-
-  const handleSavePost = () => {
-    if (!postDraft.trim()) {
-      return;
-    }
-
-    if (editingPostId) {
-      updateFeedPost(editingPostId, postDraft.trim());
-    } else {
-      createFeedPost(MY_USER_ID, MY_USER_NAME, postDraft.trim());
-    }
-
-    setPostDraft("");
-    setEditingPostId(null);
-    setFeedTick((value) => value + 1);
-  };
-
-  const getRoomPreview = (room: ChatRoom) => {
-    const roomMessages = getRoomMessages(room.id);
-    return roomMessages[roomMessages.length - 1]?.content || "새 대화를 시작해 보세요.";
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
       <div className="mx-auto max-w-6xl space-y-6 p-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold">대화</h1>
-          <p className="text-sm text-muted-foreground">개인/그룹 대화와 공개 피드를 함께 사용할 수 있습니다.</p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold">채팅</h1>
+            <p className="text-sm text-muted-foreground">채팅 목록을 기본으로 보고, 우측 상단에서 1:1 또는 그룹 채팅을 만듭니다.</p>
+          </div>
+
+          <div className="flex gap-2">
+            <Dialog open={directDialogOpen} onOpenChange={setDirectDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2 border-cyan-500/30 text-cyan-700 hover:bg-cyan-500/10">
+                  <Plus className="h-4 w-4" />
+                  채팅 만들기
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>새 1:1 채팅</DialogTitle>
+                  <DialogDescription>친구를 선택하면 바로 대화방이 생성됩니다.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  {friends.map((friend) => (
+                    <button
+                      key={friend.id}
+                      type="button"
+                      onClick={() => handleCreateDirectRoom(friend.id)}
+                      className="flex w-full items-center justify-between rounded-xl border p-3 text-left transition-colors hover:bg-muted/50"
+                    >
+                      <div>
+                        <div className="font-medium">{friend.name}</div>
+                        <div className="text-xs text-muted-foreground">{friend.phone}</div>
+                      </div>
+                      <MessageCircleMore className="h-4 w-4 text-cyan-600" />
+                    </button>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 bg-cyan-500 hover:bg-cyan-600">
+                  <Users className="h-4 w-4" />
+                  그룹 채팅
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>그룹 채팅 만들기</DialogTitle>
+                  <DialogDescription>그룹 이름과 참여할 친구를 선택해 주세요.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <Input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="그룹 이름" />
+                  <div className="space-y-3">
+                    {friends.map((friend) => (
+                      <label key={friend.id} className="flex items-center gap-3 rounded-xl border p-3">
+                        <Checkbox checked={selectedMembers.includes(friend.id)} onCheckedChange={() => handleToggleMember(friend.id)} />
+                        <div>
+                          <div className="font-medium">{friend.name}</div>
+                          <div className="text-xs text-muted-foreground">{friend.phone}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setGroupDialogOpen(false)}>
+                    취소
+                  </Button>
+                  <Button onClick={handleCreateGroup}>그룹 생성</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
-        <Tabs defaultValue="chat" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="chat">대화방</TabsTrigger>
-            <TabsTrigger value="feed">공개 피드</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="chat">
-            <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>대화방 목록</CardTitle>
-                    <CardDescription>친구와 1:1 또는 그룹 대화를 시작합니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {rooms.map((room) => (
-                      <button
-                        key={room.id}
-                        type="button"
-                        onClick={() => setActiveRoomId(room.id)}
-                        className={`w-full rounded-xl border p-4 text-left transition-colors ${
-                          activeRoomId === room.id ? "border-primary bg-primary/10" : "hover:bg-muted/40"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 font-semibold">
-                            {room.type === "group" ? <Users className="h-4 w-4 text-primary" /> : <MessageCircleMore className="h-4 w-4 text-primary" />}
-                            {room.name}
-                          </div>
-                          <div className="text-xs text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
-                        </div>
-                        <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div>
-                      </button>
-                    ))}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>그룹 대화 만들기</CardTitle>
-                    <CardDescription>친구 2명 이상을 선택해 그룹 대화방을 생성합니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <Input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="그룹 이름" />
-                    <div className="space-y-3">
-                      {friends.map((friend) => (
-                        <label key={friend.id} className="flex items-center gap-3 rounded-lg border p-3">
-                          <Checkbox checked={selectedMembers.includes(friend.id)} onCheckedChange={() => handleToggleMember(friend.id)} />
-                          <div>
-                            <div className="font-medium">{friend.name}</div>
-                            <div className="text-xs text-muted-foreground">{friend.phone}</div>
-                          </div>
-                        </label>
-                      ))}
+        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>채팅 목록</CardTitle>
+              <CardDescription>최근 메시지가 있는 순서대로 정렬됩니다.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {rooms.map((room) => (
+                <button
+                  key={room.id}
+                  type="button"
+                  onClick={() => setActiveRoomId(room.id)}
+                  className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                    activeRoomId === room.id ? "border-cyan-500 bg-cyan-500/10" : "hover:bg-muted/40"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 font-semibold">
+                      {room.type === "group" ? <Users className="h-4 w-4 text-cyan-600" /> : <MessageCircleMore className="h-4 w-4 text-cyan-600" />}
+                      {room.name}
                     </div>
-                    <Button onClick={handleCreateGroup} className="w-full gap-2">
-                      <Plus className="h-4 w-4" />
-                      그룹 생성
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card className="min-h-[70vh]">
-                <CardHeader>
-                  <CardTitle>{activeRoom ? activeRoom.name : "대화방 선택"}</CardTitle>
-                  <CardDescription>{activeRoom ? `${activeRoom.type === "group" ? "그룹" : "개인"} 대화방입니다.` : "왼쪽에서 대화방을 선택하세요."}</CardDescription>
-                </CardHeader>
-                <CardContent className="flex h-[calc(70vh-110px)] flex-col gap-4">
-                  <ScrollArea className="flex-1 rounded-xl border p-4">
-                    <div className="space-y-3">
-                      {messages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`max-w-[85%] rounded-2xl p-3 text-sm ${
-                            message.senderId === MY_USER_ID ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"
-                          }`}
-                        >
-                          <div className="mb-1 text-[11px] opacity-70">{message.senderName}</div>
-                          <div>{message.content}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                  <div className="flex gap-2">
-                    <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="메시지를 입력하세요" />
-                    <Button onClick={handleSend}>전송</Button>
+                    <div className="text-xs text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+                  <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
 
-          <TabsContent value="feed">
-            <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-              <Card>
-                <CardHeader>
-                  <CardTitle>게시글 작성</CardTitle>
-                  <CardDescription>인스타그램처럼 게시글을 작성, 수정, 삭제할 수 있습니다.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Textarea value={postDraft} onChange={(event) => setPostDraft(event.target.value)} placeholder="오늘 운동이나 건강 상태를 공유해 보세요." className="min-h-40" />
-                  <Button onClick={handleSavePost} className="w-full">
-                    {editingPostId ? "게시글 수정" : "게시글 등록"}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <div className="space-y-4">
-                {feedPosts.map((post) => (
-                  <Card key={post.id}>
-                    <CardHeader>
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <CardTitle className="text-lg">{post.authorName}</CardTitle>
-                          <CardDescription>{new Date(post.createdAt).toLocaleString("ko-KR")}</CardDescription>
-                        </div>
-                        {post.authorId === MY_USER_ID ? (
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="icon" onClick={() => { setEditingPostId(post.id); setPostDraft(post.content); }}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="icon" onClick={() => { deleteFeedPost(post.id); setFeedTick((value) => value + 1); }}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="text-sm leading-6">{post.content}</CardContent>
-                  </Card>
-                ))}
+          <Card className="min-h-[70vh]">
+            <CardHeader>
+              <CardTitle>{activeRoom ? activeRoom.name : "채팅방을 선택해 주세요"}</CardTitle>
+              <CardDescription>
+                {activeRoom ? `${activeRoom.type === "group" ? "그룹" : "개인"} 채팅방입니다.` : "좌측 목록에서 대화방을 선택하세요."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex h-[calc(70vh-110px)] flex-col gap-4">
+              <ScrollArea className="flex-1 rounded-2xl border p-4">
+                <div className="space-y-3">
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`max-w-[85%] rounded-2xl p-3 text-sm ${
+                        message.senderId === MY_USER_ID ? "ml-auto bg-cyan-500 text-white" : "bg-muted"
+                      }`}
+                    >
+                      <div className="mb-1 text-[11px] opacity-70">{message.senderName}</div>
+                      <div>{message.content}</div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+              <div className="flex gap-2">
+                <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="메시지를 입력하세요" />
+                <Button onClick={handleSend}>전송</Button>
               </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -3,11 +3,12 @@ interface MetricGridProps {
     label: string;
     value: string | number;
   }>;
+  columnsClassName?: string;
 }
 
-export const MetricGrid = ({ items }: MetricGridProps) => {
+export const MetricGrid = ({ items, columnsClassName = "grid-cols-2 md:grid-cols-4" }: MetricGridProps) => {
   return (
-    <div className="grid grid-cols-4 gap-2 md:gap-3">
+    <div className={`grid gap-2 md:gap-3 ${columnsClassName}`}>
       {items.map((item) => (
         <div key={item.label} className="rounded-lg border p-2 md:p-3">
           <div className="text-[10px] leading-tight text-muted-foreground md:text-xs">{item.label}</div>

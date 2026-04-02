@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { ContactRound, Phone, Plus, RefreshCw, UserCheck } from "lucide-react";
+import { ContactRound, Plus, Search, UserCheck, UserPlus } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { DeviceContacts, type DeviceContact } from "@/lib/deviceContacts";
@@ -11,56 +20,32 @@ import { ensureSocialSeed, getFriends, saveFriend, upsertDirectRoom } from "@/se
 
 const Friends = () => {
   const { toast } = useToast();
-  const [contacts, setContacts] = useState<DeviceContact[]>([]);
   const [friends, setFriends] = useState(getFriends());
   const [search, setSearch] = useState("");
+  const [contacts, setContacts] = useState<DeviceContact[]>([]);
   const [manualName, setManualName] = useState("");
   const [manualPhone, setManualPhone] = useState("");
   const [userIdQuery, setUserIdQuery] = useState("");
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     ensureSocialSeed();
     setFriends(getFriends());
   }, []);
 
-  const filteredContacts = useMemo(() => {
+  const filteredFriends = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) {
-      return contacts;
+      return friends;
     }
-    return contacts.filter(
-      (contact) => contact.name.toLowerCase().includes(keyword) || contact.phone.toLowerCase().includes(keyword),
+
+    return friends.filter(
+      (friend) =>
+        friend.name.toLowerCase().includes(keyword) ||
+        friend.phone.toLowerCase().includes(keyword) ||
+        friend.id.toLowerCase().includes(keyword),
     );
-  }, [contacts, search]);
-
-  const handleLoadContacts = async () => {
-    try {
-      const status = await DeviceContacts.getPermissionStatus();
-      const granted = status.granted ? status : await DeviceContacts.requestContactsPermission();
-      if (!granted.granted) {
-        toast({
-          title: "연락처 권한 필요",
-          description: "친구 추가를 위해 연락처 권한을 허용해 주세요.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const result = await DeviceContacts.getContacts();
-      setContacts(result.contacts || []);
-      toast({
-        title: "연락처 불러오기 완료",
-        description: `${result.contacts?.length || 0}개의 연락처를 읽었습니다.`,
-      });
-    } catch (contactError) {
-      console.error("Failed to load contacts:", contactError);
-      toast({
-        title: "연락처 불러오기 실패",
-        description: "연락처 플러그인을 사용할 수 없어 수동 추가를 사용합니다.",
-        variant: "destructive",
-      });
-    }
-  };
+  }, [friends, search]);
 
   const handleAddFriend = (contact: DeviceContact) => {
     const next = saveFriend(contact);
@@ -72,9 +57,38 @@ const Friends = () => {
       addedAt: new Date().toISOString(),
     });
     toast({
-      title: "친구 추가 완료",
-      description: `${contact.name}님을 친구로 추가했습니다.`,
+      title: "친구를 추가했습니다",
+      description: `${contact.name}님과 바로 채팅을 시작할 수 있습니다.`,
     });
+  };
+
+  const handleLoadContacts = async () => {
+    try {
+      const status = await DeviceContacts.getPermissionStatus();
+      const granted = status.granted ? status : await DeviceContacts.requestContactsPermission();
+      if (!granted.granted) {
+        toast({
+          title: "연락처 권한이 필요합니다",
+          description: "연락처 기반 친구 추가를 사용하려면 권한을 허용해 주세요.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const result = await DeviceContacts.getContacts();
+      setContacts(result.contacts || []);
+      toast({
+        title: "연락처를 불러왔습니다",
+        description: `${result.contacts?.length || 0}개의 연락처를 확인했습니다.`,
+      });
+    } catch (error) {
+      console.error("Failed to load contacts:", error);
+      toast({
+        title: "연락처를 불러오지 못했습니다",
+        description: "권한이나 기기 설정을 확인해 주세요.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleManualAdd = () => {
@@ -89,6 +103,7 @@ const Friends = () => {
     });
     setManualName("");
     setManualPhone("");
+    setOpen(false);
   };
 
   const handleUserIdAdd = async () => {
@@ -96,9 +111,18 @@ const Friends = () => {
       return;
     }
 
-    const { data } = await supabase.from("profiles").select("user_id, nickname").eq("user_id", userIdQuery.trim()).maybeSingle();
+    const { data } = await supabase
+      .from("profiles")
+      .select("user_id, nickname")
+      .eq("user_id", userIdQuery.trim())
+      .maybeSingle();
+
     if (!data) {
-      toast({ title: "사용자 없음", description: "해당 사용자 ID를 찾지 못했습니다.", variant: "destructive" });
+      toast({
+        title: "사용자를 찾지 못했습니다",
+        description: "입력한 사용자 ID를 다시 확인해 주세요.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -108,112 +132,127 @@ const Friends = () => {
       phone: `id:${data.user_id}`,
     });
     setUserIdQuery("");
+    setOpen(false);
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
       <div className="mx-auto max-w-6xl space-y-6 p-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold">친구</h1>
-          <p className="text-sm text-muted-foreground">연락처 기반으로 친구를 추가하고 대화방을 시작합니다.</p>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>연락처에서 친구 추가</CardTitle>
-              <CardDescription>기기 연락처를 읽어 친구 목록에 바로 추가할 수 있습니다.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="이름 또는 전화번호 검색" />
-                <Button onClick={() => void handleLoadContacts()} className="gap-2">
-                  <RefreshCw className="h-4 w-4" />
-                  동기화
-                </Button>
-              </div>
-
-              <div className="space-y-3">
-                {filteredContacts.length === 0 ? (
-                  <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                    아직 불러온 연락처가 없습니다. 상단 동기화 버튼을 눌러 주세요.
-                  </div>
-                ) : (
-                  filteredContacts.slice(0, 30).map((contact) => (
-                    <div key={`${contact.id}-${contact.phone}`} className="flex items-center justify-between rounded-xl border p-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 font-semibold">
-                          <ContactRound className="h-4 w-4 text-primary" />
-                          <span className="truncate">{contact.name}</span>
-                        </div>
-                        <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                          <Phone className="h-3.5 w-3.5" />
-                          {contact.phone}
-                        </div>
-                      </div>
-                      <Button onClick={() => handleAddFriend(contact)} size="sm" className="gap-2">
-                        <Plus className="h-4 w-4" />
-                        추가
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>수동 친구 추가</CardTitle>
-                <CardDescription>연락처 권한이 없을 때 이름과 전화번호로 직접 추가합니다.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Input value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="이름" />
-                <Input value={manualPhone} onChange={(event) => setManualPhone(event.target.value)} placeholder="전화번호" />
-                <Button onClick={handleManualAdd} className="w-full gap-2">
-                  <Plus className="h-4 w-4" />
-                  친구 추가
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>사용자 ID로 친구 추가</CardTitle>
-                <CardDescription>앱 사용자 ID를 알고 있으면 직접 검색해 친구로 추가합니다.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Input value={userIdQuery} onChange={(event) => setUserIdQuery(event.target.value)} placeholder="user_xxx" />
-                <Button onClick={() => void handleUserIdAdd()} className="w-full">
-                  사용자 ID로 추가
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>내 친구 목록</CardTitle>
-                <CardDescription>추가된 친구는 채팅 탭에서 1:1 또는 그룹 대화를 시작할 수 있습니다.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {friends.map((friend) => (
-                  <div key={friend.id} className="flex items-center justify-between rounded-xl border p-4">
-                    <div>
-                      <div className="flex items-center gap-2 font-semibold">
-                        <UserCheck className="h-4 w-4 text-emerald-500" />
-                        {friend.name}
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">{friend.phone}</div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">추가됨</div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold">친구</h1>
+            <p className="text-sm text-muted-foreground">친구 목록을 확인하고, 우측 상단에서 새 친구를 추가하세요.</p>
           </div>
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 bg-cyan-500 hover:bg-cyan-600">
+                <UserPlus className="h-4 w-4" />
+                친구 추가
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>친구 추가</DialogTitle>
+                <DialogDescription>연락처, 직접 입력, 사용자 ID 중 원하는 방식으로 친구를 추가합니다.</DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+                <Card className="border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base">연락처에서 추가</CardTitle>
+                    <CardDescription>연락처 권한을 허용하면 저장된 번호를 바로 친구로 추가할 수 있습니다.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Button variant="outline" onClick={() => void handleLoadContacts()} className="w-full gap-2">
+                      <ContactRound className="h-4 w-4" />
+                      연락처 불러오기
+                    </Button>
+                    <div className="max-h-72 space-y-3 overflow-y-auto">
+                      {contacts.length === 0 ? (
+                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                          아직 불러온 연락처가 없습니다.
+                        </div>
+                      ) : (
+                        contacts.slice(0, 30).map((contact) => (
+                          <div key={`${contact.id}-${contact.phone}`} className="flex items-center justify-between rounded-xl border p-3">
+                            <div className="min-w-0">
+                              <div className="font-medium">{contact.name}</div>
+                              <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
+                            </div>
+                            <Button size="sm" onClick={() => handleAddFriend(contact)}>
+                              추가
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">직접 입력</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Input value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="이름" />
+                      <Input value={manualPhone} onChange={(event) => setManualPhone(event.target.value)} placeholder="전화번호" />
+                      <Button onClick={handleManualAdd} className="w-full">
+                        직접 추가
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">사용자 ID로 추가</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Input value={userIdQuery} onChange={(event) => setUserIdQuery(event.target.value)} placeholder="user_xxx" />
+                      <Button onClick={() => void handleUserIdAdd()} className="w-full">
+                        ID 검색 후 추가
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)}>
+                  닫기
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>친구 목록</CardTitle>
+            <CardDescription>검색으로 친구를 빠르게 찾고, 각 친구와 바로 채팅을 시작할 수 있습니다.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="이름, 전화번호, 사용자 ID 검색" className="pl-9" />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {filteredFriends.map((friend) => (
+                <div key={friend.id} className="rounded-2xl border bg-card/70 p-4">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <UserCheck className="h-4 w-4 text-emerald-500" />
+                    {friend.name}
+                  </div>
+                  <div className="mt-2 text-sm text-muted-foreground">{friend.phone}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">ID: {friend.id}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

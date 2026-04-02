@@ -51,7 +51,7 @@ export function getFriends() {
 
 export function saveFriend(contact: DeviceContact) {
   const current = getFriends();
-  if (current.some((item) => item.phone === contact.phone)) {
+  if (current.some((item) => item.phone === contact.phone || item.id === contact.id)) {
     return current;
   }
 
@@ -146,26 +146,36 @@ export function ensureSocialSeed() {
     return;
   }
 
+  const now = new Date();
   const seedFriends: FriendEntry[] = [
-    { id: "seed-1", name: "민준", phone: "01012345678", addedAt: new Date().toISOString() },
-    { id: "seed-2", name: "서연", phone: "01087654321", addedAt: new Date().toISOString() },
-    { id: "seed-3", name: "지후", phone: "01055557777", addedAt: new Date().toISOString() },
+    { id: "seed-1", name: "민지", phone: "01012345678", addedAt: now.toISOString() },
+    { id: "seed-2", name: "서연", phone: "01087654321", addedAt: now.toISOString() },
+    { id: "seed-3", name: "지훈", phone: "01055557777", addedAt: now.toISOString() },
+    { id: "seed-4", name: "도윤", phone: "01011112222", addedAt: now.toISOString() },
   ];
 
   const directRoom: ChatRoom = {
     id: "room-seed-direct",
-    name: "민준",
+    name: "민지",
     type: "direct",
     memberIds: ["seed-1"],
-    createdAt: new Date().toISOString(),
+    createdAt: now.toISOString(),
   };
 
   const groupRoom: ChatRoom = {
     id: "room-seed-group",
-    name: "주말 러닝 크루",
+    name: "주말 러닝 모임",
     type: "group",
     memberIds: ["seed-1", "seed-2", "seed-3"],
-    createdAt: new Date().toISOString(),
+    createdAt: now.toISOString(),
+  };
+
+  const recoveryRoom: ChatRoom = {
+    id: "room-seed-recovery",
+    name: "회복 체크방",
+    type: "group",
+    memberIds: ["seed-2", "seed-3", "seed-4"],
+    createdAt: now.toISOString(),
   };
 
   const seedMessages: ChatMessage[] = [
@@ -173,21 +183,29 @@ export function ensureSocialSeed() {
       id: "msg-seed-1",
       roomId: directRoom.id,
       senderId: "seed-1",
-      senderName: "민준",
-      content: "오늘 러닝 페이스 좋네. 저녁에는 스트레칭 꼭 해.",
-      createdAt: new Date().toISOString(),
+      senderName: "민지",
+      content: "오늘 러닝 페이스 좋았어. 저녁에 스트레칭 같이 할래?",
+      createdAt: new Date(now.getTime() - 1000 * 60 * 36).toISOString(),
     },
     {
       id: "msg-seed-2",
       roomId: groupRoom.id,
       senderId: "seed-2",
       senderName: "서연",
-      content: "토요일 오전 7시에 한강 러닝 어때?",
-      createdAt: new Date().toISOString(),
+      content: "토요일 오전 7시에 한강 10km 어떄?",
+      createdAt: new Date(now.getTime() - 1000 * 60 * 22).toISOString(),
+    },
+    {
+      id: "msg-seed-3",
+      roomId: recoveryRoom.id,
+      senderId: "seed-4",
+      senderName: "도윤",
+      content: "어제 장거리 뛰고 나서 HRV 어땠는지 공유해줘.",
+      createdAt: new Date(now.getTime() - 1000 * 60 * 8).toISOString(),
     },
   ];
 
   writeJson(FRIENDS_KEY, seedFriends);
-  writeJson(CHAT_ROOMS_KEY, [directRoom, groupRoom]);
+  writeJson(CHAT_ROOMS_KEY, [directRoom, groupRoom, recoveryRoom]);
   writeJson(CHAT_MESSAGES_KEY, seedMessages);
 }

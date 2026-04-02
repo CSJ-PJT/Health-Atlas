@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, Save } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
+import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +14,7 @@ import { sendAiCoachMessage } from "@/services/openaiClient";
 
 const AiCoach = () => {
   const navigate = useNavigate();
+  useDeviceBackNavigation("/");
   const providerId = getStoredProviderId();
   const providerMeta = getProviderMeta(providerId);
   const { data: yearlyRecords = [] } = useHealthStats("year");
@@ -20,15 +22,10 @@ const AiCoach = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [conversation, setConversation] = useState<Array<{ role: "assistant" | "user"; content: string }>>([]);
 
-  const summary = useMemo(() => buildAiCoachSummary(yearlyRecords as any[], providerMeta.label, new Date()), [providerMeta.label, yearlyRecords]);
-
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-    navigate("/");
-  };
+  const summary = useMemo(
+    () => buildAiCoachSummary(yearlyRecords as any[], providerMeta.label, new Date()),
+    [providerMeta.label, yearlyRecords],
+  );
 
   const handleSend = async () => {
     if (!draft.trim()) {
@@ -41,10 +38,13 @@ const AiCoach = () => {
     setIsLoading(true);
 
     try {
-      const answer = await sendAiCoachMessage(userMessage, `${summary}\n최근 기록 개수: ${yearlyRecords.length}`);
+      const answer = await sendAiCoachMessage(
+        userMessage,
+        `${summary}\n최근 기록 개수: ${yearlyRecords.length}`,
+      );
       setConversation((previous) => [...previous, { role: "assistant", content: answer }]);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "AI 답변 생성에 실패했습니다.";
+      const message = error instanceof Error ? error.message : "AI 응답 생성에 실패했습니다.";
       setConversation((previous) => [...previous, { role: "assistant", content: message }]);
     } finally {
       setIsLoading(false);
@@ -66,7 +66,7 @@ const AiCoach = () => {
       <Header />
       <div className="mx-auto max-w-3xl space-y-6 p-4">
         <div className="flex items-center justify-between gap-3">
-          <Button variant="outline" onClick={handleBack} className="gap-2">
+          <Button variant="outline" onClick={() => navigate(-1)} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             뒤로가기
           </Button>
@@ -88,7 +88,7 @@ const AiCoach = () => {
                 <div
                   key={`${message.role}-${index}`}
                   className={`rounded-lg p-3 text-sm ${
-                    message.role === "assistant" ? "bg-primary/10" : "bg-muted"
+                    message.role === "assistant" ? "bg-cyan-500/10" : "bg-muted"
                   }`}
                 >
                   <div className="mb-1 text-xs text-muted-foreground">{message.role === "assistant" ? "AI 코치" : "나"}</div>
@@ -96,8 +96,8 @@ const AiCoach = () => {
                 </div>
               ))}
             </div>
-            <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="질문을 입력하세요." className="min-h-32" />
-            <Button onClick={() => void handleSend()} disabled={isLoading} className="w-full">
+            <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="질문을 입력하세요" className="min-h-32" />
+            <Button onClick={() => void handleSend()} disabled={isLoading} className="w-full bg-cyan-500 hover:bg-cyan-600">
               {isLoading ? "응답 생성 중..." : "질문 보내기"}
             </Button>
           </CardContent>

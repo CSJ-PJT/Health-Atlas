@@ -1,19 +1,32 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
+import { CheckCircle2, Clock, KeyRound, RefreshCw, Settings2, XCircle } from "lucide-react";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useInvalidateHealthData } from "@/hooks/useHealthData";
+import { supabase } from "@/integrations/supabase/client";
 import { getAppleHealthProviderConfig, setAppleHealthProviderConfig } from "@/providers/apple";
 import { getGarminProviderConfig, setGarminProviderConfig } from "@/providers/garmin";
 import {
+  getActiveProvider,
   getProviderMeta,
   getStoredProviderId,
   isMockHealthDataEnabled,
@@ -21,8 +34,18 @@ import {
   setStoredProviderId,
 } from "@/providers/shared";
 import type { ProviderId } from "@/providers/shared";
+import { createTransferLog } from "@/providers/shared/services/transferLogRepository";
+import { getSamsungLastSyncAt, setSamsungLastSyncAt } from "@/providers/samsung/services/samsungConnectionStore";
 import { getStravaProviderConfig, setStravaProviderConfig } from "@/providers/strava";
 import { getDisplaySettings, saveDisplaySettings, type DisplaySettings } from "@/services/displaySettings";
+
+interface LogEntry {
+  id: string;
+  created_at: string;
+  log_type: string;
+  status: string;
+  message: string;
+}
 
 const providers: ProviderId[] = ["samsung", "garmin", "apple-health", "strava"];
 
@@ -58,7 +81,7 @@ const displayOptions = {
     { key: "avgHeartRate", label: "평균 심박수" },
     { key: "cadence", label: "평균 케이던스" },
     { key: "vo2max", label: "VO2 Max" },
-    { key: "elevationGain", label: "고도 상승" },
+    { key: "elevationGain", label: "총 상승" },
   ],
 } as const;
 
@@ -66,13 +89,26 @@ const Admin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const invalidateHealthData = useInvalidateHealthData();
   const [activeProvider, setActiveProvider] = useState<ProviderId>("samsung");
   const [mockHealthDataEnabled, setMockHealthDataState] = useState(true);
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(getDisplaySettings());
+  const [apiDialog, setApiDialog] = useState<null | "garmin" | "samsung" | "apple" | "strava">(null);
+  const [providerStatus, setProviderStatus] = useState<"checking" | "connected" | "disconnected">("checking");
+  const [gptStatus, setGptStatus] = useState<"checking" | "connected" | "disconnected">("checking");
+  const [scheduledSyncEnabled, setScheduledSyncEnabled] = useState(true);
+  const [syncTime, setSyncTime] = useState("09:00");
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [remainingTokens, setRemainingTokens] = useState(0);
+  const [providerLastSync, setProviderLastSync] = useState("");
+  const [gptLastSync, setGptLastSync] = useState("");
+  const [logs, setLogs] = useState<LogEntry[]>([]);
 
   const [garminApiBaseUrl, setGarminApiBaseUrl] = useState("");
   const [garminAccessToken, setGarminAccessToken] = useState("");
   const [garminUserId, setGarminUserId] = useState("");
+  const [samsungApiKey, setSamsungApiKey] = useState(localStorage.getItem("samsung_health_api_key") || "");
+  const [samsungClientId, setSamsungClientId] = useState(localStorage.getItem("samsung_health_client_id") || "");
   const [appleAppId, setAppleAppId] = useState("");
   const [appleTeamId, setAppleTeamId] = useState("");
   const [appleRedirectUri, setAppleRedirectUri] = useState("");
@@ -85,6 +121,9 @@ const Admin = () => {
     const garminConfig = getGarminProviderConfig();
     const appleConfig = getAppleHealthProviderConfig();
     const stravaConfig = getStravaProviderConfig();
+    const savedSyncEnabled = localStorage.getItem("scheduled_sync_enabled");
+    const savedSyncTime = localStorage.getItem("sync_time");
+
     setActiveProvider(getStoredProviderId());
     setMockHealthDataState(isMockHealthDataEnabled());
     setDisplaySettings(getDisplaySettings());
@@ -98,18 +137,76 @@ const Admin = () => {
     setStravaClientSecret(stravaConfig.clientSecret);
     setStravaRefreshToken(stravaConfig.refreshToken);
     setStravaAthleteId(stravaConfig.athleteId);
+    if (savedSyncEnabled !== null) {
+      setScheduledSyncEnabled(savedSyncEnabled === "true");
+    }
+    if (savedSyncTime) {
+      setSyncTime(savedSyncTime);
+    }
+
+    void refreshConnectionState();
+    void fetchLogs();
   }, []);
+
+  const refreshConnectionState = async () => {
+    const provider = getActiveProvider();
+    setProviderStatus("checking");
+    try {
+      const status = await provider.getConnectionStatus();
+      setProviderStatus(status.connected ? "connected" : "disconnected");
+      if (status.lastSyncAt) {
+        setProviderLastSync(new Date(status.lastSyncAt).toLocaleString("ko-KR"));
+      } else {
+        const samsungSync = getSamsungLastSyncAt();
+        setProviderLastSync(samsungSync ? new Date(samsungSync).toLocaleString("ko-KR") : "");
+      }
+    } catch (error) {
+      console.error("Failed to refresh provider state:", error);
+      setProviderStatus("disconnected");
+    }
+
+    const gptEnabled = localStorage.getItem("openai_enabled") === "true" || !!localStorage.getItem("openai_api_key");
+    const lastSync = localStorage.getItem("lastSync");
+    setGptStatus(gptEnabled ? "connected" : "disconnected");
+    setGptLastSync(lastSync ? new Date(lastSync).toLocaleString("ko-KR") : "");
+    setRemainingTokens(gptEnabled ? Math.floor(Math.random() * 10000) + 5000 : 0);
+  };
+
+  const fetchLogs = async () => {
+    const profileId = localStorage.getItem("profile_id");
+    if (!profileId) {
+      setLogs([]);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("transfer_logs")
+      .select("*")
+      .eq("profile_id", profileId)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    setLogs(data || []);
+  };
 
   const handleProviderChange = (providerId: ProviderId) => {
     setActiveProvider(providerId);
     setStoredProviderId(providerId);
-    toast({ title: "연동 공급자 변경 완료", description: `${getProviderMeta(providerId).label}를 선택했습니다.` });
+    toast({
+      title: "연동 공급자를 변경했습니다",
+      description: `${getProviderMeta(providerId).label}를 선택했습니다.`,
+    });
+    void refreshConnectionState();
   };
 
   const handleMockModeChange = (enabled: boolean) => {
     setMockHealthDataState(enabled);
     setMockHealthDataEnabled(enabled);
-    toast({ title: enabled ? "가데이터 모드 활성화" : "가데이터 모드 비활성화", description: "홈, 기록, 비교, 연동 화면에 적용됩니다." });
+    toast({
+      title: enabled ? "가데이터 모드를 켰습니다" : "가데이터 모드를 껐습니다",
+      description: "홈, 기록, 비교 화면에 바로 반영됩니다.",
+    });
+    invalidateHealthData();
   };
 
   const handleDisplayToggle = (section: keyof DisplaySettings, key: string, checked: boolean) => {
@@ -125,28 +222,132 @@ const Admin = () => {
 
   const handleGarminConfigSave = () => {
     setGarminProviderConfig({ apiBaseUrl: garminApiBaseUrl, accessToken: garminAccessToken, userId: garminUserId });
-    toast({ title: "Garmin 설정 저장", description: "Garmin API 설정을 저장했습니다." });
+    toast({ title: "Garmin 설정을 저장했습니다" });
+    setApiDialog(null);
   };
+
+  const handleSamsungConfigSave = () => {
+    localStorage.setItem("samsung_health_api_key", samsungApiKey);
+    localStorage.setItem("samsung_health_client_id", samsungClientId);
+    toast({ title: "Samsung Health 설정을 저장했습니다" });
+    setApiDialog(null);
+  };
+
   const handleAppleConfigSave = () => {
     setAppleHealthProviderConfig({ appId: appleAppId, teamId: appleTeamId, redirectUri: appleRedirectUri });
-    toast({ title: "Apple Health 설정 저장", description: "Apple Health 설정을 저장했습니다." });
+    toast({ title: "Apple Health 설정을 저장했습니다" });
+    setApiDialog(null);
   };
+
   const handleStravaConfigSave = () => {
-    setStravaProviderConfig({ clientId: stravaClientId, clientSecret: stravaClientSecret, refreshToken: stravaRefreshToken, athleteId: stravaAthleteId });
-    toast({ title: "Strava 설정 저장", description: "Strava API 설정을 저장했습니다." });
+    setStravaProviderConfig({
+      clientId: stravaClientId,
+      clientSecret: stravaClientSecret,
+      refreshToken: stravaRefreshToken,
+      athleteId: stravaAthleteId,
+    });
+    toast({ title: "Strava 설정을 저장했습니다" });
+    setApiDialog(null);
+  };
+
+  const handleScheduledSyncToggle = (enabled: boolean) => {
+    setScheduledSyncEnabled(enabled);
+    localStorage.setItem("scheduled_sync_enabled", enabled.toString());
+  };
+
+  const handleSyncTimeChange = (time: string) => {
+    setSyncTime(time);
+    localStorage.setItem("sync_time", time);
+  };
+
+  const syncHealthData = async () => {
+    setIsSyncing(true);
+    try {
+      const healthData = await getActiveProvider().getTodayData();
+      await createTransferLog("data_collection", "success", "건강 데이터를 수집했습니다.");
+
+      const profileId = localStorage.getItem("profile_id");
+      if (!profileId) {
+        throw new Error("프로필 정보가 없습니다.");
+      }
+
+      const { data: credentials } = await supabase
+        .from("openai_credentials")
+        .select("*")
+        .eq("profile_id", profileId)
+        .maybeSingle();
+
+      if (credentials?.api_key) {
+        const { error } = await supabase.functions.invoke("send-health-data", {
+          body: { healthData },
+        });
+        if (error) {
+          throw error;
+        }
+      }
+
+      const now = new Date().toISOString();
+      localStorage.setItem("lastSync", now);
+      setSamsungLastSyncAt(now);
+      setProviderLastSync(new Date(now).toLocaleString("ko-KR"));
+      await createTransferLog("sync", "success", "건강 데이터 동기화에 성공했습니다.");
+      invalidateHealthData();
+      toast({
+        title: "동기화를 완료했습니다",
+        description: "홈, 기록, 비교 화면 데이터를 새로 불러옵니다.",
+      });
+      await fetchLogs();
+      await refreshConnectionState();
+    } catch (error) {
+      console.error("Sync failed:", error);
+      await createTransferLog("sync", "error", error instanceof Error ? error.message : "동기화 실패");
+      toast({
+        title: "동기화 실패",
+        description: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
+        variant: "destructive",
+      });
+      await fetchLogs();
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const getStatusChip = (status: "checking" | "connected" | "disconnected") => {
+    if (status === "connected") {
+      return (
+        <div className="flex items-center gap-2 text-emerald-600">
+          <CheckCircle2 className="h-5 w-5" />
+          연결됨
+        </div>
+      );
+    }
+    if (status === "checking") {
+      return (
+        <div className="flex items-center gap-2 text-amber-600">
+          <RefreshCw className="h-5 w-5 animate-spin" />
+          확인 중
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2 text-rose-600">
+        <XCircle className="h-5 w-5" />
+        미연결
+      </div>
+    );
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <Header showNav={true} />
       <ScrollToTop />
-      <div className="mx-auto max-w-4xl space-y-6 p-4">
+      <div className="mx-auto max-w-5xl space-y-6 p-4">
         <h1 className="text-3xl font-bold">설정</h1>
 
         <Tabs defaultValue="general" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="general">일반</TabsTrigger>
-            <TabsTrigger value="providers">연동설정</TabsTrigger>
+            <TabsTrigger value="providers">연동 설정</TabsTrigger>
             <TabsTrigger value="theme">테마</TabsTrigger>
             <TabsTrigger value="display">표시 데이터</TabsTrigger>
           </TabsList>
@@ -155,7 +356,7 @@ const Admin = () => {
             <Card>
               <CardHeader>
                 <CardTitle>기본 설정</CardTitle>
-                <CardDescription>공급자 선택과 mock 데이터 모드를 관리합니다.</CardDescription>
+                <CardDescription>연동 공급자 선택과 가데이터 모드를 관리합니다.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
@@ -168,10 +369,11 @@ const Admin = () => {
                     ))}
                   </div>
                 </div>
+
                 <div className="flex items-center justify-between rounded-lg border p-4">
                   <div>
                     <Label htmlFor="mock-mode">가데이터 사용</Label>
-                    <p className="mt-1 text-sm text-muted-foreground">홈, 기록, 비교, 연동 화면에서 가데이터를 사용합니다.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">실연동이 준비되기 전에도 모든 화면을 mock 데이터로 채웁니다.</p>
                   </div>
                   <Switch id="mock-mode" checked={mockHealthDataEnabled} onCheckedChange={handleMockModeChange} />
                 </div>
@@ -181,38 +383,190 @@ const Admin = () => {
 
           <TabsContent value="providers">
             <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{getProviderMeta(activeProvider).label}</CardTitle>
+                    <CardDescription>현재 선택된 연동 공급자의 연결 상태입니다.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {getStatusChip(providerStatus)}
+                    <div className="text-sm text-muted-foreground">
+                      최근 동기화: {providerLastSync || "없음"}
+                    </div>
+                    <Button variant="outline" onClick={() => void refreshConnectionState()} className="w-full gap-2">
+                      <RefreshCw className="h-4 w-4" />
+                      상태 새로고침
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>GPT 연결</CardTitle>
+                    <CardDescription>AI 코치와 자동 분석에 사용하는 GPT 연결 상태입니다.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {getStatusChip(gptStatus)}
+                    <div className="text-sm text-muted-foreground">
+                      최근 확인: {gptLastSync || "없음"}
+                    </div>
+                    <div className="text-sm text-muted-foreground">예상 잔여 토큰: {remainingTokens.toLocaleString()}</div>
+                  </CardContent>
+                </Card>
+              </div>
+
               <Card>
                 <CardHeader>
-                  <CardTitle>Garmin API 설정</CardTitle>
+                  <CardTitle>예약 동기화</CardTitle>
+                  <CardDescription>지정한 시간에 자동 동기화를 수행합니다.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2"><Label>API Base URL</Label><Input value={garminApiBaseUrl} onChange={(e) => setGarminApiBaseUrl(e.target.value)} /></div>
-                  <div className="space-y-2"><Label>Access Token</Label><Input value={garminAccessToken} onChange={(e) => setGarminAccessToken(e.target.value)} /></div>
-                  <div className="space-y-2"><Label>User ID</Label><Input value={garminUserId} onChange={(e) => setGarminUserId(e.target.value)} /></div>
-                  <Button onClick={handleGarminConfigSave} className="w-full">Garmin 설정 저장</Button>
+                  <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div>
+                      <Label htmlFor="scheduled-sync">자동 동기화</Label>
+                      <p className="mt-1 text-sm text-muted-foreground">매일 설정한 시간에 건강 데이터를 동기화합니다.</p>
+                    </div>
+                    <Switch id="scheduled-sync" checked={scheduledSyncEnabled} onCheckedChange={handleScheduledSyncToggle} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sync-time">동기화 시간</Label>
+                    <Input id="sync-time" type="time" value={syncTime} onChange={(event) => handleSyncTimeChange(event.target.value)} />
+                  </div>
+                  <Button onClick={() => void syncHealthData()} disabled={isSyncing} className="w-full gap-2 bg-cyan-500 hover:bg-cyan-600">
+                    <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+                    {isSyncing ? "동기화 중..." : "지금 동기화"}
+                  </Button>
                 </CardContent>
               </Card>
+
               <Card>
                 <CardHeader>
-                  <CardTitle>Apple Health 설정</CardTitle>
+                  <CardTitle>API 설정</CardTitle>
+                  <CardDescription>서비스별 API 값은 버튼을 눌러 열리는 창에서 관리합니다.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2"><Label>App ID</Label><Input value={appleAppId} onChange={(e) => setAppleAppId(e.target.value)} /></div>
-                  <div className="space-y-2"><Label>Team ID</Label><Input value={appleTeamId} onChange={(e) => setAppleTeamId(e.target.value)} /></div>
-                  <div className="space-y-2"><Label>Redirect URI</Label><Input value={appleRedirectUri} onChange={(e) => setAppleRedirectUri(e.target.value)} /></div>
-                  <Button onClick={handleAppleConfigSave} className="w-full">Apple Health 설정 저장</Button>
+                <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <Dialog open={apiDialog === "garmin"} onOpenChange={(open) => setApiDialog(open ? "garmin" : null)}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        Garmin API 설정
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Garmin API 설정</DialogTitle>
+                        <DialogDescription>승인받은 Garmin API 키와 사용자 정보를 입력합니다.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <Input value={garminApiBaseUrl} onChange={(e) => setGarminApiBaseUrl(e.target.value)} placeholder="API Base URL" />
+                        <Input value={garminAccessToken} onChange={(e) => setGarminAccessToken(e.target.value)} placeholder="Access Token" />
+                        <Input value={garminUserId} onChange={(e) => setGarminUserId(e.target.value)} placeholder="User ID" />
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
+                        <Button onClick={handleGarminConfigSave}>저장</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={apiDialog === "samsung"} onOpenChange={(open) => setApiDialog(open ? "samsung" : null)}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        Samsung Health 설정
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Samsung Health API 설정</DialogTitle>
+                        <DialogDescription>Samsung 개발자용 키가 있다면 저장해 둘 수 있습니다.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <Input value={samsungApiKey} onChange={(e) => setSamsungApiKey(e.target.value)} placeholder="API Key" />
+                        <Input value={samsungClientId} onChange={(e) => setSamsungClientId(e.target.value)} placeholder="Client ID" />
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
+                        <Button onClick={handleSamsungConfigSave}>저장</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={apiDialog === "apple"} onOpenChange={(open) => setApiDialog(open ? "apple" : null)}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        Apple Health 설정
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Apple Health API 설정</DialogTitle>
+                        <DialogDescription>Apple Health 연결에 필요한 앱 식별 정보를 입력합니다.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <Input value={appleAppId} onChange={(e) => setAppleAppId(e.target.value)} placeholder="App ID" />
+                        <Input value={appleTeamId} onChange={(e) => setAppleTeamId(e.target.value)} placeholder="Team ID" />
+                        <Input value={appleRedirectUri} onChange={(e) => setAppleRedirectUri(e.target.value)} placeholder="Redirect URI" />
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
+                        <Button onClick={handleAppleConfigSave}>저장</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={apiDialog === "strava"} onOpenChange={(open) => setApiDialog(open ? "strava" : null)}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        Strava API 설정
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Strava API 설정</DialogTitle>
+                        <DialogDescription>Strava OAuth 설정값을 입력합니다.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <Input value={stravaClientId} onChange={(e) => setStravaClientId(e.target.value)} placeholder="Client ID" />
+                        <Input value={stravaClientSecret} onChange={(e) => setStravaClientSecret(e.target.value)} placeholder="Client Secret" />
+                        <Input value={stravaRefreshToken} onChange={(e) => setStravaRefreshToken(e.target.value)} placeholder="Refresh Token" />
+                        <Input value={stravaAthleteId} onChange={(e) => setStravaAthleteId(e.target.value)} placeholder="Athlete ID" />
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
+                        <Button onClick={handleStravaConfigSave}>저장</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </CardContent>
               </Card>
+
               <Card>
                 <CardHeader>
-                  <CardTitle>Strava API 설정</CardTitle>
+                  <CardTitle>최근 연동 로그</CardTitle>
+                  <CardDescription>최근 5개의 동기화 로그만 간단히 보여줍니다.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2"><Label>Client ID</Label><Input value={stravaClientId} onChange={(e) => setStravaClientId(e.target.value)} /></div>
-                  <div className="space-y-2"><Label>Client Secret</Label><Input value={stravaClientSecret} onChange={(e) => setStravaClientSecret(e.target.value)} /></div>
-                  <div className="space-y-2"><Label>Refresh Token</Label><Input value={stravaRefreshToken} onChange={(e) => setStravaRefreshToken(e.target.value)} /></div>
-                  <div className="space-y-2"><Label>Athlete ID</Label><Input value={stravaAthleteId} onChange={(e) => setStravaAthleteId(e.target.value)} /></div>
-                  <Button onClick={handleStravaConfigSave} className="w-full">Strava 설정 저장</Button>
+                <CardContent className="space-y-3">
+                  {logs.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">표시할 로그가 없습니다.</div>
+                  ) : (
+                    logs.map((log) => (
+                      <div key={log.id} className="flex items-start justify-between rounded-xl border p-4">
+                        <div className="min-w-0">
+                          <div className="font-medium">{log.log_type}</div>
+                          <div className="mt-1 text-sm text-muted-foreground">{log.message}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">{new Date(log.created_at).toLocaleString("ko-KR")}</div>
+                        </div>
+                        <div className="ml-3 flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock className="h-4 w-4" />
+                          {log.status}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -222,11 +576,15 @@ const Admin = () => {
             <Card>
               <CardHeader>
                 <CardTitle>테마 변경</CardTitle>
-                <CardDescription>화이트 테마와 블랙 테마 중 선택합니다.</CardDescription>
+                <CardDescription>화이트 모드와 블랙 모드를 간단하게 전환합니다.</CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-3">
-                <Button variant={theme === "light" ? "default" : "outline"} onClick={() => setTheme("light")}>화이트 테마</Button>
-                <Button variant={theme === "dark" ? "default" : "outline"} onClick={() => setTheme("dark")}>블랙 테마</Button>
+                <Button variant={theme === "light" ? "default" : "outline"} onClick={() => setTheme("light")}>
+                  화이트 테마
+                </Button>
+                <Button variant={theme === "dark" ? "default" : "outline"} onClick={() => setTheme("dark")}>
+                  블랙 테마
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -257,8 +615,10 @@ const Admin = () => {
         </Tabs>
 
         <div className="flex flex-col gap-4">
-          <Button onClick={() => navigate("/account-settings")} className="w-full">사용자 계정 설정</Button>
-          <Button onClick={() => navigate(-1)} variant="outline" className="w-full">뒤로가기</Button>
+          <Button onClick={() => navigate("/account-settings", { state: { from: "/admin" } })} className="w-full gap-2 bg-cyan-500 hover:bg-cyan-600">
+            <Settings2 className="h-4 w-4" />
+            사용자 계정 설정
+          </Button>
         </div>
       </div>
     </div>

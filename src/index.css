@@ -17,32 +17,32 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 270 65% 65%;
+    --primary: 194 82% 46%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 270 40% 95%;
-    --secondary-foreground: 270 65% 35%;
+    --secondary: 191 55% 95%;
+    --secondary-foreground: 196 64% 28%;
 
-    --muted: 270 20% 96%;
+    --muted: 200 20% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 270 55% 85%;
-    --accent-foreground: 270 65% 35%;
+    --accent: 188 72% 88%;
+    --accent-foreground: 196 64% 28%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 270 30% 90%;
-    --input: 270 30% 90%;
-    --ring: 270 65% 65%;
+    --border: 193 32% 88%;
+    --input: 193 32% 88%;
+    --ring: 194 82% 46%;
 
     --radius: 0.5rem;
 
-    --chart-1: 270 65% 65%;
-    --chart-2: 280 55% 55%;
-    --chart-3: 260 60% 70%;
-    --chart-4: 290 50% 60%;
-    --chart-5: 250 65% 60%;
+    --chart-1: 194 82% 46%;
+    --chart-2: 168 76% 42%;
+    --chart-3: 221 83% 59%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 334 82% 56%;
 
     --sidebar-background: 0 0% 98%;
 
@@ -71,30 +71,30 @@ All colors MUST be HSL.
     --popover: 220 18% 9%;
     --popover-foreground: 210 20% 96%;
 
-    --primary: 270 75% 68%;
+    --primary: 191 91% 56%;
     --primary-foreground: 220 18% 8%;
 
-    --secondary: 220 14% 16%;
+    --secondary: 210 16% 14%;
     --secondary-foreground: 210 20% 96%;
 
-    --muted: 220 14% 14%;
+    --muted: 210 16% 12%;
     --muted-foreground: 215 15% 72%;
 
-    --accent: 220 14% 18%;
+    --accent: 210 16% 16%;
     --accent-foreground: 210 20% 96%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 270 20% 95%;
 
-    --border: 220 14% 22%;
-    --input: 220 14% 22%;
-    --ring: 270 75% 68%;
+    --border: 210 18% 22%;
+    --input: 210 18% 22%;
+    --ring: 191 91% 56%;
 
-    --chart-1: 270 65% 65%;
-    --chart-2: 280 55% 55%;
-    --chart-3: 260 60% 70%;
-    --chart-4: 290 50% 60%;
-    --chart-5: 250 65% 60%;
+    --chart-1: 191 91% 56%;
+    --chart-2: 168 76% 42%;
+    --chart-3: 221 83% 59%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 334 82% 56%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
