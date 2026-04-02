@@ -36,7 +36,8 @@ type ActionTarget =
   | { kind: "room"; item: ChatRoom }
   | null;
 
-type PanelMode = "friends" | "rooms";
+type ListTab = "friends" | "rooms";
+type ComposePanel = "none" | "friend" | "room";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -52,8 +53,9 @@ const Chat = () => {
   const [manualPhone, setManualPhone] = useState("");
   const [userIdQuery, setUserIdQuery] = useState("");
   const [contacts, setContacts] = useState<DeviceContact[]>([]);
-  const [actionsHidden, setActionsHidden] = useState(false);
-  const [panelMode, setPanelMode] = useState<PanelMode>("rooms");
+  const [showLists, setShowLists] = useState(true);
+  const [listTab, setListTab] = useState<ListTab>("rooms");
+  const [composePanel, setComposePanel] = useState<ComposePanel>("none");
   const [actionTarget, setActionTarget] = useState<ActionTarget>(null);
   const [renameValue, setRenameValue] = useState("");
 
@@ -141,7 +143,6 @@ const Chat = () => {
     if (!manualName.trim() || !manualPhone.trim()) {
       return;
     }
-
     handleAddFriend({
       id: `manual-${Date.now()}`,
       name: manualName.trim(),
@@ -183,7 +184,9 @@ const Chat = () => {
     const room = upsertDirectRoom(friend);
     refreshSocialState();
     setActiveRoomId(room.id);
-    setPanelMode("rooms");
+    setListTab("rooms");
+    setComposePanel("none");
+    setShowLists(true);
   };
 
   const handleCreateGroup = () => {
@@ -199,9 +202,11 @@ const Chat = () => {
     const room = createGroupRoom(groupName.trim(), selectedMembers);
     refreshSocialState();
     setActiveRoomId(room.id);
+    setListTab("rooms");
+    setComposePanel("none");
     setGroupName("");
     setSelectedMembers([]);
-    setPanelMode("rooms");
+    setShowLists(true);
   };
 
   const handleToggleMember = (friendId: string) => {
@@ -261,11 +266,10 @@ const Chat = () => {
     const room = upsertDirectRoom(actionTarget.item);
     refreshSocialState();
     setActiveRoomId(room.id);
-    setPanelMode("rooms");
+    setListTab("rooms");
+    setShowLists(true);
     setActionTarget(null);
   };
-
-  const showActionPanel = !actionsHidden;
 
   return (
     <div className="min-h-screen bg-background">
@@ -282,213 +286,219 @@ const Chat = () => {
 
           <div className="flex items-center gap-2" data-no-swipe="true">
             <Button
-              variant={showActionPanel ? "default" : "outline"}
+              variant={showLists ? "default" : "outline"}
               size="icon"
-              onClick={() => setActionsHidden((value) => !value)}
-              aria-label="친구 및 대화 목록 표시 전환"
+              onClick={() => setShowLists((value) => !value)}
+              aria-label="목록 패널 표시 전환"
             >
               <ChevronsUpDown className="h-4 w-4" />
             </Button>
             <Button
-              variant={panelMode === "friends" && showActionPanel ? "default" : "outline"}
+              variant={composePanel === "friend" ? "default" : "outline"}
               size="icon"
               onClick={() => {
-                setActionsHidden(false);
-                setPanelMode("friends");
+                setComposePanel((current) => (current === "friend" ? "none" : "friend"));
+                setShowLists(true);
+                setListTab("friends");
               }}
-              aria-label="친구 목록"
+              aria-label="친구 추가"
             >
               <UserPlus className="h-4 w-4" />
             </Button>
             <Button
-              variant={panelMode === "rooms" && showActionPanel ? "default" : "outline"}
+              variant={composePanel === "room" ? "default" : "outline"}
               size="icon"
               onClick={() => {
-                setActionsHidden(false);
-                setPanelMode("rooms");
+                setComposePanel((current) => (current === "room" ? "none" : "room"));
+                setShowLists(true);
+                setListTab("rooms");
               }}
-              aria-label="대화 목록"
+              aria-label="대화 추가"
             >
               <MessageSquarePlus className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {showActionPanel ? (
+        {showLists ? (
           <Card>
-            <CardHeader>
-              <CardTitle>{panelMode === "friends" ? "친구 목록" : "대화 목록"}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {panelMode === "friends" ? (
-                <>
-                  <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                    <Card className="border-dashed">
-                      <CardHeader>
-                        <CardTitle className="text-base">연락처에서 추가</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <Button variant="outline" onClick={() => void handleLoadContacts()} className="w-full gap-2">
-                          <ContactRound className="h-4 w-4" />
-                          연락처 불러오기
-                        </Button>
-                        <div className="max-h-72 space-y-3 overflow-y-auto">
-                          {contacts.length === 0 ? (
-                            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">불러온 연락처가 없습니다.</div>
-                          ) : (
-                            contacts.slice(0, 15).map((contact) => (
-                              <div key={`${contact.id}-${contact.phone}`} className="flex items-center justify-between rounded-xl border p-3">
-                                <div className="min-w-0">
-                                  <div className="font-medium">{contact.name}</div>
-                                  <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
-                                </div>
-                                <Button size="sm" onClick={() => handleAddFriend(contact)}>
-                                  추가
-                                </Button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+            <CardContent className="space-y-5 pt-6">
+              <div className="grid grid-cols-2 gap-2" data-no-swipe="true">
+                <Button variant={listTab === "friends" ? "default" : "outline"} onClick={() => setListTab("friends")}>
+                  친구목록
+                </Button>
+                <Button variant={listTab === "rooms" ? "default" : "outline"} onClick={() => setListTab("rooms")}>
+                  대화목록
+                </Button>
+              </div>
 
-                    <div className="space-y-6">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">직접 입력</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <Input value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="이름" />
-                          <Input value={manualPhone} onChange={(event) => setManualPhone(event.target.value)} placeholder="전화번호" />
-                          <Button onClick={handleManualAdd} className="w-full">
-                            직접 추가
-                          </Button>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">사용자 ID</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <Input value={userIdQuery} onChange={(event) => setUserIdQuery(event.target.value)} placeholder="user_xxx" />
-                          <Button onClick={() => void handleUserIdAdd()} className="w-full">
-                            ID로 추가
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="text-sm font-medium">현재 친구 목록</div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {friends.slice(0, 15).map((friend) => (
-                        <button
-                          key={friend.id}
-                          type="button"
-                          onPointerDown={() => startLongPress(friend, "friend")}
-                          onPointerUp={clearLongPress}
-                          onPointerLeave={clearLongPress}
-                          onContextMenu={(event) => {
-                            event.preventDefault();
-                            setActionTarget({ kind: "friend", item: friend });
-                            setRenameValue(friend.name);
-                          }}
-                          className="rounded-xl border p-3 text-left transition-colors hover:bg-muted/40"
-                        >
-                          <div className="font-medium">{friend.name}</div>
-                          <div className="text-xs text-muted-foreground">{friend.phone}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-                  <Card>
+              {composePanel === "friend" ? (
+                <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+                  <Card className="border-dashed">
                     <CardHeader>
-                      <CardTitle className="text-base">채팅방 목록</CardTitle>
+                      <CardTitle className="text-base">연락처에서 친구 추가</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3">
-                      {rooms.slice(0, 15).map((room) => (
-                        <button
-                          key={room.id}
-                          type="button"
-                          onClick={() => setActiveRoomId(room.id)}
-                          onPointerDown={() => startLongPress(room, "room")}
-                          onPointerUp={clearLongPress}
-                          onPointerLeave={clearLongPress}
-                          onContextMenu={(event) => {
-                            event.preventDefault();
-                            setActionTarget({ kind: "room", item: room });
-                            setRenameValue(room.name);
-                          }}
-                          className={`w-full rounded-2xl border p-4 text-left transition-colors ${
-                            activeRoomId === room.id ? "border-primary bg-primary/10" : "hover:bg-muted/40"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 font-semibold">
-                              {room.type === "group" ? <Users className="h-4 w-4 text-primary" /> : <MessageSquarePlus className="h-4 w-4 text-primary" />}
-                              {room.name}
+                    <CardContent className="space-y-4">
+                      <Button variant="outline" onClick={() => void handleLoadContacts()} className="w-full gap-2">
+                        <ContactRound className="h-4 w-4" />
+                        연락처 불러오기
+                      </Button>
+                      <div className="max-h-72 space-y-3 overflow-y-auto">
+                        {contacts.length === 0 ? (
+                          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">불러온 연락처가 없습니다.</div>
+                        ) : (
+                          contacts.slice(0, 15).map((contact) => (
+                            <div key={`${contact.id}-${contact.phone}`} className="flex items-center justify-between rounded-xl border p-3">
+                              <div className="min-w-0">
+                                <div className="font-medium">{contact.name}</div>
+                                <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
+                              </div>
+                              <Button size="sm" onClick={() => handleAddFriend(contact)}>
+                                추가
+                              </Button>
                             </div>
-                            <div className="text-xs text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
-                          </div>
-                          <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div>
-                        </button>
-                      ))}
+                          ))
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
 
                   <div className="space-y-6">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-base">1:1 채팅 만들기</CardTitle>
+                        <CardTitle className="text-base">직접 추가</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-2">
-                        {friends.length === 0 ? (
-                          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">먼저 친구를 추가해 주세요.</div>
-                        ) : (
-                          friends.slice(0, 15).map((friend) => (
-                            <div key={friend.id} className="flex items-center justify-between rounded-xl border p-3">
-                              <div className="min-w-0">
-                                <div className="font-medium">{friend.name}</div>
-                                <div className="truncate text-xs text-muted-foreground">{friend.phone}</div>
-                              </div>
-                              <Button size="sm" onClick={() => handleCreateDirectRoom(friend.id)}>
-                                대화 시작
-                              </Button>
-                            </div>
-                          ))
-                        )}
+                      <CardContent className="space-y-3">
+                        <Input value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="이름" />
+                        <Input value={manualPhone} onChange={(event) => setManualPhone(event.target.value)} placeholder="전화번호" />
+                        <Button onClick={handleManualAdd} className="w-full">
+                          직접 추가
+                        </Button>
                       </CardContent>
                     </Card>
 
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-base">그룹 채팅 만들기</CardTitle>
+                        <CardTitle className="text-base">ID로 추가</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <Input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="그룹 이름" />
-                        <ScrollArea className="h-44 rounded-xl border p-3">
-                          <div className="space-y-3">
-                            {friends.map((friend) => (
-                              <label key={friend.id} className="flex items-center gap-3 rounded-lg border p-3">
-                                <Checkbox checked={selectedMembers.includes(friend.id)} onCheckedChange={() => handleToggleMember(friend.id)} />
-                                <div className="min-w-0">
-                                  <div className="font-medium">{friend.name}</div>
-                                  <div className="truncate text-xs text-muted-foreground">{friend.phone}</div>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
-                        </ScrollArea>
-                        <Button onClick={handleCreateGroup} className="w-full">
-                          그룹 만들기
+                        <Input value={userIdQuery} onChange={(event) => setUserIdQuery(event.target.value)} placeholder="user_xxx" />
+                        <Button onClick={() => void handleUserIdAdd()} className="w-full">
+                          사용자 ID 추가
                         </Button>
                       </CardContent>
                     </Card>
+                  </div>
+                </div>
+              ) : null}
+
+              {composePanel === "room" ? (
+                <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">1:1 대화 만들기</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {friends.length === 0 ? (
+                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">먼저 친구를 추가해 주세요.</div>
+                      ) : (
+                        friends.slice(0, 15).map((friend) => (
+                          <div key={friend.id} className="flex items-center justify-between rounded-xl border p-3">
+                            <div className="min-w-0">
+                              <div className="font-medium">{friend.name}</div>
+                              <div className="truncate text-xs text-muted-foreground">{friend.phone}</div>
+                            </div>
+                            <Button size="sm" onClick={() => handleCreateDirectRoom(friend.id)}>
+                              대화 시작
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">그룹 대화 만들기</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="그룹 이름" />
+                      <ScrollArea className="h-44 rounded-xl border p-3">
+                        <div className="space-y-3">
+                          {friends.map((friend) => (
+                            <label key={friend.id} className="flex items-center gap-3 rounded-lg border p-3">
+                              <Checkbox checked={selectedMembers.includes(friend.id)} onCheckedChange={() => handleToggleMember(friend.id)} />
+                              <div className="min-w-0">
+                                <div className="font-medium">{friend.name}</div>
+                                <div className="truncate text-xs text-muted-foreground">{friend.phone}</div>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                      <Button onClick={handleCreateGroup} className="w-full">
+                        그룹 만들기
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : null}
+
+              {listTab === "friends" ? (
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">친구목록</div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {friends.slice(0, 15).map((friend) => (
+                      <button
+                        key={friend.id}
+                        type="button"
+                        onPointerDown={() => startLongPress(friend, "friend")}
+                        onPointerUp={clearLongPress}
+                        onPointerLeave={clearLongPress}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          setActionTarget({ kind: "friend", item: friend });
+                          setRenameValue(friend.name);
+                        }}
+                        className="rounded-xl border p-3 text-left transition-colors hover:bg-muted/40"
+                      >
+                        <div className="font-medium">{friend.name}</div>
+                        <div className="text-xs text-muted-foreground">{friend.phone}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">대화목록</div>
+                  <div className="space-y-3">
+                    {rooms.slice(0, 15).map((room) => (
+                      <button
+                        key={room.id}
+                        type="button"
+                        onClick={() => setActiveRoomId(room.id)}
+                        onPointerDown={() => startLongPress(room, "room")}
+                        onPointerUp={clearLongPress}
+                        onPointerLeave={clearLongPress}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          setActionTarget({ kind: "room", item: room });
+                          setRenameValue(room.name);
+                        }}
+                        className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                          activeRoomId === room.id ? "border-primary bg-primary/10" : "hover:bg-muted/40"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 font-semibold">
+                            {room.type === "group" ? <Users className="h-4 w-4 text-primary" /> : <MessageSquarePlus className="h-4 w-4 text-primary" />}
+                            {room.name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
+                        </div>
+                        <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -498,7 +508,7 @@ const Chat = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>{activeRoom?.name || "대화 목록에서 채팅방을 선택해 주세요"}</CardTitle>
+            <CardTitle>{activeRoom?.name || "대화목록에서 채팅방을 선택해 주세요"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {activeRoom ? (
@@ -541,7 +551,7 @@ const Chat = () => {
               </>
             ) : (
               <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-                상단 우측 아이콘에서 친구 목록이나 대화 목록을 열어 채팅방을 선택해 주세요.
+                상단에서 목록 패널을 열고 친구나 대화를 선택해 주세요.
               </div>
             )}
           </CardContent>
@@ -551,7 +561,7 @@ const Chat = () => {
       {actionTarget ? (
         <Card className="fixed left-3 right-3 top-24 z-[80] mx-auto max-w-md border-primary/20 shadow-xl" data-no-swipe="true">
           <CardHeader>
-            <CardTitle>{actionTarget.kind === "friend" ? "친구 관리" : "채팅방 관리"}</CardTitle>
+            <CardTitle>{actionTarget.kind === "friend" ? "친구 관리" : "대화방 관리"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} placeholder="이름 변경" />
