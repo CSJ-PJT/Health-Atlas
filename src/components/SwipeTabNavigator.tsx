@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-const TAB_ROUTES = ["/", "/history", "/comparison", "/friends", "/chat", "/feed", "/game"];
+const TAB_ROUTES = ["/", "/history", "/comparison", "/chat", "/feed", "/game"];
 
 const INTERACTIVE_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT", "BUTTON", "VIDEO"]);
 
