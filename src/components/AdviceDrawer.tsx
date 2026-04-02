@@ -1,44 +1,36 @@
 import { useMemo, useState } from "react";
 import { MessageSquareText, Save } from "lucide-react";
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { useHealthStats, useTodayHealth } from "@/hooks/useHealthData";
+import { useHealthStats } from "@/hooks/useHealthData";
 import { getProviderMeta, getStoredProviderId } from "@/providers/shared";
+import { buildAiCoachSummary } from "@/services/aiCoach";
 import { saveAdviceArchive } from "@/services/adviceArchive";
 
 export const AdviceDrawer = () => {
   const providerId = getStoredProviderId();
   const providerMeta = getProviderMeta(providerId);
-  const { data: todayData } = useTodayHealth();
-  const { data: weeklyRecords = [] } = useHealthStats("week");
+  const { data: yearlyRecords = [] } = useHealthStats("year");
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [conversation, setConversation] = useState<Array<{ role: "assistant" | "user"; content: string }>>([]);
 
-  const adviceSummary = useMemo(() => {
-    if (!todayData) {
-      return "오늘 기록이 아직 없어 분석을 시작할 수 없습니다.";
-    }
-
-    const todayRun = weeklyRecords[weeklyRecords.length - 1]?.running_data?.summary;
-    const previousRun = weeklyRecords[weeklyRecords.length - 2]?.running_data?.summary;
-
-    if (!todayRun) {
-      return "오늘 러닝 데이터가 아직 집계되지 않았습니다.";
-    }
-
-    const paceTrend =
-      previousRun && todayRun.avgPace < previousRun.avgPace
-        ? "평균 페이스가 직전 기록보다 좋아졌습니다."
-        : previousRun
-          ? "평균 페이스가 직전 기록보다 소폭 느려졌습니다."
-          : "비교할 직전 기록이 아직 부족합니다.";
-
-    return `${providerMeta.label} 기준 오늘 러닝 ${todayRun.distanceKm}km, ${todayRun.durationMinutes}분입니다. ${paceTrend} 심박수는 평균 ${todayRun.avgHeartRate}bpm이며 케이던스는 ${todayRun.cadence}spm입니다.`;
-  }, [providerMeta.label, todayData, weeklyRecords]);
+  const adviceSummary = useMemo(
+    () => buildAiCoachSummary(yearlyRecords as any[], providerMeta.label, new Date()),
+    [providerMeta.label, yearlyRecords],
+  );
 
   const handleGenerateReply = () => {
     if (!draft.trim()) {
@@ -46,7 +38,7 @@ export const AdviceDrawer = () => {
     }
 
     const userMessage = draft.trim();
-    const assistantMessage = `기록 기준 답변입니다. 오늘 거리와 페이스 추이를 보면 "${userMessage}"에 대해 러닝 강도를 약간 낮추고 회복 시간을 확보하는 편이 좋습니다. 내일은 케이던스를 유지하면서 거리보다는 페이스 안정화에 집중하세요.`;
+    const assistantMessage = `${adviceSummary} 질문 "${userMessage}"에 대한 답으로는 오늘은 거리보다 회복, 수면, 수분 보충을 우선순위로 두는 것이 좋습니다. 내일 기록 비교를 위해 저녁 컨디션도 짧게 메모해 두세요.`;
 
     setConversation((previous) => [
       ...previous,
@@ -79,17 +71,26 @@ export const AdviceDrawer = () => {
 
   return (
     <>
-      <Sheet open={open} onOpenChange={(next) => (next ? setOpen(true) : setCloseConfirmOpen(true))}>
+      <Sheet
+        open={open}
+        onOpenChange={(next) => {
+          if (next) {
+            setOpen(true);
+          } else {
+            setCloseConfirmOpen(true);
+          }
+        }}
+      >
         <SheetTrigger asChild>
-          <Button className="flex flex-col items-center gap-1 rounded-lg bg-white px-3 py-2 shadow-sm transition-colors hover:bg-white/90 dark:bg-card dark:hover:bg-card/90">
-            <MessageSquareText className="h-6 w-6" />
-            <span className="text-xs text-gray-700 dark:text-foreground">AI 코치</span>
+          <Button size="sm" className="gap-2">
+            <MessageSquareText className="h-4 w-4" />
+            AI 코치
           </Button>
         </SheetTrigger>
         <SheetContent side="right" className="w-full max-w-md overflow-y-auto">
           <SheetHeader>
             <SheetTitle>오늘 기록 AI 코치</SheetTitle>
-            <SheetDescription>{providerMeta.label} 기록과 최근 추이를 기준으로 조언을 제공합니다.</SheetDescription>
+            <SheetDescription>{providerMeta.label} 기록과 최근 추이를 기준으로 요약과 대화를 제공합니다.</SheetDescription>
           </SheetHeader>
 
           <div className="mt-6 space-y-4">
@@ -116,10 +117,12 @@ export const AdviceDrawer = () => {
               <Textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="오늘 기록과 추이에 대해 질문하거나 메모를 남기세요."
+                placeholder="오늘 기록이나 추이에 대해 질문하거나 메모를 남겨보세요."
                 className="min-h-28"
               />
-              <Button onClick={handleGenerateReply} className="w-full">대화 추가</Button>
+              <Button onClick={handleGenerateReply} className="w-full">
+                대화 추가
+              </Button>
             </div>
           </div>
 
@@ -134,8 +137,8 @@ export const AdviceDrawer = () => {
       <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>상담 내용을 저장할까요?</AlertDialogTitle>
-            <AlertDialogDescription>종료 전 아카이브에 저장하거나, 저장 없이 닫을 수 있습니다.</AlertDialogDescription>
+            <AlertDialogTitle>대화 내용을 저장할까요?</AlertDialogTitle>
+            <AlertDialogDescription>종료 전에 아카이브에 저장하거나, 저장 없이 닫을 수 있습니다.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleCloseWithoutSave}>그냥 종료</AlertDialogCancel>

@@ -11,6 +11,7 @@ import { useTodayHealth } from "@/hooks/useHealthData";
 import type { CheckPermissionsResult, HealthSummary } from "@/lib/healthConnect";
 import { getActiveProvider, getProviderMeta, getStoredProviderId } from "@/providers/shared";
 import type { NormalizedHealthData } from "@/providers/shared/types/provider";
+import { buildAiRecommendation } from "@/services/aiCoach";
 import { SamsungHealthDebugCard } from "@/providers/samsung/components/SamsungHealthDebugCard";
 import { SamsungPermissionDialog } from "@/providers/samsung/components/SamsungPermissionDialog";
 import {
@@ -20,6 +21,7 @@ import {
   readSamsungHealthSummary,
 } from "@/providers/samsung/services/healthConnectClient";
 import { persistSamsungConnection } from "@/providers/samsung/services/samsungConnectionStore";
+import { getMockHealthHistory } from "@/providers/shared/services/mockData";
 
 const formatPace = (minutesPerKm: number) => {
   const minutes = Math.floor(minutesPerKm);
@@ -79,6 +81,7 @@ const Index = () => {
     () => (todayData?.exercise_data || []).reduce((sum, exercise) => sum + Number(exercise.calories || 0), 0),
     [todayData],
   );
+  const aiRecommendation = useMemo(() => buildAiRecommendation(getMockHealthHistory(activeProviderId) as any[], new Date()), [activeProviderId]);
 
   const shouldShowPermissionDialog = () => {
     const dismissedUntil = localStorage.getItem("permission_dialog_dismissed_until");
@@ -313,7 +316,8 @@ const Index = () => {
             <div className="space-y-5">
               <div className="space-y-2">
                 <div className="text-sm font-medium text-primary">{providerMeta.label} Dashboard</div>
-                <h1 className="text-3xl font-bold tracking-tight">오늘의 건강 흐름을 한 화면에서 봅니다.</h1>
+                <h1 className="text-3xl font-bold tracking-tight">오늘의 AI 추천</h1>
+                <p className="max-w-2xl text-sm text-muted-foreground">{aiRecommendation}</p>
                 <p className="text-sm text-muted-foreground">마지막 동기화 {formatStoredSync()}</p>
               </div>
 
