@@ -1,4 +1,4 @@
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 interface MetricLineChartProps {
   data: Record<string, unknown>[];
@@ -20,7 +20,6 @@ export const MetricLineChart = ({ data, xKey, lines, height = 320 }: MetricLineC
           <XAxis dataKey={xKey} />
           <YAxis />
           <Tooltip />
-          <Legend />
           {lines.map((line) => (
             <Line
               key={line.key}

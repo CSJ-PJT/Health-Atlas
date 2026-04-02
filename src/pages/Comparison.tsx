@@ -14,6 +14,7 @@ import { getProviderMeta, getStoredProviderId } from "@/providers/shared";
 import { getMockHealthHistory } from "@/providers/shared/services/mockData";
 import type { HealthViewMode } from "@/providers/shared/types/provider";
 import { buildRangeFromMode, getModeLabel } from "@/utils/dateRange";
+import { aggregateRunningChartData } from "@/utils/healthCharts";
 
 const overviewMetricOptions = [
   { key: "distanceKm", name: "거리(km)", color: "#8b5cf6" },
@@ -54,28 +55,7 @@ const Comparison = () => {
   const fallbackRecords = useMemo(() => getMockHealthHistory(providerId), [providerId]);
   const effectiveRecords = records.length > 0 ? records : fallbackRecords;
 
-  const chartData = useMemo(
-    () =>
-      effectiveRecords.map((record: any) => {
-        const summary = record.running_data?.summary || {};
-        return {
-          date: format(new Date(record.synced_at), "MM-dd"),
-          distanceKm: Number(summary.distanceKm || 0),
-          durationMinutes: Number(summary.durationMinutes || 0),
-          avgPace: Number(summary.avgPace || 0),
-          bestPace: Number(summary.bestPace || 0),
-          avgHeartRate: Number(summary.avgHeartRate || 0),
-          maxHeartRate: Number(summary.maxHeartRate || 0),
-          cadence: Number(summary.cadence || 0),
-          averageSpeed: Number(summary.averageSpeed || 0),
-          maxSpeed: Number(summary.maxSpeed || 0),
-          vo2max: Number(summary.vo2max || 0),
-          elevationGain: Number(summary.elevationGain || 0),
-          calories: Number(summary.calories || 0),
-        };
-      }),
-    [effectiveRecords],
-  );
+  const chartData = useMemo(() => aggregateRunningChartData(effectiveRecords, viewMode), [effectiveRecords, viewMode]);
 
   const latest = chartData[chartData.length - 1];
 

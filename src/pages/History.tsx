@@ -16,6 +16,7 @@ import { getProviderMeta, getStoredProviderId } from "@/providers/shared";
 import { getMockHealthHistory } from "@/providers/shared/services/mockData";
 import type { HealthViewMode } from "@/providers/shared/types/provider";
 import { buildRangeFromMode, getModeLabel } from "@/utils/dateRange";
+import { aggregateRunningChartData } from "@/utils/healthCharts";
 
 const formatPace = (secondsPerKm?: number) => {
   if (!secondsPerKm) {
@@ -35,6 +36,24 @@ const History = () => {
   const [startDate, setStartDate] = useState<Date | undefined>(initialRange.start);
   const [endDate, setEndDate] = useState<Date | undefined>(initialRange.end);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [visibleSummaryKeys, setVisibleSummaryKeys] = useState<string[]>([
+    "distanceKm",
+    "durationMinutes",
+    "avgPace",
+    "bestPace",
+    "averageSpeed",
+    "maxSpeed",
+  ]);
+  const [visibleSessionKeys, setVisibleSessionKeys] = useState<string[]>([
+    "distanceKm",
+    "durationMinutes",
+    "avgPace",
+    "bestPace",
+    "averageSpeed",
+    "maxSpeed",
+    "avgHeartRate",
+    "cadence",
+  ]);
 
   useEffect(() => {
     const nextRange = buildRangeFromMode(viewMode);
@@ -66,20 +85,7 @@ const History = () => {
       return latestRecord?.running_data?.hourly_series || [];
     }
 
-    return effectiveRecords.map((record: any) => {
-      const summary = record.running_data?.summary || {};
-      return {
-        date: format(new Date(record.synced_at), "MM-dd"),
-        distanceKm: Number(summary.distanceKm || 0),
-        durationMinutes: Number(summary.durationMinutes || 0),
-        avgPace: Number(summary.avgPace || 0),
-        bestPace: Number(summary.bestPace || 0),
-        averageSpeed: Number(summary.averageSpeed || 0),
-        maxSpeed: Number(summary.maxSpeed || 0),
-        avgHeartRate: Number(summary.avgHeartRate || 0),
-        cadence: Number(summary.cadence || 0),
-      };
-    });
+    return aggregateRunningChartData(effectiveRecords, viewMode);
   }, [effectiveRecords, latestRecord, viewMode]);
 
   const selectedSessionChartData = selectedSession
@@ -119,6 +125,38 @@ const History = () => {
         { label: "칼로리", value: `${selectedSession.calories} kcal` },
       ]
     : [];
+
+  const summaryLineOptions = [
+    { key: "distanceKm", name: "거리(km)", color: "#8b5cf6" },
+    { key: "durationMinutes", name: "시간(분)", color: "#06b6d4" },
+    { key: "avgPace", name: "평균 페이스", color: "#ef4444" },
+    { key: "bestPace", name: "최고 페이스", color: "#f97316" },
+    { key: "averageSpeed", name: "평균 시속", color: "#22c55e" },
+    { key: "maxSpeed", name: "최고 시속", color: "#f59e0b" },
+  ];
+
+  const sessionLineOptions = [
+    { key: "distanceKm", name: "거리(km)", color: "#8b5cf6" },
+    { key: "durationMinutes", name: "시간(분)", color: "#06b6d4" },
+    { key: "avgPace", name: "평균 페이스", color: "#ef4444" },
+    { key: "bestPace", name: "최고 페이스", color: "#f97316" },
+    { key: "averageSpeed", name: "평균 시속", color: "#22c55e" },
+    { key: "maxSpeed", name: "최고 시속", color: "#f59e0b" },
+    { key: "avgHeartRate", name: "평균 심박수", color: "#ec4899" },
+    { key: "cadence", name: "평균 케이던스", color: "#6366f1" },
+  ];
+
+  const toggleSummaryMetric = (key: string) => {
+    setVisibleSummaryKeys((previous) =>
+      previous.includes(key) ? previous.filter((item) => item !== key) : [...previous, key],
+    );
+  };
+
+  const toggleSessionMetric = (key: string) => {
+    setVisibleSessionKeys((previous) =>
+      previous.includes(key) ? previous.filter((item) => item !== key) : [...previous, key],
+    );
+  };
 
   if (isLoading) {
     return (
@@ -197,15 +235,24 @@ const History = () => {
                 <MetricLineChart
                   data={summaryChartData}
                   xKey={viewMode === "day" ? "time" : "date"}
-                  lines={[
-                    { key: "distanceKm", name: "거리(km)", color: "#8b5cf6" },
-                    { key: "durationMinutes", name: "시간(분)", color: "#06b6d4" },
-                    { key: "avgPace", name: "평균 페이스", color: "#ef4444" },
-                    { key: "bestPace", name: "최고 페이스", color: "#f97316" },
-                    { key: "averageSpeed", name: "평균 시속", color: "#22c55e" },
-                    { key: "maxSpeed", name: "최고 시속", color: "#f59e0b" },
-                  ]}
+                  lines={summaryLineOptions.filter((line) => visibleSummaryKeys.includes(line.key))}
                 />
+                <div className="flex flex-wrap gap-3 text-sm">
+                  {summaryLineOptions.map((line) => {
+                    const active = visibleSummaryKeys.includes(line.key);
+                    return (
+                      <button
+                        key={line.key}
+                        type="button"
+                        onClick={() => toggleSummaryMetric(line.key)}
+                        className="font-medium transition-opacity"
+                        style={{ color: active ? line.color : "#9ca3af", opacity: active ? 1 : 0.8 }}
+                      >
+                        {line.name}
+                      </button>
+                    );
+                  })}
+                </div>
                 <MetricGrid items={summaryCards} />
               </CardContent>
             </Card>
@@ -237,19 +284,26 @@ const History = () => {
                     <MetricLineChart
                       data={selectedSessionChartData}
                       xKey="time"
-                      lines={[
-                        { key: "distanceKm", name: "거리(km)", color: "#8b5cf6" },
-                        { key: "durationMinutes", name: "시간(분)", color: "#06b6d4" },
-                        { key: "avgPace", name: "평균 페이스", color: "#ef4444" },
-                        { key: "bestPace", name: "최고 페이스", color: "#f97316" },
-                        { key: "averageSpeed", name: "평균 시속", color: "#22c55e" },
-                        { key: "maxSpeed", name: "최고 시속", color: "#f59e0b" },
-                        { key: "avgHeartRate", name: "평균 심박수", color: "#ec4899" },
-                        { key: "cadence", name: "평균 케이던스", color: "#6366f1" },
-                      ]}
+                      lines={sessionLineOptions.filter((line) => visibleSessionKeys.includes(line.key))}
                     />
-                    <RouteMapCard points={selectedSession.routePoints} title="운동 경로 미리보기" />
+                    <div className="flex flex-wrap gap-3 text-sm">
+                      {sessionLineOptions.map((line) => {
+                        const active = visibleSessionKeys.includes(line.key);
+                        return (
+                          <button
+                            key={line.key}
+                            type="button"
+                            onClick={() => toggleSessionMetric(line.key)}
+                            className="font-medium transition-opacity"
+                            style={{ color: active ? line.color : "#9ca3af", opacity: active ? 1 : 0.8 }}
+                          >
+                            {line.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <MetricGrid items={sessionCards} />
+                    <RouteMapCard points={selectedSession.routePoints} title="운동 경로 미리보기" />
                   </>
                 ) : (
                   <div className="text-sm text-muted-foreground">선택 가능한 운동 데이터가 없습니다.</div>
