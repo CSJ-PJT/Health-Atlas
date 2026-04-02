@@ -36,6 +36,17 @@ export const Header = ({ showNav = false }: HeaderProps) => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [lastScrollY]);
 
+  useEffect(() => {
+    if (!showNav) {
+      document.body.style.paddingBottom = "";
+      return;
+    }
+    document.body.style.paddingBottom = "88px";
+    return () => {
+      document.body.style.paddingBottom = "";
+    };
+  }, [showNav]);
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/96 backdrop-blur supports-[backdrop-filter]:bg-background/76">
       <div className="container px-3">
@@ -59,8 +70,8 @@ export const Header = ({ showNav = false }: HeaderProps) => {
 
         {showNav ? (
           <nav
-            className={`-mx-3 overflow-x-auto border-y border-primary/15 bg-primary/5 px-2 transition-all duration-300 ease-in-out ${
-              isNavVisible ? "max-h-20 py-2 opacity-100" : "max-h-0 overflow-hidden py-0 opacity-0"
+            className={`fixed bottom-0 left-0 right-0 z-50 border-t border-primary/15 bg-background/96 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur supports-[backdrop-filter]:bg-background/78 transition-transform duration-300 ease-in-out ${
+              isNavVisible ? "translate-y-0" : "translate-y-full"
             }`}
           >
             <div className="flex min-w-max gap-1.5">

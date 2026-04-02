@@ -12,7 +12,7 @@ import { useHealthHistory } from "@/hooks/useHealthData";
 import { getStoredProviderId } from "@/providers/shared";
 import { getMockHealthHistory } from "@/providers/shared/services/mockData";
 import { buildAiRecommendation } from "@/services/aiCoach";
-import { generateRunningForecast } from "@/services/runningForecast";
+import { buildForecastDeltas, generateRunningForecast } from "@/services/runningForecast";
 
 const detailLineOptions = [
   { key: "distanceKm", name: "거리(km)", color: "#8b5cf6" },
@@ -35,6 +35,14 @@ const formatPace = (secondsPerKm?: number) => {
 };
 
 const formatMinutes = (seconds: number) => `${Math.round(seconds / 60)}분`;
+
+const formatDelta = (key: string, value: number) => {
+  const prefix = value > 0 ? "+" : "";
+  if (key === "avgPace" || key === "bestPace") {
+    return `${prefix}${Math.round(value * 60)}초`;
+  }
+  return `${prefix}${Number(value.toFixed(2))}`;
+};
 
 type ActivityFilter = "all" | "running" | "walking";
 
@@ -154,24 +162,27 @@ const History = () => {
   const predictionCards = predictionData.length
     ? detailLineOptions.map((metric) => {
         const latestPoint = predictionData[predictionData.length - 1];
+        const delta = buildForecastDeltas(effectiveRecords as any[], latestPoint);
+        const deltaLabel = formatDelta(metric.key, Number((delta as any)[metric.key] || 0));
+
         return {
           label: `${metric.name} 예측`,
           value:
             metric.key === "avgPace" || metric.key === "bestPace"
-              ? formatPace(Number(latestPoint?.[metric.key] || 0) * 60)
+              ? `${formatPace(Number(latestPoint?.[metric.key] || 0) * 60)} (${deltaLabel})`
               : metric.key === "distanceKm"
-                ? `${latestPoint?.[metric.key]} km`
+                ? `${latestPoint?.[metric.key]} km (${deltaLabel})`
                 : metric.key === "durationMinutes"
-                  ? `${latestPoint?.[metric.key]} 분`
+                  ? `${latestPoint?.[metric.key]} 분 (${deltaLabel})`
                   : metric.key.includes("Speed")
-                    ? `${latestPoint?.[metric.key]} km/h`
+                    ? `${latestPoint?.[metric.key]} km/h (${deltaLabel})`
                     : metric.key.includes("HeartRate")
-                      ? `${latestPoint?.[metric.key]} bpm`
+                      ? `${latestPoint?.[metric.key]} bpm (${deltaLabel})`
                       : metric.key === "cadence"
-                        ? `${latestPoint?.[metric.key]} spm`
+                        ? `${latestPoint?.[metric.key]} spm (${deltaLabel})`
                         : metric.key === "elevationGain"
-                          ? `${latestPoint?.[metric.key]} m`
-                          : `${latestPoint?.[metric.key]}`,
+                          ? `${latestPoint?.[metric.key]} m (${deltaLabel})`
+                          : `${latestPoint?.[metric.key]} (${deltaLabel})`,
         };
       })
     : [];
@@ -203,7 +214,7 @@ const History = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>오늘 기록</CardTitle>
-            <div className="w-48">
+            <div className="w-48" data-no-swipe="true">
               <Select value={activityFilter} onValueChange={(value: ActivityFilter) => setActivityFilter(value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="운동 선택" />
@@ -242,7 +253,7 @@ const History = () => {
           <CardContent className="space-y-6">
             {selectedSession ? (
               <Tabs value={detailTab} onValueChange={setDetailTab}>
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-3" data-no-swipe="true">
                   <TabsTrigger value="analysis">AI 종합 분석</TabsTrigger>
                   <TabsTrigger value="laps">랩 기록</TabsTrigger>
                   <TabsTrigger value="prediction">AI 가능성 예측</TabsTrigger>
