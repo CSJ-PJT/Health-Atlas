@@ -54,12 +54,12 @@ export const Header = ({ showNav = false }: HeaderProps) => {
           <Link to="/" className="flex min-w-0 flex-1 items-center gap-2 transition-opacity hover:opacity-80">
             <img src="/app-icon.png" alt="Logo" className="h-10 w-10 rounded-2xl" />
             <div className="min-w-0 flex-1">
-              <h1 className="text-sm font-bold leading-tight text-foreground sm:text-lg">Roboheart Healthcare</h1>
-              <p className="line-clamp-1 text-[11px] text-muted-foreground">{nickname}</p>
+              <h1 className="text-lg font-bold leading-tight text-foreground sm:text-2xl">RH Healthcare</h1>
             </div>
           </Link>
 
           <div className="flex shrink-0 items-center gap-2">
+            <p className="max-w-[96px] truncate text-xs text-muted-foreground">{nickname}</p>
             <Avatar className="h-8 w-8 border border-primary/20">
               <AvatarImage src={avatarUrl} alt={nickname || "profile"} />
               <AvatarFallback>{(nickname || "U").slice(0, 1)}</AvatarFallback>
@@ -70,63 +70,63 @@ export const Header = ({ showNav = false }: HeaderProps) => {
 
         {showNav ? (
           <nav
-            className={`fixed bottom-0 left-0 right-0 z-50 border-t border-primary/15 bg-background/96 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur supports-[backdrop-filter]:bg-background/78 transition-transform duration-300 ease-in-out ${
+            className={`fixed bottom-0 left-0 right-0 z-50 border-t border-primary/15 bg-background/98 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.12)] backdrop-blur supports-[backdrop-filter]:bg-background/84 transition-transform duration-300 ease-in-out ${
               isNavVisible ? "translate-y-0" : "translate-y-full"
             }`}
           >
-            <div className="flex min-w-max gap-1.5">
+            <div className="grid grid-cols-8 gap-1.5">
               <NavLink
                 to="/"
-                className="flex min-w-[64px] flex-1 items-center justify-center rounded-xl bg-primary/12 px-3 py-2.5 transition-colors hover:bg-primary/20"
+                className="flex min-w-0 items-center justify-center rounded-xl bg-primary/12 px-2 py-3 text-foreground transition-colors hover:bg-primary/20"
                 activeClassName="ring-2 ring-primary/40"
               >
                 <Home className="h-5 w-5" />
               </NavLink>
               <NavLink
                 to="/history"
-                className="flex min-w-[64px] flex-1 items-center justify-center rounded-xl bg-secondary px-3 py-2.5 text-center transition-colors hover:bg-secondary/80"
+                className="flex min-w-0 items-center justify-center rounded-xl bg-secondary px-2 py-3 text-foreground transition-colors hover:bg-secondary/80"
                 activeClassName="ring-2 ring-primary/40"
               >
                 <Activity className="h-5 w-5" />
               </NavLink>
               <NavLink
                 to="/comparison"
-                className="flex min-w-[64px] flex-1 items-center justify-center rounded-xl bg-secondary px-3 py-2.5 text-center transition-colors hover:bg-secondary/80"
+                className="flex min-w-0 items-center justify-center rounded-xl bg-secondary px-2 py-3 text-foreground transition-colors hover:bg-secondary/80"
                 activeClassName="ring-2 ring-primary/40"
               >
                 <BarChart3 className="h-5 w-5" />
               </NavLink>
               <NavLink
                 to="/friends"
-                className="flex min-w-[64px] flex-1 items-center justify-center rounded-xl bg-secondary px-3 py-2.5 text-center transition-colors hover:bg-secondary/80"
+                className="flex min-w-0 items-center justify-center rounded-xl bg-secondary px-2 py-3 text-foreground transition-colors hover:bg-secondary/80"
                 activeClassName="ring-2 ring-primary/40"
               >
                 <Users className="h-5 w-5" />
               </NavLink>
               <NavLink
                 to="/chat"
-                className="flex min-w-[64px] flex-1 items-center justify-center rounded-xl bg-secondary px-3 py-2.5 text-center transition-colors hover:bg-secondary/80"
+                className="flex min-w-0 items-center justify-center rounded-xl bg-secondary px-2 py-3 text-foreground transition-colors hover:bg-secondary/80"
                 activeClassName="ring-2 ring-primary/40"
               >
                 <MessageCircleMore className="h-5 w-5" />
               </NavLink>
               <NavLink
                 to="/feed"
-                className="flex min-w-[64px] flex-1 items-center justify-center rounded-xl bg-secondary px-3 py-2.5 text-center transition-colors hover:bg-secondary/80"
+                className="flex min-w-0 items-center justify-center rounded-xl bg-secondary px-2 py-3 text-foreground transition-colors hover:bg-secondary/80"
                 activeClassName="ring-2 ring-primary/40"
               >
                 <View className="h-5 w-5" />
               </NavLink>
               <NavLink
                 to="/game"
-                className="flex min-w-[64px] flex-1 items-center justify-center rounded-xl bg-primary/10 px-3 py-2.5 text-center transition-colors hover:bg-primary/18"
+                className="flex min-w-0 items-center justify-center rounded-xl bg-primary/10 px-2 py-3 text-foreground transition-colors hover:bg-primary/18"
                 activeClassName="ring-2 ring-primary/40"
               >
                 <Gamepad2 className="h-5 w-5" />
               </NavLink>
               <NavLink
                 to="/admin"
-                className="flex min-w-[64px] flex-1 items-center justify-center rounded-xl bg-primary/12 px-3 py-2.5 transition-colors hover:bg-primary/20"
+                className="flex min-w-0 items-center justify-center rounded-xl bg-primary/12 px-2 py-3 text-foreground transition-colors hover:bg-primary/20"
                 activeClassName="ring-2 ring-primary/40"
               >
                 <Settings className="h-5 w-5" />
