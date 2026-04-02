@@ -34,10 +34,11 @@ export const samsungProvider: HealthProvider = {
     }
 
     const permissionStatus = await getSamsungPermissionStatus();
+    const hasAllPermissions = permissionStatus.hasAllPermissions ?? permissionStatus.hasAll;
     return {
-      connected: permissionStatus.hasAll,
+      connected: hasAllPermissions,
       available: true,
-      requiresPermission: !permissionStatus.hasAll,
+      requiresPermission: !hasAllPermissions,
       lastSyncAt: getSamsungLastSyncAt(),
     };
   },

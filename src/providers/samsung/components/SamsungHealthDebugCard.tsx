@@ -23,7 +23,7 @@ export function SamsungHealthDebugCard({
     <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200">
       <CardHeader>
         <CardTitle className="text-purple-700">Health Connect 테스트</CardTitle>
-        <CardDescription>Kotlin 플러그인 연결 테스트</CardDescription>
+        <CardDescription>Kotlin 플러그인 연결과 데이터 읽기 확인</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2 flex-wrap">

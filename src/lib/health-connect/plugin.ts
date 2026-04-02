@@ -11,6 +11,7 @@ import type {
  * Capacitor 플러그인 메서드 정의
  */
 export interface HealthConnectPlugin {
+  ping(): Promise<{ value: string }>;
   /**
    * Health Connect SDK 사용 가능 여부 확인
    * @returns status 코드 및 상태 텍스트
@@ -29,7 +30,10 @@ export interface HealthConnectPlugin {
    * 현재 부여된 Health Connect 권한 상태 확인
    * @returns 권한 부여 상태 및 목록
    */
+  checkPermissions(): Promise<HealthConnectPermissionStatus>;
   getPermissionStatus(): Promise<HealthConnectPermissionStatus>;
+  openHealthConnectSettings(): Promise<{ opened: boolean }>;
+  readSummary(options?: { period?: string; dataOriginPackage?: string; dataOriginPackages?: string[] }): Promise<unknown>;
 
   /**
    * 오늘 하루(0시 ~ 현재) 전체 건강 데이터 스냅샷 가져오기

@@ -1,39 +1,42 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getActiveProvider } from "@/providers/shared";
 import { fetchHealthHistory, fetchHealthStats } from "@/providers/shared/services/healthDataRepository";
+import { getMockNormalizedHealthData } from "@/providers/shared/services/mockData";
+import { isMockHealthDataEnabled } from "@/providers/shared/services/mockMode";
+import type { HealthViewMode } from "@/providers/shared/types/provider";
 
 export const useTodayHealth = () => {
   return useQuery({
     queryKey: ["health", "today"],
     queryFn: async () => {
-      const profileId = localStorage.getItem("profile_id");
-      if (!profileId) {
-        throw new Error("프로필 정보를 찾을 수 없습니다.");
+      if (isMockHealthDataEnabled()) {
+        return getMockNormalizedHealthData();
       }
 
-      return getActiveProvider().getTodayData();
+      try {
+        return await getActiveProvider().getTodayData();
+      } catch (error) {
+        console.error("Falling back to mock today data:", error);
+        return getMockNormalizedHealthData();
+      }
     },
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
 };
 
-export const useHealthHistory = (from?: Date, to?: Date) => {
+export const useHealthHistory = (mode: HealthViewMode, from?: Date, to?: Date) => {
   return useQuery({
-    queryKey: ["health", "history", from?.toISOString(), to?.toISOString()],
-    queryFn: async () => fetchHealthHistory(from, to),
+    queryKey: ["health", "history", mode, from?.toISOString(), to?.toISOString()],
+    queryFn: async () => fetchHealthHistory(mode, from, to),
     staleTime: 2 * 60 * 1000,
   });
 };
 
-export const useHealthStats = (
-  mode: "day" | "week" | "month" | "year",
-  from?: Date,
-  to?: Date,
-) => {
+export const useHealthStats = (mode: HealthViewMode, from?: Date, to?: Date) => {
   return useQuery({
     queryKey: ["health", "stats", mode, from?.toISOString(), to?.toISOString()],
-    queryFn: async () => fetchHealthStats(from, to),
+    queryFn: async () => fetchHealthStats(mode, from, to),
     staleTime: 2 * 60 * 1000,
   });
 };

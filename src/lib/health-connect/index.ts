@@ -14,7 +14,7 @@ export { HealthConnect };
 export async function checkHealthConnectAvailability(): Promise<boolean> {
   try {
     const result = await HealthConnect.getStatus();
-    return result.status === 1;
+    return result.isAvailable ?? result.statusText === 'AVAILABLE';
   } catch (error) {
     console.error('Health Connect availability check failed:', error);
     return false;
@@ -39,7 +39,10 @@ export async function requestPermissions(): Promise<boolean> {
  */
 export async function checkPermissions() {
   try {
-    return await HealthConnect.getPermissionStatus();
+    if (typeof HealthConnect.getPermissionStatus === 'function') {
+      return await HealthConnect.getPermissionStatus();
+    }
+    return await HealthConnect.checkPermissions();
   } catch (error) {
     console.error('Failed to check permissions:', error);
     throw error;

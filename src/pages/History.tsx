@@ -1,207 +1,263 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Activity } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { MetricLineChart } from "@/components/charts/MetricLineChart";
+import { MetricGrid } from "@/components/health/MetricGrid";
+import { RouteMapCard } from "@/components/health/RouteMapCard";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useHealthHistory } from "@/hooks/useHealthData";
+import { getProviderMeta, getStoredProviderId } from "@/providers/shared";
+import { getMockHealthHistory } from "@/providers/shared/services/mockData";
+import type { HealthViewMode } from "@/providers/shared/types/provider";
+import { buildRangeFromMode, getModeLabel } from "@/utils/dateRange";
 
-interface HealthRecord {
-  id: string;
-  synced_at: string;
-  steps_data?: any;
-  exercise_data?: any;
-  running_data?: any;
-  sleep_data?: any;
-  body_composition_data?: any;
-  nutrition_data?: any;
-}
+const formatPace = (secondsPerKm?: number) => {
+  if (!secondsPerKm) {
+    return "-";
+  }
+
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = Math.round(secondsPerKm % 60);
+  return `${minutes}:${seconds.toString().padStart(2, "0")} /km`;
+};
 
 const History = () => {
-  const { data: records = [], isLoading: loading } = useHealthHistory();
+  const providerId = getStoredProviderId();
+  const providerMeta = getProviderMeta(providerId);
+  const [viewMode, setViewMode] = useState<HealthViewMode>("day");
+  const initialRange = buildRangeFromMode("day");
+  const [startDate, setStartDate] = useState<Date | undefined>(initialRange.start);
+  const [endDate, setEndDate] = useState<Date | undefined>(initialRange.end);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
-  const formatDataItem = (key: string, value: any): string => {
-    const keyMap: Record<string, string> = {
-      type: '종류',
-      duration: '시간',
-      calories: '칼로리',
-      distance: '거리',
-      deepSleep: '깊은 수면',
-      deep_sleep: '깊은 수면',
-      light_sleep: '얕은 수면',
-      rem_sleep: 'REM 수면',
-      blood_oxygen: '혈중산소',
-      skin_temperature: '피부온도',
-      snoring: '코골이',
-      weight: '체중',
-      bodyFat: '체지방률',
-      body_fat: '체지방률',
-      body_fat_mass: '체지방량',
-      body_water: '체수분',
-      bmi: 'BMI',
-      basal_metabolic_rate: '기초대사량',
-      muscleMass: '근육량',
-      muscle_mass: '근육량',
-      name: '식사',
-      carbs: '탄수화물',
-      protein: '단백질',
-      fat: '지방',
-      count: '걸음수',
-      floors: '층수',
-      avg_cadence: '평균케이던스',
-      average_cadence: '평균케이던스',
-      avg_heart_rate: '평균심박수',
-      average_heart_rate: '평균심박수',
-      avg_pace: '평균페이스',
-      average_pace: '평균페이스',
-      vo2_max: '산소섭취량'
-    };
+  useEffect(() => {
+    const nextRange = buildRangeFromMode(viewMode);
+    setStartDate(nextRange.start);
+    setEndDate(nextRange.end);
+  }, [viewMode]);
 
-    const unitMap: Record<string, string> = {
-      duration: '분',
-      calories: 'kcal',
-      distance: 'km',
-      weight: 'kg',
-      bodyFat: '%',
-      body_fat: '%',
-      body_fat_mass: 'kg',
-      body_water: '%',
-      basal_metabolic_rate: 'kcal',
-      muscleMass: 'kg',
-      muscle_mass: 'kg',
-      carbs: 'g',
-      protein: 'g',
-      fat: 'g',
-      count: '걸음',
-      floors: '층',
-      blood_oxygen: '%',
-      skin_temperature: '°C',
-      snoring: '분',
-      avg_cadence: 'spm',
-      average_cadence: 'spm',
-      avg_heart_rate: 'bpm',
-      average_heart_rate: 'bpm',
-      avg_pace: '분/km',
-      average_pace: '분/km',
-      vo2_max: 'ml/kg/min'
-    };
+  const { data: records = [], isLoading } = useHealthHistory(viewMode, startDate, endDate);
+  const fallbackRecords = useMemo(() => getMockHealthHistory(providerId), [providerId]);
+  const effectiveRecords = records.length > 0 ? records : fallbackRecords;
+  const latestRecord = effectiveRecords[effectiveRecords.length - 1];
 
-    const koreanKey = keyMap[key] || key;
-    const unit = unitMap[key] || '';
-    return `${koreanKey}: ${value}${unit}`;
-  };
+  const runningSessions = useMemo(
+    () => (latestRecord?.running_data?.sessions || []).filter(Boolean),
+    [latestRecord],
+  );
 
-  const renderDataSection = (title: string, icon: any, data: any) => {
-    if (!data || (Array.isArray(data) && data.length === 0)) return null;
-    
-    const Icon = icon;
+  useEffect(() => {
+    if (!selectedSessionId && runningSessions[0]?.activityId) {
+      setSelectedSessionId(runningSessions[0].activityId);
+    }
+  }, [runningSessions, selectedSessionId]);
+
+  const selectedSession =
+    runningSessions.find((session: any) => session.activityId === selectedSessionId) || runningSessions[0];
+
+  const summaryChartData = useMemo(() => {
+    if (viewMode === "day") {
+      return latestRecord?.running_data?.hourly_series || [];
+    }
+
+    return effectiveRecords.map((record: any) => {
+      const summary = record.running_data?.summary || {};
+      return {
+        date: format(new Date(record.synced_at), "MM-dd"),
+        distanceKm: Number(summary.distanceKm || 0),
+        durationMinutes: Number(summary.durationMinutes || 0),
+        avgPace: Number(summary.avgPace || 0),
+        bestPace: Number(summary.bestPace || 0),
+        averageSpeed: Number(summary.averageSpeed || 0),
+        maxSpeed: Number(summary.maxSpeed || 0),
+        avgHeartRate: Number(summary.avgHeartRate || 0),
+        cadence: Number(summary.cadence || 0),
+      };
+    });
+  }, [effectiveRecords, latestRecord, viewMode]);
+
+  const selectedSessionChartData = selectedSession
+    ? latestRecord?.running_data?.session_timelines?.[selectedSession.activityId] || []
+    : [];
+
+  const summary = latestRecord?.running_data?.summary;
+  const summaryCards = summary
+    ? [
+        { label: "평균 페이스", value: formatPace(summary.avgPace * 60) },
+        { label: "최고 페이스", value: formatPace(summary.bestPace * 60) },
+        { label: "평균 시속", value: `${summary.averageSpeed} km/h` },
+        { label: "최고 시속", value: `${summary.maxSpeed} km/h` },
+        { label: "운동 거리", value: `${summary.distanceKm} km` },
+        { label: "운동 시간", value: `${summary.durationMinutes} 분` },
+        { label: "평균 심박수", value: `${summary.avgHeartRate} bpm` },
+        { label: "평균 케이던스", value: `${summary.cadence} spm` },
+      ]
+    : [];
+
+  const sessionCards = selectedSession
+    ? [
+        { label: "운동 유형", value: selectedSession.activityType },
+        { label: "운동 시간", value: `${Math.round(selectedSession.durationSeconds / 60)} 분` },
+        { label: "평균 페이스", value: formatPace(selectedSession.averagePaceSecondsPerKilometer) },
+        { label: "최고 페이스", value: formatPace(selectedSession.bestPaceSecondsPerKilometer) },
+        { label: "평균 시속", value: `${(selectedSession.averageSpeedMetersPerSecond * 3.6).toFixed(1)} km/h` },
+        { label: "최고 시속", value: `${(selectedSession.maxSpeedMetersPerSecond * 3.6).toFixed(1)} km/h` },
+        { label: "평균 심박수", value: `${selectedSession.averageHR} bpm` },
+        { label: "최대 심박수", value: `${selectedSession.maxHR} bpm` },
+        { label: "평균 케이던스", value: `${selectedSession.averageRunCadence} spm` },
+        { label: "최대 케이던스", value: `${selectedSession.maxRunCadence} spm` },
+        { label: "평균 보폭", value: `${selectedSession.averageStrideLengthMeters} m` },
+        { label: "고도 상승", value: `${selectedSession.elevationGainMeters} m` },
+        { label: "고도 하강", value: `${selectedSession.elevationLossMeters} m` },
+        { label: "VO2 Max", value: selectedSession.vo2Max },
+        { label: "칼로리", value: `${selectedSession.calories} kcal` },
+      ]
+    : [];
+
+  if (isLoading) {
     return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-primary" />
-          <h4 className="font-semibold text-sm">{title}</h4>
-        </div>
-        <div className="pl-6 space-y-2">
-          {Array.isArray(data) ? (
-            data.map((item, index) => (
-              <div key={index} className="text-sm space-y-0.5">
-                {Object.entries(item).map(([key, value]) => (
-                  <div key={key}>
-                    <span className="font-medium">{formatDataItem(key, value)}</span>
-                  </div>
-                ))}
-                {index < data.length - 1 && <div className="border-b border-border/50 my-1" />}
-              </div>
-            ))
-          ) : (
-            Object.entries(data).map(([key, value]) => (
-              <div key={key} className="text-sm">
-                <span className="font-medium">{formatDataItem(key, value)}</span>
-              </div>
-            ))
-          )}
+      <div className="min-h-screen bg-background">
+        <Header showNav={true} />
+        <ScrollToTop />
+        <div className="mx-auto max-w-6xl space-y-4 p-4">
+          <Skeleton className="h-12 w-48" />
+          <Skeleton className="h-80 w-full" />
+          <Skeleton className="h-80 w-full" />
         </div>
       </div>
     );
-  };
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
       <ScrollToTop />
-      <div className="max-w-4xl mx-auto p-4 space-y-6">
-        <h1 className="text-3xl font-bold">기록</h1>
+      <div className="mx-auto max-w-6xl space-y-6 p-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">기록</h1>
+          <p className="text-sm text-muted-foreground">{providerMeta.label} 기준 운동 기록을 확인합니다.</p>
+        </div>
 
-        {loading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <Card key={i}>
-                    <CardHeader>
-                      <Skeleton className="h-6 w-48" />
-                      <Skeleton className="h-4 w-32" />
-                    </CardHeader>
-                    <CardContent>
-                      <Skeleton className="h-24 w-full" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-          ) : records.length === 0 ? (
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {(["day", "week", "month", "year"] as HealthViewMode[]).map((mode) => (
+              <Button key={mode} variant={viewMode === mode ? "default" : "outline"} onClick={() => setViewMode(mode)}>
+                {getModeLabel(mode)}
+              </Button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {startDate ? format(startDate, "yyyy-MM-dd") : "시작일"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus className="pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {endDate ? format(endDate, "yyyy-MM-dd") : "종료일"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus className="pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        {effectiveRecords.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">표시할 기록 데이터가 없습니다.</CardContent>
+          </Card>
+        ) : (
+          <>
             <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">아직 동기화된 데이터가 없습니다.</p>
+              <CardHeader>
+                <CardTitle>오늘 기록 요약</CardTitle>
+                <CardDescription>
+                  {viewMode === "day" ? "00시부터 24시까지 시간별 데이터입니다." : "선택한 기간의 러닝 요약입니다."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <MetricLineChart
+                  data={summaryChartData}
+                  xKey={viewMode === "day" ? "time" : "date"}
+                  lines={[
+                    { key: "distanceKm", name: "거리(km)", color: "#8b5cf6" },
+                    { key: "durationMinutes", name: "시간(분)", color: "#06b6d4" },
+                    { key: "avgPace", name: "평균 페이스", color: "#ef4444" },
+                    { key: "bestPace", name: "최고 페이스", color: "#f97316" },
+                    { key: "averageSpeed", name: "평균 시속", color: "#22c55e" },
+                    { key: "maxSpeed", name: "최고 시속", color: "#f59e0b" },
+                  ]}
+                />
+                <MetricGrid items={summaryCards} />
               </CardContent>
             </Card>
-          ) : (
-            <ScrollArea className="h-[calc(100vh-250px)]">
-              <div className="space-y-4">
-                {records.map((record) => (
-                  <Card 
-                    key={record.id} 
-                    className="overflow-hidden"
-                  >
-                    <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
-                      <CardTitle className="text-lg text-primary">
-                        동기화 시간: {new Date(record.synced_at).toLocaleString('ko-KR')}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4 p-6">
-                      {record.steps_data && (
-                        <div className="p-4 rounded-lg bg-secondary/20">
-                          {renderDataSection('걸음수', Activity, record.steps_data)}
-                        </div>
-                      )}
-                      {record.exercise_data && (
-                        <div className="p-4 rounded-lg bg-accent/20">
-                          {renderDataSection('운동', Activity, record.exercise_data)}
-                        </div>
-                      )}
-                      {record.running_data && (
-                        <div className="p-4 rounded-lg bg-muted/40">
-                          {renderDataSection('러닝', Activity, record.running_data)}
-                        </div>
-                      )}
-                      {record.sleep_data && (
-                        <div className="p-4 rounded-lg bg-secondary/30">
-                          {renderDataSection('수면', Activity, record.sleep_data)}
-                        </div>
-                      )}
-                      {record.body_composition_data && (
-                        <div className="p-4 rounded-lg bg-accent/15">
-                          {renderDataSection('신체 구성', Activity, record.body_composition_data)}
-                        </div>
-                      )}
-                      {record.nutrition_data && (
-                        <div className="p-4 rounded-lg bg-muted/30">
-                          {renderDataSection('영양', Activity, record.nutrition_data)}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
+
+            <Card>
+              <CardHeader className="space-y-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <CardTitle>운동별 상세 기록</CardTitle>
+                    <CardDescription>운동 버튼을 누르면 시작 시점부터 종료 시점까지 상세 그래프가 바뀝니다.</CardDescription>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {runningSessions.map((session: any) => (
+                      <Button
+                        key={session.activityId}
+                        variant={selectedSession?.activityId === session.activityId ? "default" : "outline"}
+                        onClick={() => setSelectedSessionId(session.activityId)}
+                        className="text-xs"
+                      >
+                        {session.activityName}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {selectedSession ? (
+                  <>
+                    <MetricLineChart
+                      data={selectedSessionChartData}
+                      xKey="time"
+                      lines={[
+                        { key: "distanceKm", name: "거리(km)", color: "#8b5cf6" },
+                        { key: "durationMinutes", name: "시간(분)", color: "#06b6d4" },
+                        { key: "avgPace", name: "평균 페이스", color: "#ef4444" },
+                        { key: "bestPace", name: "최고 페이스", color: "#f97316" },
+                        { key: "averageSpeed", name: "평균 시속", color: "#22c55e" },
+                        { key: "maxSpeed", name: "최고 시속", color: "#f59e0b" },
+                        { key: "avgHeartRate", name: "평균 심박수", color: "#ec4899" },
+                        { key: "cadence", name: "평균 케이던스", color: "#6366f1" },
+                      ]}
+                    />
+                    <RouteMapCard points={selectedSession.routePoints} title="운동 경로 미리보기" />
+                    <MetricGrid items={sessionCards} />
+                  </>
+                ) : (
+                  <div className="text-sm text-muted-foreground">선택 가능한 운동 데이터가 없습니다.</div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );

@@ -26,21 +26,23 @@ export function SamsungPermissionDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Samsung Health 연결 권한 필요</AlertDialogTitle>
           <AlertDialogDescription className="space-y-3">
-            <p className="font-semibold">건강 데이터를 수집하려면 아래 권한이 필요합니다.</p>
+            <p className="font-semibold">
+              건강 데이터를 읽으려면 Health Connect 권한이 필요합니다.
+            </p>
 
             <div className="space-y-2 text-sm">
               <p className="font-medium">필수 권한</p>
               <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Health Connect 건강 데이터 읽기</li>
-                <li>신체 활동 기록 접근</li>
-                <li>수면, 심박수, 영양 정보 접근</li>
+                <li>걸음수, 운동, 수면, 심박수 읽기</li>
+                <li>영양 및 체성분 데이터 읽기</li>
+                <li>Samsung Health 데이터 접근 허용</li>
               </ul>
             </div>
 
-            <p className="text-sm font-medium mt-4">권한 설정 방법</p>
+            <p className="text-sm font-medium mt-4">설정 방법</p>
             <ol className="list-decimal list-inside space-y-1 text-sm ml-2">
-              <li>앱 설정에서 권한 요청을 승인합니다.</li>
-              <li>필요하면 Health Connect 앱 설정으로 이동합니다.</li>
+              <li>권한 요청을 승인합니다.</li>
+              <li>필요하면 Health Connect 설정 화면으로 이동합니다.</li>
               <li>Samsung Health 데이터 접근을 허용합니다.</li>
             </ol>
           </AlertDialogDescription>

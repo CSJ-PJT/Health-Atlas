@@ -8,11 +8,14 @@
 export interface HealthConnectStatus {
   status: number;
   statusText: 'AVAILABLE' | 'UNAVAILABLE' | 'PROVIDER_UPDATE_REQUIRED' | 'UNKNOWN';
+  isAvailable?: boolean;
 }
 
 export interface HealthConnectPermissionStatus {
+  hasAllPermissions: boolean;
   hasAll: boolean;
   granted: string[];
+  missing?: string[];
   requiredCount: number;
   grantedCount: number;
 }
@@ -40,8 +43,10 @@ export interface ExerciseSessionWithCalories {
   title: string | null;
   startTime: string; // ISO 8601 format
   endTime: string; // ISO 8601 format
-  exerciseType: string;
+  exerciseType: string | number;
   caloriesKcal: number;
+  distanceMeter?: number;
+  durationMinutes?: number;
 }
 
 // ============= Sleep Session Types =============
@@ -58,6 +63,7 @@ export interface SleepSession {
   startTime: string; // ISO 8601 format
   endTime: string; // ISO 8601 format
   notes: string | null;
+  durationMinutes?: number;
 }
 
 // ============= Body Composition Types =============

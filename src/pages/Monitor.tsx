@@ -33,6 +33,8 @@ interface LogEntry {
 }
 
 const Monitor = () => {
+  const provider = getActiveProvider();
+  const providerName = provider.displayName;
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [samsungHealthStatus, setSamsungHealthStatus] = useState("checking");
   const [gptStatus, setGptStatus] = useState("checking");
@@ -174,14 +176,13 @@ const Monitor = () => {
     setSamsungHealthStatus("checking");
 
     try {
-      const provider = getActiveProvider();
       const status = await provider.getConnectionStatus();
       if (!status.available) {
         setSamsungHealthStatus("disconnected");
         if (showToast) {
           toast({
-            title: "Samsung Health 미연결",
-            description: "현재 환경에서 Health Connect를 사용할 수 없습니다.",
+            title: `${providerName} 미연결`,
+            description: `${providerName} 데이터를 사용할 수 없습니다.`,
             variant: "destructive",
           });
         }
@@ -193,7 +194,7 @@ const Monitor = () => {
         if (showToast) {
           toast({
             title: "권한 필요",
-            description: "Health Connect 권한이 아직 허용되지 않았습니다.",
+            description: `${providerName} 연결 권한이 아직 허용되지 않았습니다.`,
             variant: "destructive",
           });
         }
@@ -208,17 +209,17 @@ const Monitor = () => {
 
       if (showToast) {
         toast({
-          title: "Samsung Health",
+          title: providerName,
           description: "정상적으로 연결되어 있습니다.",
         });
       }
     } catch (providerError) {
-      console.error("Samsung Health connection check failed:", providerError);
+      console.error(`${providerName} connection check failed:`, providerError);
       setSamsungHealthStatus("disconnected");
       if (showToast) {
         toast({
           title: "오류",
-          description: "Samsung Health 상태를 확인할 수 없습니다.",
+          description: `${providerName} 상태를 확인할 수 없습니다.`,
           variant: "destructive",
         });
       }
@@ -431,7 +432,7 @@ const Monitor = () => {
               <div className="flex items-center gap-3 flex-1">
                 {getStatusIcon(samsungHealthStatus)}
                 <div className="flex-1">
-                  <h3 className="font-semibold">Samsung Health</h3>
+                  <h3 className="font-semibold">{providerName}</h3>
                   <p className="text-sm text-muted-foreground">
                     {samsungHealthStatus === "connected"
                       ? "정상 연결"

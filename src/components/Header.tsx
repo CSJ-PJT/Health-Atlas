@@ -1,7 +1,8 @@
+import { useEffect, useState } from "react";
 import { Home, Settings } from "lucide-react";
-import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { NavLink } from "@/components/NavLink";
+import { getProviderMeta, getStoredProviderId } from "@/providers/shared";
 
 interface HeaderProps {
   showNav?: boolean;
@@ -12,89 +13,78 @@ export const Header = ({ showNav = false }: HeaderProps) => {
   const [nickname, setNickname] = useState("");
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const providerMeta = getProviderMeta(getStoredProviderId());
 
   useEffect(() => {
     const storedNickname = localStorage.getItem("user_nickname") || "";
     setNickname(storedNickname);
-  }, [location]); // Re-read nickname when location changes
+  }, [location]);
 
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
-      
+
       if (currentScrollY > lastScrollY && currentScrollY > 30) {
-        // Scrolling down
         setIsNavVisible(false);
       } else {
-        // Scrolling up
         setIsNavVisible(true);
       }
-      
+
       setLastScrollY(currentScrollY);
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, [lastScrollY]);
-
-  const openGPT = () => {
-    // Try to open ChatGPT app, fallback to web
-    const chatGPTAppURL = "chatgpt://";
-    const chatGPTWebURL = "https://chat.openai.com";
-    
-    // Attempt to open app
-    window.location.href = chatGPTAppURL;
-    
-    // Fallback to web after a short delay
-    setTimeout(() => {
-      window.open(chatGPTWebURL, '_blank');
-    }, 500);
-  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container px-4">
         <div className="flex h-20 items-center justify-between gap-3">
-          <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+          <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
             <img src="/app-icon.png" alt="Logo" className="h-12 w-12" />
             <div className="flex flex-col">
               <h1 className="text-2xl font-bold leading-tight">Roboheart Healthcare</h1>
-              <p className="text-xs text-muted-foreground">Samsung Health Sync GPT</p>
+              <p className="text-xs text-muted-foreground">{providerMeta.subtitle}</p>
             </div>
           </Link>
-          <button 
-            onClick={openGPT}
-            className="flex flex-col items-center gap-1 px-3 py-2 rounded-lg bg-white hover:bg-white/90 transition-colors shadow-sm"
-            aria-label="Open ChatGPT"
-          >
-            <img 
-              src="https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg" 
-              alt="ChatGPT" 
-              className="h-6 w-6"
-            />
-            <span className="text-xs text-gray-700">{nickname}</span>
-          </button>
+          <div className="text-xs text-muted-foreground">{nickname}</div>
         </div>
-        
+
         {showNav && (
-          <nav 
-            className={`flex gap-1 bg-primary/5 -mx-4 px-2 border-y border-primary/20 transition-all duration-300 ease-in-out ${
-              isNavVisible ? 'opacity-100 max-h-24 py-4' : 'opacity-0 max-h-0 overflow-hidden py-0'
+          <nav
+            className={`-mx-4 flex gap-1 border-y border-primary/20 bg-primary/5 px-2 transition-all duration-300 ease-in-out ${
+              isNavVisible ? "max-h-24 py-4 opacity-100" : "max-h-0 overflow-hidden py-0 opacity-0"
             }`}
           >
-            <NavLink to="/" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-primary/30 transition-colors bg-primary/20 text-center flex items-center justify-center">
+            <NavLink
+              to="/"
+              className="flex flex-1 items-center justify-center rounded-lg bg-primary/20 px-6 py-3.5 text-center transition-colors hover:bg-primary/30"
+            >
               <Home className="h-6 w-6" />
             </NavLink>
-            <NavLink to="/history" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-accent/30 transition-colors bg-accent/20 text-center flex items-center justify-center">
-              <span className="text-base font-medium whitespace-nowrap">기록</span>
+            <NavLink
+              to="/history"
+              className="flex flex-1 items-center justify-center rounded-lg bg-accent/20 px-6 py-3.5 text-center transition-colors hover:bg-accent/30"
+            >
+              <span className="whitespace-nowrap text-base font-medium">기록</span>
             </NavLink>
-            <NavLink to="/comparison" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-secondary/50 transition-colors bg-secondary/30 text-center flex items-center justify-center">
-              <span className="text-base font-medium whitespace-nowrap">비교</span>
+            <NavLink
+              to="/comparison"
+              className="flex flex-1 items-center justify-center rounded-lg bg-secondary/30 px-6 py-3.5 text-center transition-colors hover:bg-secondary/50"
+            >
+              <span className="whitespace-nowrap text-base font-medium">비교</span>
             </NavLink>
-            <NavLink to="/monitor" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-muted/70 transition-colors bg-muted/50 text-center flex items-center justify-center">
-              <span className="text-base font-medium whitespace-nowrap">연동</span>
+            <NavLink
+              to="/monitor"
+              className="flex flex-1 items-center justify-center rounded-lg bg-muted/50 px-6 py-3.5 text-center transition-colors hover:bg-muted/70"
+            >
+              <span className="whitespace-nowrap text-base font-medium">연동</span>
             </NavLink>
-            <NavLink to="/admin" className="flex-1 px-6 py-3.5 rounded-lg hover:bg-primary/30 transition-colors bg-primary/20 text-center flex items-center justify-center">
+            <NavLink
+              to="/admin"
+              className="flex flex-1 items-center justify-center rounded-lg bg-primary/20 px-6 py-3.5 text-center transition-colors hover:bg-primary/30"
+            >
               <Settings className="h-6 w-6" />
             </NavLink>
           </nav>

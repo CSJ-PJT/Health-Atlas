@@ -1,4 +1,6 @@
-export type ProviderId = "samsung" | "garmin";
+export type ProviderId = "samsung" | "garmin" | "apple-health" | "strava";
+
+export type HealthViewMode = "day" | "week" | "month" | "year";
 
 export interface ProviderConnectionStatus {
   connected: boolean;
