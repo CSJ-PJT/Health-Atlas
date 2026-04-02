@@ -39,35 +39,34 @@ function safeNumber(value: unknown, fallback: number) {
 
 function buildHeuristicForecast(records: RunningRecord[]) {
   const recent = records.slice(-6);
-  const base =
-    recent.reduce(
-      (acc, record) => {
-        const summary = record.running_data?.summary || {};
-        acc.distanceKm += safeNumber(summary.distanceKm, 0);
-        acc.durationMinutes += safeNumber(summary.durationMinutes, 0);
-        acc.avgPace += safeNumber(summary.avgPace, 0);
-        acc.bestPace += safeNumber(summary.bestPace, 0);
-        acc.averageSpeed += safeNumber(summary.averageSpeed, 0);
-        acc.maxSpeed += safeNumber(summary.maxSpeed, 0);
-        acc.avgHeartRate += safeNumber(summary.avgHeartRate, 0);
-        acc.cadence += safeNumber(summary.cadence, 0);
-        acc.vo2max += safeNumber(summary.vo2max, 0);
-        acc.elevationGain += safeNumber(summary.elevationGain, 0);
-        return acc;
-      },
-      {
-        distanceKm: 0,
-        durationMinutes: 0,
-        avgPace: 0,
-        bestPace: 0,
-        averageSpeed: 0,
-        maxSpeed: 0,
-        avgHeartRate: 0,
-        cadence: 0,
-        vo2max: 0,
-        elevationGain: 0,
-      },
-    ) || {};
+  const base = recent.reduce(
+    (acc, record) => {
+      const summary = record.running_data?.summary || {};
+      acc.distanceKm += safeNumber(summary.distanceKm, 0);
+      acc.durationMinutes += safeNumber(summary.durationMinutes, 0);
+      acc.avgPace += safeNumber(summary.avgPace, 0);
+      acc.bestPace += safeNumber(summary.bestPace, 0);
+      acc.averageSpeed += safeNumber(summary.averageSpeed, 0);
+      acc.maxSpeed += safeNumber(summary.maxSpeed, 0);
+      acc.avgHeartRate += safeNumber(summary.avgHeartRate, 0);
+      acc.cadence += safeNumber(summary.cadence, 0);
+      acc.vo2max += safeNumber(summary.vo2max, 0);
+      acc.elevationGain += safeNumber(summary.elevationGain, 0);
+      return acc;
+    },
+    {
+      distanceKm: 0,
+      durationMinutes: 0,
+      avgPace: 0,
+      bestPace: 0,
+      averageSpeed: 0,
+      maxSpeed: 0,
+      avgHeartRate: 0,
+      cadence: 0,
+      vo2max: 0,
+      elevationGain: 0,
+    },
+  );
 
   const count = Math.max(recent.length, 1);
   const averages = Object.fromEntries(
@@ -89,6 +88,26 @@ function buildHeuristicForecast(records: RunningRecord[]) {
   }));
 }
 
+function buildDeltaSummary(points: ForecastPoint[], records: RunningRecord[]) {
+  const latestSummary = records[records.length - 1]?.running_data?.summary || {};
+  const lastPoint = points[points.length - 1];
+  if (!lastPoint) {
+    return "예측 데이터를 준비하지 못했습니다.";
+  }
+
+  const distanceDelta = Number((lastPoint.distanceKm - safeNumber(latestSummary.distanceKm, lastPoint.distanceKm)).toFixed(2));
+  const durationDelta = Math.round(lastPoint.durationMinutes - safeNumber(latestSummary.durationMinutes, lastPoint.durationMinutes));
+  const paceDeltaSeconds = Math.round((lastPoint.avgPace - safeNumber(latestSummary.avgPace, lastPoint.avgPace)) * 60);
+  const vo2Delta = Number((lastPoint.vo2max - safeNumber(latestSummary.vo2max, lastPoint.vo2max)).toFixed(1));
+
+  const paceLabel =
+    paceDeltaSeconds === 0 ? "변동 없음" : paceDeltaSeconds < 0 ? `${Math.abs(paceDeltaSeconds)}초 단축` : `${paceDeltaSeconds}초 증가`;
+
+  return `현재 대비 한 달 뒤 예상 변화는 거리 ${distanceDelta >= 0 ? `+${distanceDelta}` : distanceDelta}km, 시간 ${
+    durationDelta >= 0 ? `+${durationDelta}` : durationDelta
+  }분, 평균 페이스 ${paceLabel}, VO2 Max ${vo2Delta >= 0 ? `+${vo2Delta}` : vo2Delta}입니다.`;
+}
+
 export async function generateRunningForecast(records: RunningRecord[]) {
   const heuristic = buildHeuristicForecast(records);
   const apiKey = localStorage.getItem("openai_api_key");
@@ -96,7 +115,7 @@ export async function generateRunningForecast(records: RunningRecord[]) {
   if (!apiKey) {
     return {
       points: heuristic,
-      summary: "OpenAI API Key가 없어 최근 러닝 기록 기반 추정치로 4주 예측을 생성했습니다.",
+      summary: buildDeltaSummary(heuristic, records),
     };
   }
 
@@ -112,8 +131,7 @@ export async function generateRunningForecast(records: RunningRecord[]) {
       "최근 러닝 데이터를 기반으로 앞으로 4주 예측을 JSON으로만 반환해줘.",
       [
         "반드시 JSON만 반환합니다.",
-        "형식:",
-        '{"summary":"짧은 한국어 요약","points":[{"date":"04-09","distanceKm":0,"durationMinutes":0,"avgPace":0,"bestPace":0,"averageSpeed":0,"maxSpeed":0,"avgHeartRate":0,"cadence":0,"vo2max":0,"elevationGain":0}]}',
+        '형식: {"summary":"증감 요약","points":[{"date":"04-09","distanceKm":0,"durationMinutes":0,"avgPace":0,"bestPace":0,"averageSpeed":0,"maxSpeed":0,"avgHeartRate":0,"cadence":0,"vo2max":0,"elevationGain":0}]}',
         `데이터: ${context}`,
       ].join("\n"),
     );
@@ -139,13 +157,13 @@ export async function generateRunningForecast(records: RunningRecord[]) {
 
     return {
       points,
-      summary: String(parsed.summary || "최근 데이터 기준으로 4주 예측을 생성했습니다."),
+      summary: String(parsed.summary || buildDeltaSummary(points, records)),
     };
   } catch (error) {
     console.error("Falling back to heuristic forecast:", error);
     return {
       points: heuristic,
-      summary: "GPT 예측 응답을 읽지 못해 최근 러닝 기록 기반 추정치로 대체했습니다.",
+      summary: buildDeltaSummary(heuristic, records),
     };
   }
 }

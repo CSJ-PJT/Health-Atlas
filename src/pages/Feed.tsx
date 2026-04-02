@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Film, ImagePlus, MessageCircle, Pencil, Plus, Search, SendHorizonal, Trash2, Upload } from "lucide-react";
+import { Film, ImagePlus, MessageCircle, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -29,7 +28,7 @@ import {
 } from "@/services/feedStore";
 
 const MY_USER_ID = localStorage.getItem("user_id") || "me";
-const MY_USER_NAME = localStorage.getItem("user_nickname") || "나";
+const MY_USER_NAME = localStorage.getItem("user_nickname") || "사용자";
 
 const Feed = () => {
   const [composerOpen, setComposerOpen] = useState(false);
@@ -51,14 +50,8 @@ const Feed = () => {
   const posts = useMemo(() => getFeedPosts(), [tick]);
   const filteredPosts = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    if (!keyword) {
-      return posts;
-    }
-    return posts.filter(
-      (post) =>
-        post.authorName.toLowerCase().includes(keyword) ||
-        post.content.toLowerCase().includes(keyword),
-    );
+    if (!keyword) return posts;
+    return posts.filter((post) => post.authorName.toLowerCase().includes(keyword) || post.content.toLowerCase().includes(keyword));
   }, [posts, search]);
 
   const comments = useMemo(() => (detailPost ? getFeedComments(detailPost.id) : []), [detailPost, tick]);
@@ -76,9 +69,7 @@ const Feed = () => {
   };
 
   const handleFiles = async (files: FileList | null) => {
-    if (!files) {
-      return;
-    }
+    if (!files) return;
 
     const nextMedia = await Promise.all(
       Array.from(files).map(
@@ -104,9 +95,7 @@ const Feed = () => {
   };
 
   const handleSave = () => {
-    if (!caption.trim() && media.length === 0) {
-      return;
-    }
+    if (!caption.trim() && media.length === 0) return;
 
     if (editingPostId) {
       updateFeedPost(editingPostId, caption.trim(), media);
@@ -121,10 +110,7 @@ const Feed = () => {
 
   const handleEdit = (postId: string) => {
     const post = posts.find((item) => item.id === postId);
-    if (!post) {
-      return;
-    }
-
+    if (!post) return;
     setCaption(post.content);
     setMedia(post.media || []);
     setEditingPostId(post.id);
@@ -132,25 +118,42 @@ const Feed = () => {
   };
 
   const handleAddComment = () => {
-    if (!detailPost || !commentDraft.trim()) {
-      return;
-    }
-
+    if (!detailPost || !commentDraft.trim()) return;
     addFeedComment(detailPost.id, MY_USER_ID, MY_USER_NAME, commentDraft.trim(), replyTarget?.id || null);
     setCommentDraft("");
     setReplyTarget(null);
     setTick((value) => value + 1);
   };
 
+  const renderCommentTree = (parentId: string | null, depth = 0) =>
+    comments
+      .filter((comment) => comment.parentId === parentId)
+      .map((comment) => (
+        <div key={comment.id} className={`space-y-2 ${depth > 0 ? "ml-4 border-l pl-4" : ""}`}>
+          <div className="rounded-xl border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-medium">{comment.authorName}</div>
+              <div className="text-xs text-muted-foreground">{new Date(comment.createdAt).toLocaleString("ko-KR")}</div>
+            </div>
+            <div className="mt-2 text-sm">{comment.content}</div>
+            <button
+              type="button"
+              className="mt-2 text-xs font-medium text-primary"
+              onClick={() => setReplyTarget(comment)}
+            >
+              답글 달기
+            </button>
+          </div>
+          {renderCommentTree(comment.id, depth + 1)}
+        </div>
+      ));
+
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
-      <div className="mx-auto max-w-6xl space-y-6 p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold">피드</h1>
-            <p className="text-sm text-muted-foreground">사진과 동영상을 올리고, 검색과 댓글로 커뮤니티 흐름을 이어갑니다.</p>
-          </div>
+      <div className="mx-auto max-w-6xl space-y-4 p-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <h1 className="text-3xl font-bold">피드</h1>
 
           <div className="flex w-full gap-2 lg:w-auto">
             <div className="relative flex-1 lg:w-80">
@@ -166,12 +169,11 @@ const Feed = () => {
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>{editingPostId ? "게시물 수정" : "새 게시물"}</DialogTitle>
-                  <DialogDescription>사진과 동영상을 함께 올릴 수 있습니다.</DialogDescription>
+                  <DialogTitle>{editingPostId ? "게시글 수정" : "새 게시글"}</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  <Textarea value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="오늘의 운동이나 건강 상태를 공유해 보세요." className="min-h-32" />
+                  <Textarea value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="내용을 입력해 주세요." className="min-h-32" />
                   <div className="space-y-3 rounded-2xl border border-dashed p-4">
                     <input
                       ref={fileInputRef}
@@ -208,7 +210,7 @@ const Feed = () => {
                   <Button variant="outline" onClick={() => setComposerOpen(false)}>
                     취소
                   </Button>
-                  <Button onClick={handleSave}>{editingPostId ? "수정 저장" : "업로드"}</Button>
+                  <Button onClick={handleSave}>{editingPostId ? "저장" : "업로드"}</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -218,7 +220,6 @@ const Feed = () => {
         <Card>
           <CardHeader>
             <CardTitle>미디어 그리드</CardTitle>
-            <CardDescription>게시물은 최신순으로 정렬되며, 탭하면 상세와 댓글을 확인할 수 있습니다.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
@@ -226,12 +227,7 @@ const Feed = () => {
                 const cover = post.media?.[0];
                 const commentCount = getFeedComments(post.id).length;
                 return (
-                  <button
-                    key={post.id}
-                    type="button"
-                    onClick={() => setDetailPost(post)}
-                    className="group overflow-hidden rounded-2xl border bg-card text-left"
-                  >
+                  <button key={post.id} type="button" onClick={() => setDetailPost(post)} className="group overflow-hidden rounded-2xl border bg-card text-left">
                     <div className="relative aspect-square bg-muted/40">
                       {cover?.type === "video" ? (
                         <>
@@ -297,80 +293,58 @@ const Feed = () => {
         <Dialog open={!!detailPost} onOpenChange={(open) => !open && setDetailPost(null)}>
           <DialogContent className="max-w-4xl">
             {detailPost ? (
-              <>
-                <DialogHeader>
-                  <DialogTitle>{detailPost.authorName}</DialogTitle>
-                  <DialogDescription>{new Date(detailPost.createdAt).toLocaleString("ko-KR")}</DialogDescription>
-                </DialogHeader>
-
-                <div className="grid gap-6 lg:grid-cols-[1fr_0.95fr]">
-                  <div className="space-y-4">
-                    <div className="overflow-hidden rounded-2xl border bg-muted/30">
-                      {detailPost.media[0]?.type === "video" ? (
-                        <video controls poster={detailPost.media[0]?.thumbnailUrl} src={detailPost.media[0]?.url} className="max-h-[520px] w-full object-contain" />
-                      ) : detailPost.media[0]?.url ? (
-                        <img src={detailPost.media[0].url} alt={detailPost.content || "피드"} className="max-h-[520px] w-full object-contain" />
-                      ) : null}
+              <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="space-y-4">
+                  <DialogHeader>
+                    <DialogTitle>{detailPost.authorName}</DialogTitle>
+                  </DialogHeader>
+                  <ScrollArea className="max-h-[70vh]">
+                    <div className="space-y-3 pr-4">
+                      <div className="rounded-xl border p-4 text-sm">{detailPost.content}</div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        {detailPost.media.map((item) => (
+                          <div key={item.id} className="overflow-hidden rounded-2xl border bg-muted/20">
+                            {item.type === "video" ? (
+                              <video controls src={item.url} className="aspect-square w-full object-cover" />
+                            ) : (
+                              <img src={item.url} alt="detail" className="aspect-square w-full object-cover" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="rounded-xl border p-4 text-sm">{detailPost.content}</div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base">댓글</CardTitle>
-                        <CardDescription>대댓글까지 이어서 달 수 있습니다.</CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <ScrollArea className="h-[360px] rounded-xl border p-3">
-                          <div className="space-y-4">
-                            {rootComments.map((comment) => {
-                              const replies = comments.filter((item) => item.parentId === comment.id);
-                              return (
-                                <div key={comment.id} className="space-y-3">
-                                  <div className="rounded-xl border p-3">
-                                    <div className="text-sm font-semibold">{comment.authorName}</div>
-                                    <div className="mt-1 text-sm">{comment.content}</div>
-                                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                                      <span>{new Date(comment.createdAt).toLocaleString("ko-KR")}</span>
-                                      <button type="button" onClick={() => setReplyTarget(comment)} className="text-primary">
-                                        답글
-                                      </button>
-                                    </div>
-                                  </div>
-                                  {replies.map((reply) => (
-                                    <div key={reply.id} className="ml-5 rounded-xl border bg-muted/30 p-3">
-                                      <div className="text-sm font-semibold">{reply.authorName}</div>
-                                      <div className="mt-1 text-sm">{reply.content}</div>
-                                      <div className="mt-2 text-xs text-muted-foreground">{new Date(reply.createdAt).toLocaleString("ko-KR")}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </ScrollArea>
-
-                        {replyTarget ? (
-                          <div className="rounded-lg border border-primary/25 bg-primary/5 p-3 text-xs text-muted-foreground">
-                            @{replyTarget.authorName}님에게 답글 작성 중
-                            <button type="button" className="ml-2 text-primary" onClick={() => setReplyTarget(null)}>
-                              취소
-                            </button>
-                          </div>
-                        ) : null}
-
-                        <div className="flex gap-2">
-                          <Input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글을 입력하세요" />
-                          <Button onClick={handleAddComment} size="icon">
-                            <SendHorizonal className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
+                  </ScrollArea>
                 </div>
-              </>
+
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>댓글</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <ScrollArea className="h-[44vh] pr-3">
+                        <div className="space-y-3">{rootComments.length > 0 ? renderCommentTree(null) : <div className="text-sm text-muted-foreground">첫 댓글을 남겨 보세요.</div>}</div>
+                      </ScrollArea>
+
+                      {replyTarget ? (
+                        <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+                          <div className="font-medium">{replyTarget.authorName}에게 답글 작성 중</div>
+                          <button type="button" className="mt-1 text-primary" onClick={() => setReplyTarget(null)}>
+                            답글 취소
+                          </button>
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-3">
+                        <Textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글을 입력해 주세요." className="min-h-24" />
+                        <Button onClick={handleAddComment} className="w-full">
+                          댓글 등록
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             ) : null}
           </DialogContent>
         </Dialog>

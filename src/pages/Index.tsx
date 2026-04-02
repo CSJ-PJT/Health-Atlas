@@ -420,11 +420,11 @@ const Index = () => {
 
     return (
       <div className="space-y-6">
-        <Card className="overflow-hidden border-cyan-500/20 bg-gradient-to-br from-cyan-500/14 via-sky-500/10 to-emerald-500/14">
+        <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/14 via-secondary to-accent/35">
           <CardContent className="grid gap-6 p-6 lg:grid-cols-[1.3fr_0.9fr]">
             <div className="space-y-5">
               <div className="space-y-2">
-                <div className="text-sm font-medium text-cyan-700 dark:text-cyan-300">{providerMeta.label} Dashboard</div>
+                <div className="text-sm font-medium text-primary">Dashboard</div>
                 <h1 className="text-3xl font-bold tracking-tight">오늘의 AI 추천</h1>
                 <p className="max-w-2xl text-sm text-muted-foreground">{aiRecommendation}</p>
                 <p className="text-sm text-muted-foreground">마지막 동기화 {formatStoredSync()}</p>

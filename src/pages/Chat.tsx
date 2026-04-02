@@ -2,12 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronsUpDown, MessageCircleMore, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -43,7 +42,7 @@ const Chat = () => {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [directDialogOpen, setDirectDialogOpen] = useState(false);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
-  const [compressed, setCompressed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [actionTarget, setActionTarget] = useState<ChatRoom | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
@@ -61,7 +60,7 @@ const Chat = () => {
 
   const getRoomPreview = (room: ChatRoom) => {
     const roomMessages = getRoomMessages(room.id);
-    return roomMessages[roomMessages.length - 1]?.content || "새 대화를 시작해 보세요.";
+    return roomMessages[roomMessages.length - 1]?.content || "대화를 시작해 보세요.";
   };
 
   const startLongPress = (room: ChatRoom) => {
@@ -98,7 +97,7 @@ const Chat = () => {
     setDirectDialogOpen(false);
     toast({
       title: "채팅방을 만들었습니다",
-      description: `${friend.name}님과 바로 대화를 시작할 수 있습니다.`,
+      description: `${friend.name}와 바로 대화를 시작할 수 있습니다.`,
     });
   };
 
@@ -159,31 +158,26 @@ const Chat = () => {
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
       <div className="mx-auto max-w-6xl space-y-6 p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold">채팅</h1>
-            <p className="text-sm text-muted-foreground">채팅 목록을 기본으로 보고, 우측 상단에서 1:1 또는 그룹 채팅을 만듭니다.</p>
-          </div>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">채팅</h1>
 
           <div className="flex gap-2">
-            <Button variant="outline" size="icon" onClick={() => setCompressed((value) => !value)}>
+            <Button variant="outline" size="icon" onClick={() => setCollapsed((value) => !value)}>
               <ChevronsUpDown className="h-4 w-4" />
             </Button>
 
             <Dialog open={directDialogOpen} onOpenChange={setDirectDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-primary/30 text-primary hover:bg-primary/10">
+                <Button variant="outline" size="icon">
                   <Plus className="h-4 w-4" />
-                  채팅 만들기
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>새 1:1 채팅</DialogTitle>
-                  <DialogDescription>친구를 선택하면 바로 대화방이 생성됩니다.</DialogDescription>
+                  <DialogTitle>1:1 채팅</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3">
-                  {friends.map((friend) => (
+                  {friends.slice(0, 15).map((friend) => (
                     <button
                       key={friend.id}
                       type="button"
@@ -203,20 +197,18 @@ const Chat = () => {
 
             <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2 bg-primary hover:bg-primary/90">
+                <Button size="icon" className="bg-primary hover:bg-primary/90">
                   <Users className="h-4 w-4" />
-                  그룹 채팅
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>그룹 채팅 만들기</DialogTitle>
-                  <DialogDescription>그룹 이름과 참여할 친구를 선택해 주세요.</DialogDescription>
+                  <DialogTitle>그룹 채팅</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <Input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="그룹 이름" />
                   <div className="space-y-3">
-                    {friends.map((friend) => (
+                    {friends.slice(0, 15).map((friend) => (
                       <label key={friend.id} className="flex items-center gap-3 rounded-xl border p-3">
                         <Checkbox checked={selectedMembers.includes(friend.id)} onCheckedChange={() => handleToggleMember(friend.id)} />
                         <div>
@@ -231,7 +223,7 @@ const Chat = () => {
                   <Button variant="outline" onClick={() => setGroupDialogOpen(false)}>
                     취소
                   </Button>
-                  <Button onClick={handleCreateGroup}>그룹 생성</Button>
+                  <Button onClick={handleCreateGroup}>생성</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -239,48 +231,46 @@ const Chat = () => {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>채팅 목록</CardTitle>
-              <CardDescription>1초 이상 누르면 이름 변경과 삭제가 가능합니다.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {rooms.map((room) => (
-                <button
-                  key={room.id}
-                  type="button"
-                  onClick={() => setActiveRoomId(room.id)}
-                  onPointerDown={() => startLongPress(room)}
-                  onPointerUp={clearLongPress}
-                  onPointerLeave={clearLongPress}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    setActionTarget(room);
-                    setRenameValue(room.name);
-                  }}
-                  className={`w-full rounded-2xl border p-4 text-left transition-colors ${
-                    activeRoomId === room.id ? "border-primary bg-primary/10" : "hover:bg-muted/40"
-                  } ${compressed ? "py-2" : ""}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 font-semibold">
-                      {room.type === "group" ? <Users className="h-4 w-4 text-primary" /> : <MessageCircleMore className="h-4 w-4 text-primary" />}
-                      {room.name}
+          {collapsed ? null : (
+            <Card>
+              <CardHeader>
+                <CardTitle>채팅 목록</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {rooms.slice(0, 15).map((room) => (
+                  <button
+                    key={room.id}
+                    type="button"
+                    onClick={() => setActiveRoomId(room.id)}
+                    onPointerDown={() => startLongPress(room)}
+                    onPointerUp={clearLongPress}
+                    onPointerLeave={clearLongPress}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setActionTarget(room);
+                      setRenameValue(room.name);
+                    }}
+                    className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                      activeRoomId === room.id ? "border-primary bg-primary/10" : "hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 font-semibold">
+                        {room.type === "group" ? <Users className="h-4 w-4 text-primary" /> : <MessageCircleMore className="h-4 w-4 text-primary" />}
+                        {room.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
                     </div>
-                    <div className="text-xs text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
-                  </div>
-                  {!compressed ? <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div> : null}
-                </button>
-              ))}
-            </CardContent>
-          </Card>
+                    <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="min-h-[70vh]">
             <CardHeader>
-              <CardTitle>{activeRoom ? activeRoom.name : "채팅방을 선택해 주세요"}</CardTitle>
-              <CardDescription>
-                {activeRoom ? `${activeRoom.type === "group" ? "그룹" : "개인"} 채팅방입니다.` : "좌측 목록에서 대화방을 선택하세요."}
-              </CardDescription>
+              <CardTitle>{activeRoom ? activeRoom.name : "채팅방 선택"}</CardTitle>
             </CardHeader>
             <CardContent className="flex h-[calc(70vh-110px)] flex-col gap-4">
               <ScrollArea className="flex-1 rounded-2xl border p-4">
@@ -310,7 +300,6 @@ const Chat = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>채팅방 관리</DialogTitle>
-              <DialogDescription>{actionTarget?.name} 채팅방의 이름을 바꾸거나 삭제합니다.</DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} placeholder="새 채팅방 이름" />

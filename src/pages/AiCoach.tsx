@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useHealthStats } from "@/hooks/useHealthData";
 import { getProviderMeta, getStoredProviderId } from "@/providers/shared";
@@ -38,10 +38,7 @@ const AiCoach = () => {
     setIsLoading(true);
 
     try {
-      const answer = await sendAiCoachMessage(
-        userMessage,
-        `${summary}\n최근 기록 개수: ${yearlyRecords.length}`,
-      );
+      const answer = await sendAiCoachMessage(userMessage, `${summary}\n최근 기록 개수: ${yearlyRecords.length}`);
       setConversation((previous) => [...previous, { role: "assistant", content: answer }]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI 응답 생성에 실패했습니다.";
@@ -64,7 +61,7 @@ const AiCoach = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <div className="mx-auto max-w-3xl space-y-6 p-4">
+      <div className="mx-auto max-w-3xl space-y-4 p-3">
         <div className="flex items-center justify-between gap-3">
           <Button variant="outline" onClick={() => navigate(-1)} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
@@ -72,14 +69,13 @@ const AiCoach = () => {
           </Button>
           <Button variant="outline" onClick={handleSave} className="gap-2">
             <Save className="h-4 w-4" />
-            보관
+            저장
           </Button>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>AI 코치</CardTitle>
-            <CardDescription>{providerMeta.label} 기록을 바탕으로 실제 GPT와 대화합니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border p-4 text-sm text-muted-foreground">{summary}</div>
@@ -88,16 +84,18 @@ const AiCoach = () => {
                 <div
                   key={`${message.role}-${index}`}
                   className={`rounded-lg p-3 text-sm ${
-                    message.role === "assistant" ? "bg-cyan-500/10" : "bg-muted"
+                    message.role === "assistant" ? "bg-primary/10" : "bg-muted"
                   }`}
                 >
-                  <div className="mb-1 text-xs text-muted-foreground">{message.role === "assistant" ? "AI 코치" : "나"}</div>
+                  <div className="mb-1 text-xs text-muted-foreground">
+                    {message.role === "assistant" ? "AI 코치" : "나"}
+                  </div>
                   <div>{message.content}</div>
                 </div>
               ))}
             </div>
-            <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="질문을 입력하세요" className="min-h-32" />
-            <Button onClick={() => void handleSend()} disabled={isLoading} className="w-full bg-cyan-500 hover:bg-cyan-600">
+            <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="질문을 입력해 주세요." className="min-h-32" />
+            <Button onClick={() => void handleSend()} disabled={isLoading} className="w-full">
               {isLoading ? "응답 생성 중..." : "질문 보내기"}
             </Button>
           </CardContent>

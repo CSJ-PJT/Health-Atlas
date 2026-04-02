@@ -3,6 +3,13 @@ import type { HealthViewMode } from "@/providers/shared/types/provider";
 import { getDefaultRangeForMode } from "@/providers/shared/services/mockData";
 
 export function buildRangeFromMode(mode: HealthViewMode, anchorDate = new Date()) {
+  if (mode === "day") {
+    return {
+      start: startOfDay(addDays(anchorDate, -6)),
+      end: endOfDay(anchorDate),
+    };
+  }
+
   if (mode === "week") {
     return {
       start: startOfDay(addDays(anchorDate, -6)),

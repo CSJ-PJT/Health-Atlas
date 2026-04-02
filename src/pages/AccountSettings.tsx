@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -49,10 +50,49 @@ const defaultStravaPermissions = {
   readRoutes: false,
 };
 
+const permissionOptions = {
+  "health-connect": [
+    { key: "readSteps", label: "걸음 수 읽기" },
+    { key: "readHeartRate", label: "심박수 읽기" },
+    { key: "readSleep", label: "수면 읽기" },
+    { key: "readExercise", label: "운동 읽기" },
+    { key: "readNutrition", label: "영양 읽기" },
+    { key: "readBodyComposition", label: "체성분 읽기" },
+    { key: "backgroundRead", label: "백그라운드 읽기" },
+  ],
+  garmin: [
+    { key: "dailySummary", label: "일일 요약" },
+    { key: "activities", label: "운동 기록" },
+    { key: "sleep", label: "수면 기록" },
+    { key: "nutrition", label: "영양 기록" },
+    { key: "hydration", label: "수분 기록" },
+    { key: "bodyComposition", label: "체성분 기록" },
+    { key: "heartRate", label: "심박수 기록" },
+  ],
+  "apple-health": [
+    { key: "workouts", label: "운동 기록" },
+    { key: "activitySummary", label: "활동 요약" },
+    { key: "heartRate", label: "심박수 읽기" },
+    { key: "sleep", label: "수면 읽기" },
+    { key: "bodyComposition", label: "체성분 읽기" },
+    { key: "nutrition", label: "영양 읽기" },
+  ],
+  strava: [
+    { key: "readActivities", label: "활동 읽기" },
+    { key: "readAllActivities", label: "비공개 활동 읽기" },
+    { key: "readAthlete", label: "선수 프로필 읽기" },
+    { key: "readRoutes", label: "경로 읽기" },
+  ],
+} as const;
+
+type PermissionTab = keyof typeof permissionOptions;
+
 const AccountSettings = () => {
   const navigate = useNavigate();
-  useDeviceBackNavigation("/admin");
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  useDeviceBackNavigation("/admin");
+
   const [profileId, setProfileId] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
   const [newUserId, setNewUserId] = useState("");
@@ -60,8 +100,9 @@ const AccountSettings = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [nickname, setNickname] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem("user_avatar") || "");
   const [isLoading, setIsLoading] = useState(false);
-  const [permissionTab, setPermissionTab] = useState<"health-connect" | "garmin" | "apple-health" | "strava">("health-connect");
+  const [permissionTab, setPermissionTab] = useState<PermissionTab>("health-connect");
   const [healthConnectPermissions, setHealthConnectPermissions] = useState(defaultHealthConnectPermissions);
   const [garminPermissions, setGarminPermissions] = useState(defaultGarminPermissions);
   const [applePermissions, setApplePermissions] = useState(defaultApplePermissions);
@@ -108,8 +149,8 @@ const AccountSettings = () => {
         setNickname(data.nickname || "");
         setUserIdChanged(data.user_id_changed);
       }
-    } catch (loadError) {
-      console.error("Failed to load profile:", loadError);
+    } catch (error) {
+      console.error("Failed to load profile:", error);
       toast({
         title: "프로필을 불러오지 못했습니다",
         description: "잠시 후 다시 시도해 주세요.",
@@ -121,7 +162,7 @@ const AccountSettings = () => {
   const handleUserIdChange = async () => {
     if (userIdChanged) {
       toast({
-        title: "ID는 한 번만 변경할 수 있습니다",
+        title: "사용자 ID는 한 번만 변경할 수 있습니다",
         description: "현재 계정은 이미 사용자 ID를 변경했습니다.",
         variant: "destructive",
       });
@@ -153,12 +194,12 @@ const AccountSettings = () => {
       setNewUserId("");
       toast({
         title: "사용자 ID를 변경했습니다",
-        description: "이제 새 ID로 친구 추가가 가능합니다.",
+        description: "이제 이 ID로 친구 추가가 가능합니다.",
       });
-    } catch (changeError: any) {
+    } catch (error: any) {
       toast({
         title: "사용자 ID 변경 실패",
-        description: changeError?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
+        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
@@ -184,12 +225,11 @@ const AccountSettings = () => {
       setConfirmPassword("");
       toast({
         title: "비밀번호를 저장했습니다",
-        description: "새 비밀번호가 적용되었습니다.",
       });
-    } catch (changeError: any) {
+    } catch (error: any) {
       toast({
         title: "비밀번호 저장 실패",
-        description: changeError?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
+        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
@@ -201,6 +241,7 @@ const AccountSettings = () => {
     try {
       const validated = nicknameSchema.parse(nickname);
       setIsLoading(true);
+
       const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", profileId);
       if (error) {
         throw error;
@@ -209,12 +250,11 @@ const AccountSettings = () => {
       localStorage.setItem("user_nickname", validated);
       toast({
         title: "닉네임을 저장했습니다",
-        description: "앱 전체에서 새 닉네임이 보입니다.",
       });
-    } catch (saveError: any) {
+    } catch (error: any) {
       toast({
         title: "닉네임 저장 실패",
-        description: saveError?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
+        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
@@ -226,28 +266,46 @@ const AccountSettings = () => {
     localStorage.setItem(storageKey, JSON.stringify(next));
   };
 
+  const handleAvatarFile = (file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      localStorage.setItem("user_avatar", result);
+      setAvatarUrl(result);
+      toast({
+        title: "프로필 이미지를 변경했습니다",
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
       <ScrollToTop />
-      <div className="container mx-auto max-w-3xl space-y-6 px-4 py-8">
+
+      <div className="mx-auto max-w-3xl space-y-4 px-3 py-4">
         <h1 className="text-3xl font-bold">사용자 계정 설정</h1>
 
         <Card>
           <CardHeader>
-            <CardTitle>사용자 ID 변경</CardTitle>
-            <CardDescription>
-              현재 ID: <span className="font-semibold">{userId}</span>
-            </CardDescription>
+            <CardTitle>사용자 ID</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
+              현재 ID: <span className="font-semibold">{userId || "-"}</span>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="new-user-id">새 사용자 ID</Label>
               <Input
                 id="new-user-id"
                 value={newUserId}
                 onChange={(event) => setNewUserId(event.target.value)}
-                placeholder="영문, 숫자, 언더스코어 사용"
+                placeholder="영문, 숫자, 언더바 사용"
                 disabled={userIdChanged || isLoading}
               />
             </div>
@@ -259,8 +317,7 @@ const AccountSettings = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>비밀번호 변경</CardTitle>
-            <CardDescription>영문, 숫자, 특수문자를 포함한 10자 이상 비밀번호를 사용해 주세요.</CardDescription>
+            <CardTitle>비밀번호</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -279,10 +336,25 @@ const AccountSettings = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>닉네임 변경</CardTitle>
-            <CardDescription>설정 탭에서 제거한 닉네임 변경 기능은 계정 설정에서 관리합니다.</CardDescription>
+            <CardTitle>프로필</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => handleAvatarFile(event.target.files?.[0] || null)}
+            />
+            <div className="flex items-center gap-4">
+              <Avatar className="h-20 w-20 border border-primary/20">
+                <AvatarImage src={avatarUrl} alt={nickname || "profile"} />
+                <AvatarFallback>{(nickname || "U").slice(0, 1)}</AvatarFallback>
+              </Avatar>
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                프로필 사진 변경
+              </Button>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="nickname">닉네임</Label>
               <Input id="nickname" value={nickname} onChange={(event) => setNickname(event.target.value)} />
@@ -296,10 +368,9 @@ const AccountSettings = () => {
         <Card>
           <CardHeader>
             <CardTitle>권한 설정</CardTitle>
-            <CardDescription>Health Connect, Garmin, Apple Health, Strava 권한 항목을 전환해서 확인합니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Tabs value={permissionTab} onValueChange={(value) => setPermissionTab(value as typeof permissionTab)}>
+            <Tabs value={permissionTab} onValueChange={(value) => setPermissionTab(value as PermissionTab)}>
               <TabsList className="grid w-full grid-cols-2 gap-2 md:grid-cols-4">
                 <TabsTrigger value="health-connect">Health Connect</TabsTrigger>
                 <TabsTrigger value="garmin">Garmin</TabsTrigger>
@@ -308,105 +379,65 @@ const AccountSettings = () => {
               </TabsList>
             </Tabs>
 
-            {permissionTab === "health-connect" && (
-              <div className="space-y-3">
-                {[
-                  { key: "readSteps", label: "걸음 수 읽기" },
-                  { key: "readHeartRate", label: "심박수 읽기" },
-                  { key: "readSleep", label: "수면 읽기" },
-                  { key: "readExercise", label: "운동 읽기" },
-                  { key: "readNutrition", label: "영양 읽기" },
-                  { key: "readBodyComposition", label: "체성분 읽기" },
-                  { key: "backgroundRead", label: "백그라운드 읽기" },
-                ].map((permission) => (
-                  <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="text-sm">{permission.label}</div>
-                    <Switch
-                      checked={healthConnectPermissions[permission.key as keyof typeof healthConnectPermissions]}
-                      onCheckedChange={(checked) => {
-                        const next = { ...healthConnectPermissions, [permission.key]: checked };
-                        setHealthConnectPermissions(next);
-                        savePermissionState("health_connect_permissions", next);
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+            {permissionTab === "health-connect" &&
+              permissionOptions["health-connect"].map((permission) => (
+                <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="text-sm">{permission.label}</div>
+                  <Switch
+                    checked={healthConnectPermissions[permission.key as keyof typeof healthConnectPermissions]}
+                    onCheckedChange={(checked) => {
+                      const next = { ...healthConnectPermissions, [permission.key]: checked };
+                      setHealthConnectPermissions(next);
+                      savePermissionState("health_connect_permissions", next);
+                    }}
+                  />
+                </div>
+              ))}
 
-            {permissionTab === "garmin" && (
-              <div className="space-y-3">
-                {[
-                  { key: "dailySummary", label: "일일 요약 데이터" },
-                  { key: "activities", label: "운동 데이터" },
-                  { key: "sleep", label: "수면 데이터" },
-                  { key: "nutrition", label: "영양 데이터" },
-                  { key: "hydration", label: "수분 데이터" },
-                  { key: "bodyComposition", label: "체성분 데이터" },
-                  { key: "heartRate", label: "심박수 데이터" },
-                ].map((permission) => (
-                  <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="text-sm">{permission.label}</div>
-                    <Switch
-                      checked={garminPermissions[permission.key as keyof typeof garminPermissions]}
-                      onCheckedChange={(checked) => {
-                        const next = { ...garminPermissions, [permission.key]: checked };
-                        setGarminPermissions(next);
-                        savePermissionState("garmin_permissions", next);
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+            {permissionTab === "garmin" &&
+              permissionOptions.garmin.map((permission) => (
+                <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="text-sm">{permission.label}</div>
+                  <Switch
+                    checked={garminPermissions[permission.key as keyof typeof garminPermissions]}
+                    onCheckedChange={(checked) => {
+                      const next = { ...garminPermissions, [permission.key]: checked };
+                      setGarminPermissions(next);
+                      savePermissionState("garmin_permissions", next);
+                    }}
+                  />
+                </div>
+              ))}
 
-            {permissionTab === "apple-health" && (
-              <div className="space-y-3">
-                {[
-                  { key: "workouts", label: "운동 기록 읽기" },
-                  { key: "activitySummary", label: "활동 요약 읽기" },
-                  { key: "heartRate", label: "심박수 읽기" },
-                  { key: "sleep", label: "수면 읽기" },
-                  { key: "bodyComposition", label: "체성분 읽기" },
-                  { key: "nutrition", label: "영양 읽기" },
-                ].map((permission) => (
-                  <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="text-sm">{permission.label}</div>
-                    <Switch
-                      checked={applePermissions[permission.key as keyof typeof applePermissions]}
-                      onCheckedChange={(checked) => {
-                        const next = { ...applePermissions, [permission.key]: checked };
-                        setApplePermissions(next);
-                        savePermissionState("apple_health_permissions", next);
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+            {permissionTab === "apple-health" &&
+              permissionOptions["apple-health"].map((permission) => (
+                <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="text-sm">{permission.label}</div>
+                  <Switch
+                    checked={applePermissions[permission.key as keyof typeof applePermissions]}
+                    onCheckedChange={(checked) => {
+                      const next = { ...applePermissions, [permission.key]: checked };
+                      setApplePermissions(next);
+                      savePermissionState("apple_health_permissions", next);
+                    }}
+                  />
+                </div>
+              ))}
 
-            {permissionTab === "strava" && (
-              <div className="space-y-3">
-                {[
-                  { key: "readActivities", label: "활동 읽기" },
-                  { key: "readAllActivities", label: "비공개 활동 읽기" },
-                  { key: "readAthlete", label: "선수 프로필 읽기" },
-                  { key: "readRoutes", label: "경로 읽기" },
-                ].map((permission) => (
-                  <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="text-sm">{permission.label}</div>
-                    <Switch
-                      checked={stravaPermissions[permission.key as keyof typeof stravaPermissions]}
-                      onCheckedChange={(checked) => {
-                        const next = { ...stravaPermissions, [permission.key]: checked };
-                        setStravaPermissions(next);
-                        savePermissionState("strava_permissions", next);
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+            {permissionTab === "strava" &&
+              permissionOptions.strava.map((permission) => (
+                <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="text-sm">{permission.label}</div>
+                  <Switch
+                    checked={stravaPermissions[permission.key as keyof typeof stravaPermissions]}
+                    onCheckedChange={(checked) => {
+                      const next = { ...stravaPermissions, [permission.key]: checked };
+                      setStravaPermissions(next);
+                      savePermissionState("strava_permissions", next);
+                    }}
+                  />
+                </div>
+              ))}
           </CardContent>
         </Card>
 

@@ -408,6 +408,7 @@ export function getMockHealthHistory(providerId = getStoredProviderId()) {
       steps: Math.round(distanceKm * 1320),
       recoveryHours: Math.round(12 + Math.sin(index / 3) * 3),
       bodyBatteryImpact: Math.round(-18 - Math.sin(index / 5) * 4),
+      temperatureCelsius: Number((17 + Math.sin(index / 10) * 6).toFixed(1)),
       calories,
       routePoints: buildRoutePoints(index + providerId.length),
     };
@@ -430,6 +431,7 @@ export function getMockHealthHistory(providerId = getStoredProviderId()) {
       averageStrideLengthMeters: 0.82,
       elevationGainMeters: 18,
       elevationLossMeters: 16,
+      temperatureCelsius: Number((20 + Math.cos(index / 8) * 4).toFixed(1)),
       calories: 132,
       routePoints: buildRoutePoints(index + providerId.length + 20),
     };

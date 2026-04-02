@@ -57,6 +57,15 @@ interface LogEntry {
 
 const providers: ProviderId[] = ["samsung", "garmin", "apple-health", "strava"];
 
+const themeOptions = [
+  { value: "theme-lavender", label: "Lavender", colors: ["#9f67f5", "#d3b5ff"] },
+  { value: "theme-iris", label: "Iris", colors: ["#5d69ff", "#b3b9ff"] },
+  { value: "theme-rose", label: "Rose", colors: ["#ee5f93", "#ffc0d7"] },
+  { value: "theme-ocean", label: "Ocean", colors: ["#11a8d8", "#9fe7ff"] },
+  { value: "theme-peach", label: "Peach", colors: ["#ff8d52", "#ffd0b0"] },
+  { value: "theme-midnight", label: "Midnight", colors: ["#9c73ff", "#2b214a"] },
+] as const;
+
 const displayOptions = {
   home: [
     { key: "steps", label: "걸음 목표" },
@@ -481,7 +490,7 @@ const Admin = () => {
                     <Label htmlFor="sync-time">동기화 시간</Label>
                     <Input id="sync-time" type="time" value={syncTime} onChange={(event) => handleSyncTimeChange(event.target.value)} />
                   </div>
-                  <Button onClick={() => void syncHealthData()} disabled={isSyncing} className="w-full gap-2 bg-cyan-500 hover:bg-cyan-600">
+                  <Button onClick={() => void syncHealthData()} disabled={isSyncing} className="w-full gap-2">
                     <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
                     {isSyncing ? "동기화 중..." : "지금 동기화"}
                   </Button>
@@ -679,10 +688,34 @@ const Admin = () => {
           <TabsContent value="theme">
             <Card>
               <CardHeader>
+                <CardTitle>테마 색상</CardTitle>
+              </CardHeader>
+              <CardHeader className="hidden">
                 <CardTitle>테마 변경</CardTitle>
                 <CardDescription>화이트 모드와 블랙 모드를 간단하게 전환합니다.</CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-3">
+              <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {themeOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    variant={theme === option.value ? "default" : "outline"}
+                    onClick={() => setTheme(option.value)}
+                    className="h-auto justify-start gap-3 px-4 py-4"
+                  >
+                    <div className="flex gap-1.5">
+                      {option.colors.map((color) => (
+                        <span
+                          key={`${option.value}-${color}`}
+                          className="h-4 w-4 rounded-full border border-black/10"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    <span>{option.label}</span>
+                  </Button>
+                ))}
+              </CardContent>
+              <CardContent className="hidden grid grid-cols-2 gap-3">
                 <Button variant={theme === "light" ? "default" : "outline"} onClick={() => setTheme("light")}>
                   화이트 테마
                 </Button>
@@ -719,7 +752,7 @@ const Admin = () => {
         </Tabs>
 
         <div className="flex flex-col gap-4">
-          <Button onClick={() => navigate("/account-settings", { state: { from: "/admin" } })} className="w-full gap-2 bg-cyan-500 hover:bg-cyan-600">
+          <Button onClick={() => navigate("/account-settings", { state: { from: "/admin" } })} className="w-full gap-2">
             <Settings2 className="h-4 w-4" />
             사용자 계정 설정
           </Button>

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ContactRound, Pencil, Search, Trash2, UserCheck, UserPlus } from "lucide-react";
+import { ContactRound, MessageCirclePlus, Pencil, Search, Trash2, UserCheck, UserPlus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ensureSocialSeed, getFriends, removeFriend, renameFriend, saveFriend, upsertDirectRoom, type FriendEntry } from "@/services/socialStore";
 
 const Friends = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const longPressTimer = useRef<number | null>(null);
   const [friends, setFriends] = useState(getFriends());
@@ -76,7 +77,7 @@ const Friends = () => {
     });
     toast({
       title: "친구를 추가했습니다",
-      description: `${contact.name}님과 바로 채팅을 시작할 수 있습니다.`,
+      description: `${contact.name}와 바로 채팅할 수 있습니다.`,
     });
   };
 
@@ -129,11 +130,7 @@ const Friends = () => {
       return;
     }
 
-    const { data } = await supabase
-      .from("profiles")
-      .select("user_id, nickname")
-      .eq("user_id", userIdQuery.trim())
-      .maybeSingle();
+    const { data } = await supabase.from("profiles").select("user_id, nickname").eq("user_id", userIdQuery.trim()).maybeSingle();
 
     if (!data) {
       toast({
@@ -170,34 +167,38 @@ const Friends = () => {
     setActionTarget(null);
   };
 
+  const handleStartChat = () => {
+    if (!actionTarget) {
+      return;
+    }
+
+    upsertDirectRoom(actionTarget);
+    setActionTarget(null);
+    navigate("/chat");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
       <div className="mx-auto max-w-6xl space-y-6 p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold">친구</h1>
-            <p className="text-sm text-muted-foreground">친구 목록을 확인하고, 우측 상단에서 새 친구를 추가하세요.</p>
-          </div>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">친구</h1>
 
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 bg-primary hover:bg-primary/90">
+              <Button size="icon" className="h-10 w-10 bg-primary hover:bg-primary/90">
                 <UserPlus className="h-4 w-4" />
-                친구 추가
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-3xl">
               <DialogHeader>
                 <DialogTitle>친구 추가</DialogTitle>
-                <DialogDescription>연락처, 직접 입력, 사용자 ID 중 원하는 방식으로 친구를 추가합니다.</DialogDescription>
               </DialogHeader>
 
               <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
                 <Card className="border-dashed">
                   <CardHeader>
                     <CardTitle className="text-base">연락처에서 추가</CardTitle>
-                    <CardDescription>연락처 권한을 허용하면 저장된 번호를 바로 친구로 추가할 수 있습니다.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <Button variant="outline" onClick={() => void handleLoadContacts()} className="w-full gap-2">
@@ -206,11 +207,9 @@ const Friends = () => {
                     </Button>
                     <div className="max-h-72 space-y-3 overflow-y-auto">
                       {contacts.length === 0 ? (
-                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                          아직 불러온 연락처가 없습니다.
-                        </div>
+                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">불러온 연락처가 없습니다.</div>
                       ) : (
-                        contacts.slice(0, 30).map((contact) => (
+                        contacts.slice(0, 15).map((contact) => (
                           <div key={`${contact.id}-${contact.phone}`} className="flex items-center justify-between rounded-xl border p-3">
                             <div className="min-w-0">
                               <div className="font-medium">{contact.name}</div>
@@ -242,7 +241,7 @@ const Friends = () => {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-base">사용자 ID로 추가</CardTitle>
+                      <CardTitle className="text-base">사용자 ID</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <Input value={userIdQuery} onChange={(event) => setUserIdQuery(event.target.value)} placeholder="user_xxx" />
@@ -266,7 +265,6 @@ const Friends = () => {
         <Card>
           <CardHeader>
             <CardTitle>친구 목록</CardTitle>
-            <CardDescription>1초 이상 누르면 이름 변경과 삭제가 가능합니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="relative">
@@ -275,7 +273,7 @@ const Friends = () => {
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {filteredFriends.map((friend) => (
+              {filteredFriends.slice(0, 15).map((friend) => (
                 <div
                   key={friend.id}
                   className="rounded-2xl border bg-card/70 p-4"
@@ -289,7 +287,7 @@ const Friends = () => {
                   }}
                 >
                   <div className="flex items-center gap-2 font-semibold">
-                    <UserCheck className="h-4 w-4 text-emerald-500" />
+                    <UserCheck className="h-4 w-4 text-primary" />
                     {friend.name}
                   </div>
                   <div className="mt-2 text-sm text-muted-foreground">{friend.phone}</div>
@@ -304,11 +302,14 @@ const Friends = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>친구 관리</DialogTitle>
-              <DialogDescription>{actionTarget?.name}님의 표시 이름을 바꾸거나 목록에서 제거합니다.</DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} placeholder="새 이름" />
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <Button onClick={handleStartChat} variant="outline" className="gap-2">
+                  <MessageCirclePlus className="h-4 w-4" />
+                  새 대화
+                </Button>
                 <Button onClick={handleRename} className="gap-2">
                   <Pencil className="h-4 w-4" />
                   이름 변경
