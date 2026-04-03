@@ -86,4 +86,19 @@ export const garminProvider: HealthProvider = {
     localStorage.setItem("garmin_last_sync", new Date().toISOString());
     return mapGarminPayloadToNormalizedHealthData(payload);
   },
+  async getDataForDate(date: string) {
+    if (isMockHealthDataEnabled()) {
+      localStorage.setItem("garmin_last_sync", new Date().toISOString());
+      return mapGarminPayloadToNormalizedHealthData(getMockGarminDailyPayload());
+    }
+
+    const config = getGarminProviderConfig();
+    if (!config.apiBaseUrl || !config.accessToken || !config.userId) {
+      throw new Error("Garmin 공식 연동 설정이 아직 완료되지 않았습니다.");
+    }
+
+    const payload = await fetchGarminDailyPayload(config, date);
+    localStorage.setItem("garmin_last_sync", new Date().toISOString());
+    return mapGarminPayloadToNormalizedHealthData(payload);
+  },
 };

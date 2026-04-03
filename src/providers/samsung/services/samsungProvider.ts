@@ -8,6 +8,10 @@ import { getSamsungLastSyncAt } from "@/providers/samsung/services/samsungConnec
 import { mapTodaySnapshotToNormalizedHealthData } from "@/providers/samsung/services/samsungMapper";
 import type { HealthProvider } from "@/providers/shared/types/provider";
 
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export const samsungProvider: HealthProvider = {
   id: "samsung",
   displayName: "Samsung Health",
@@ -49,6 +53,14 @@ export const samsungProvider: HealthProvider = {
     }
   },
   async getTodayData() {
+    const snapshot = await getSamsungTodaySnapshot();
+    return mapTodaySnapshotToNormalizedHealthData(snapshot);
+  },
+  async getDataForDate(date: string) {
+    if (date !== getTodayDateString()) {
+      throw new Error("Samsung Health는 현재 앱에서 당일 데이터만 직접 가져올 수 있습니다.");
+    }
+
     const snapshot = await getSamsungTodaySnapshot();
     return mapTodaySnapshotToNormalizedHealthData(snapshot);
   },

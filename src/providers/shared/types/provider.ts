@@ -70,4 +70,5 @@ export interface HealthProvider {
   getConnectionStatus(): Promise<ProviderConnectionStatus>;
   connect(): Promise<void>;
   getTodayData(): Promise<NormalizedHealthData>;
+  getDataForDate?(date: string): Promise<NormalizedHealthData>;
 }

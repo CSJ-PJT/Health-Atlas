@@ -73,4 +73,18 @@ export const stravaProvider: HealthProvider = {
     localStorage.setItem("strava_last_sync", new Date().toISOString());
     return mapStravaPayloadToNormalizedHealthData(payload);
   },
+  async getDataForDate(date: string) {
+    if (isMockHealthDataEnabled()) {
+      localStorage.setItem("strava_last_sync", new Date().toISOString());
+      return mapStravaPayloadToNormalizedHealthData(getMockStravaDailyPayload());
+    }
+
+    if (!hasStravaProviderConfig()) {
+      throw new Error("Strava 연동 설정이 아직 완료되지 않았습니다.");
+    }
+
+    const payload = await fetchStravaDailyPayload(getStravaProviderConfig(), date);
+    localStorage.setItem("strava_last_sync", new Date().toISOString());
+    return mapStravaPayloadToNormalizedHealthData(payload);
+  },
 };

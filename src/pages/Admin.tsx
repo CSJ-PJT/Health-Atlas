@@ -202,6 +202,23 @@ function formatDateTime(value?: string | null) {
   return date.toLocaleString("ko-KR");
 }
 
+function getDateStringWithOffset(daysAgo: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return date.toISOString().slice(0, 10);
+}
+
+function getRecentDateStrings(days: number) {
+  return Array.from({ length: days }, (_, index) => getDateStringWithOffset(days - index - 1));
+}
+
+function getProviderInstance(providerId: ProviderId) {
+  if (providerId === "samsung") return samsungProvider;
+  if (providerId === "garmin") return garminProvider;
+  if (providerId === "apple-health") return appleHealthProvider;
+  return stravaProvider;
+}
+
 function Admin() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -227,6 +244,7 @@ function Admin() {
   const [syncTime, setSyncTime] = useState("09:00");
   const [isSyncing, setIsSyncing] = useState(false);
   const [testingProviderId, setTestingProviderId] = useState<ProviderId | null>(null);
+  const [backfillingProviderId, setBackfillingProviderId] = useState<ProviderId | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [deletionRequests, setDeletionRequests] = useState<DataRequestEntry[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEventEntry[]>([]);
@@ -537,14 +555,7 @@ function Admin() {
   async function testProviderFetch(providerId: ProviderId) {
     setTestingProviderId(providerId);
     try {
-      const provider =
-        providerId === "samsung"
-          ? samsungProvider
-          : providerId === "garmin"
-            ? garminProvider
-            : providerId === "apple-health"
-              ? appleHealthProvider
-              : stravaProvider;
+      const provider = getProviderInstance(providerId);
 
       const healthData = await provider.getTodayData();
       await saveHealthSnapshot(healthData, provider.id, new Date().toISOString());
@@ -567,6 +578,51 @@ function Admin() {
       await fetchLogs();
     } finally {
       setTestingProviderId(null);
+    }
+  }
+
+  async function backfillProviderData(providerId: ProviderId, days: number) {
+    setBackfillingProviderId(providerId);
+    try {
+      const provider = getProviderInstance(providerId);
+      const dateStrings = getRecentDateStrings(days);
+      let savedCount = 0;
+
+      for (const date of dateStrings) {
+        const healthData =
+          typeof provider.getDataForDate === "function"
+            ? await provider.getDataForDate(date)
+            : date === getDateStringWithOffset(0)
+              ? await provider.getTodayData()
+              : null;
+
+        if (!healthData) {
+          continue;
+        }
+
+        await saveHealthSnapshot(healthData, provider.id, `${date}T12:00:00.000Z`);
+        savedCount += 1;
+      }
+
+      await createTransferLog("provider_backfill", "success", `${provider.displayName} 최근 ${days}일 적재 완료 (${savedCount}건)`);
+      invalidateHealthData();
+      toast({
+        title: `${provider.displayName} 최근 ${days}일 적재 완료`,
+        description: `${savedCount}일치 데이터를 health_data에 저장했습니다.`,
+      });
+      await refreshConnectionState();
+      await fetchLogs();
+    } catch (error) {
+      console.error("Provider backfill failed:", error);
+      await createTransferLog("provider_backfill", "error", error instanceof Error ? error.message : "provider backfill failed");
+      toast({
+        title: `${getProviderMeta(providerId).label} 기간 적재 실패`,
+        description: error instanceof Error ? error.message : "기간 적재 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+      await fetchLogs();
+    } finally {
+      setBackfillingProviderId(null);
     }
   }
 
@@ -912,6 +968,36 @@ function Admin() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>기간 적재</CardTitle>
+                <CardDescription>공급자별 최근 7일 또는 30일 데이터를 한 번에 적재합니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {providers.map((providerId) => (
+                  <div key={`${providerId}-backfill`} className="flex flex-col gap-2 rounded-xl border p-3 md:flex-row md:items-center md:justify-between">
+                    <div className="font-medium">{getProviderMeta(providerId).label}</div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        disabled={backfillingProviderId !== null}
+                        onClick={() => void backfillProviderData(providerId, 7)}
+                      >
+                        {backfillingProviderId === providerId ? "적재 중..." : "최근 7일"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={backfillingProviderId !== null}
+                        onClick={() => void backfillProviderData(providerId, 30)}
+                      >
+                        {backfillingProviderId === providerId ? "적재 중..." : "최근 30일"}
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </CardContent>
             </Card>

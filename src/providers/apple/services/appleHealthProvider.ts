@@ -80,4 +80,22 @@ export const appleHealthProvider: HealthProvider = {
     localStorage.setItem("apple_health_last_sync", new Date().toISOString());
     return mapAppleHealthPayloadToNormalizedHealthData(payload);
   },
+  async getDataForDate(date: string) {
+    if (isMockHealthDataEnabled()) {
+      localStorage.setItem("apple_health_last_sync", new Date().toISOString());
+      return mapAppleHealthPayloadToNormalizedHealthData(getMockAppleHealthDailyPayload());
+    }
+
+    if (!hasAppleHealthProviderConfig()) {
+      throw new Error("Apple Health 연동 설정이 아직 완료되지 않았습니다.");
+    }
+
+    if (!hasAppleHealthBridgeConfig()) {
+      throw new Error("Apple Health 데이터를 읽으려면 bridge URL과 access token 설정이 필요합니다.");
+    }
+
+    const payload = await fetchAppleHealthDailyPayload(getAppleHealthProviderConfig(), date);
+    localStorage.setItem("apple_health_last_sync", new Date().toISOString());
+    return mapAppleHealthPayloadToNormalizedHealthData(payload);
+  },
 };
