@@ -22,6 +22,7 @@ import { useInvalidateHealthData } from "@/hooks/useHealthData";
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveProvider } from "@/providers/shared";
 import { createTransferLog } from "@/providers/shared/services/transferLogRepository";
+import { saveHealthSnapshot } from "@/providers/shared/services/healthDataRepository";
 import { getSamsungLastSyncAt, setSamsungLastSyncAt } from "@/providers/samsung/services/samsungConnectionStore";
 
 interface LogEntry {
@@ -310,7 +311,9 @@ const Monitor = () => {
 
     await createTransferLog("data_collection", "pending", "Health Connect 데이터 수집 시작");
     try {
-      const data = await getActiveProvider().getTodayData();
+      const activeProvider = getActiveProvider();
+      const data = await activeProvider.getTodayData();
+      await saveHealthSnapshot(data, activeProvider.id, new Date().toISOString());
       await createTransferLog("data_collection", "success", "Health Connect 데이터 수집 완료");
       return data;
     } catch (collectionError) {

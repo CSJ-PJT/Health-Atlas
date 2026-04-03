@@ -9,8 +9,18 @@ import type {
 import { setStravaAuthExpiresAt } from "@/providers/strava/services/stravaConfigStore";
 import { setSecret } from "@/services/security/secretStorage";
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 async function refreshStravaAccessToken(config: StravaProviderConfig) {
-  const response = await fetch("https://www.strava.com/oauth/token", {
+  const response = await fetchWithTimeout("https://www.strava.com/oauth/token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -32,7 +42,7 @@ async function fetchStravaJson<T>(accessToken: string, path: string, query?: Rec
   const url = new URL(`https://www.strava.com/api/v3${path}`);
   Object.entries(query || {}).forEach(([key, value]) => url.searchParams.set(key, value));
 
-  const response = await fetch(url.toString(), {
+  const response = await fetchWithTimeout(url.toString(), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/json",

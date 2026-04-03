@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getDefaultRangeForMode, getMockHealthHistory } from "@/providers/shared/services/mockData";
 import { isMockHealthDataEnabled } from "@/providers/shared/services/mockMode";
-import type { HealthViewMode } from "@/providers/shared/types/provider";
+import type { HealthViewMode, NormalizedHealthData, ProviderId } from "@/providers/shared/types/provider";
 
 function getStartBoundary(date?: Date) {
   if (!date) {
@@ -127,4 +127,181 @@ export async function fetchHealthStats(mode: HealthViewMode, from?: Date, to?: D
   }
 
   return data;
+}
+
+function formatPaceFromSpeed(speedKmh?: number) {
+  if (!speedKmh || speedKmh <= 0) {
+    return 0;
+  }
+  return Number((3600 / speedKmh).toFixed(2));
+}
+
+function buildRunningData(normalized: NormalizedHealthData, providerId: ProviderId) {
+  const runningExercises = normalized.exercise_data.filter((exercise) => {
+    const combined = `${exercise.type} ${exercise.exerciseType || ""}`.toLowerCase();
+    return combined.includes("run") || combined.includes("running");
+  });
+
+  const sessions = runningExercises.map((exercise, index) => {
+    const activityId = `${providerId}-session-${Date.now()}-${index}`;
+    const durationSeconds = Math.round((exercise.duration || 0) * 60);
+    const distanceKm = Number(exercise.distance || 0);
+    const averageSpeed = Number(exercise.averageSpeed || 0);
+    const averagePace = Number(exercise.averagePaceSecondsPerKilometer || formatPaceFromSpeed(averageSpeed));
+    const maxSpeed = Number(exercise.maxSpeed || averageSpeed);
+    const maxPace = maxSpeed > 0 ? formatPaceFromSpeed(maxSpeed) : averagePace;
+    const lapDistanceKm = distanceKm > 0 ? Math.max(Math.floor(distanceKm), 1) : 1;
+
+    return {
+      activityId,
+      activityName: exercise.type || `${providerId} workout`,
+      activityType: String(exercise.exerciseType || exercise.type || providerId),
+      durationSeconds,
+      distanceMeters: Math.round(distanceKm * 1000),
+      averagePaceSecondsPerKilometer: averagePace,
+      bestPaceSecondsPerKilometer: maxPace || averagePace,
+      averageSpeedMetersPerSecond: averageSpeed > 0 ? Number((averageSpeed / 3.6).toFixed(3)) : 0,
+      maxSpeedMetersPerSecond: maxSpeed > 0 ? Number((maxSpeed / 3.6).toFixed(3)) : 0,
+      averageHR: exercise.averageHeartRate || normalized.heart_rate || 0,
+      maxHR: exercise.maxHeartRate || exercise.averageHeartRate || normalized.heart_rate || 0,
+      averageRunCadence: 0,
+      maxRunCadence: 0,
+      elevationGainMeters: exercise.elevationGainMeters || 0,
+      elevationLossMeters: exercise.elevationLossMeters || 0,
+      vo2Max: Array.isArray(normalized.vo2max) ? Number((normalized.vo2max[0] as { value?: number } | undefined)?.value || 0) : 0,
+      calories: exercise.calories || 0,
+      temperatureCelsius: null,
+      trainingEffectLabel: "Measured",
+      trainingEffectAerobic: 0,
+      trainingEffectAnaerobic: 0,
+      trainingLoad: 0,
+      estimatedSweatLossMl: 0,
+      averageStrideLengthMeters: 0,
+      steps: durationSeconds > 0 ? normalized.steps_data.count : 0,
+      startTime: exercise.startTime || null,
+      endTime: exercise.endTime || null,
+      lapDistanceKm,
+    };
+  });
+
+  const summary = sessions.reduce(
+    (acc, session) => {
+      acc.distanceKm += session.distanceMeters / 1000;
+      acc.durationMinutes += session.durationSeconds / 60;
+      acc.avgHeartRate += session.averageHR;
+      acc.cadence += session.averageRunCadence;
+      acc.averageSpeed += session.averageSpeedMetersPerSecond * 3.6;
+      acc.maxSpeed = Math.max(acc.maxSpeed, session.maxSpeedMetersPerSecond * 3.6);
+      acc.bestPace = acc.bestPace === 0 ? session.bestPaceSecondsPerKilometer / 60 : Math.min(acc.bestPace, session.bestPaceSecondsPerKilometer / 60);
+      acc.elevationGain += session.elevationGainMeters;
+      acc.elevationLoss += session.elevationLossMeters;
+      acc.calories += session.calories;
+      return acc;
+    },
+    {
+      distanceKm: 0,
+      durationMinutes: 0,
+      avgHeartRate: 0,
+      cadence: 0,
+      averageSpeed: 0,
+      maxSpeed: 0,
+      bestPace: 0,
+      elevationGain: 0,
+      elevationLoss: 0,
+      calories: 0,
+    },
+  );
+
+  const count = Math.max(sessions.length, 1);
+  const summaryShape = {
+    distanceKm: Number(summary.distanceKm.toFixed(2)),
+    durationMinutes: Math.round(summary.durationMinutes),
+    avgPace:
+      summary.distanceKm > 0 && summary.durationMinutes > 0
+        ? Number((summary.durationMinutes / summary.distanceKm).toFixed(2))
+        : 0,
+    bestPace: Number(summary.bestPace.toFixed(2)),
+    averageSpeed: Number((summary.averageSpeed / count).toFixed(1)),
+    maxSpeed: Number(summary.maxSpeed.toFixed(1)),
+    avgHeartRate: Math.round(summary.avgHeartRate / count),
+    cadence: Math.round(summary.cadence / count),
+    vo2max: Array.isArray(normalized.vo2max) ? Number((normalized.vo2max[0] as { value?: number } | undefined)?.value || 0) : 0,
+    elevationGain: Math.round(summary.elevationGain),
+    elevationLoss: Math.round(summary.elevationLoss),
+    calories: Math.round(summary.calories),
+  };
+
+  const session_timelines = Object.fromEntries(
+    sessions.map((session) => [
+      session.activityId,
+      [
+        {
+          label: "start",
+          minute: 0,
+          distanceKm: 0,
+          heartRate: session.averageHR,
+          pace: session.averagePaceSecondsPerKilometer / 60,
+        },
+        {
+          label: "finish",
+          minute: Math.round(session.durationSeconds / 60),
+          distanceKm: Number((session.distanceMeters / 1000).toFixed(2)),
+          heartRate: session.maxHR,
+          pace: session.bestPaceSecondsPerKilometer / 60,
+        },
+      ],
+    ]),
+  );
+
+  const session_laps = Object.fromEntries(
+    sessions.map((session) => [
+      session.activityId,
+      Array.from({ length: session.lapDistanceKm }).map((_, index) => ({
+        lap: index + 1,
+        distanceKm: 1,
+        durationMinutes: Number((summaryShape.avgPace || 0).toFixed(2)),
+        averageHeartRate: session.averageHR,
+      })),
+    ]),
+  );
+
+  return {
+    sessions,
+    summary: summaryShape,
+    hourly_series: [],
+    session_timelines,
+    session_laps,
+  };
+}
+
+export async function saveHealthSnapshot(
+  normalized: NormalizedHealthData,
+  providerId: ProviderId,
+  syncedAt = new Date().toISOString(),
+) {
+  const userId = localStorage.getItem("user_id");
+  if (!userId) {
+    return false;
+  }
+
+  const running_data = buildRunningData(normalized, providerId);
+
+  const payload = {
+    user_id: userId,
+    synced_at: syncedAt,
+    steps_data: normalized.steps_data,
+    exercise_data: normalized.exercise_data,
+    running_data,
+    sleep_data: normalized.sleep_data,
+    body_composition_data: normalized.body_composition_data,
+    nutrition_data: normalized.nutrition_data,
+  };
+
+  const { error } = await supabase.from("health_data").insert(payload);
+  if (error) {
+    console.error("Failed to save health snapshot:", error);
+    return false;
+  }
+
+  return true;
 }

@@ -25,7 +25,7 @@ export const garminProvider: HealthProvider = {
         available: true,
         requiresPermission: false,
         lastSyncAt: localStorage.getItem("garmin_last_sync"),
-        message: "Garmin mock 데이터 연결됨",
+        message: "Garmin mock 데이터 연결 상태입니다.",
         issues: [],
       };
     }
@@ -49,7 +49,7 @@ export const garminProvider: HealthProvider = {
         available: true,
         requiresPermission: false,
         lastSyncAt: localStorage.getItem("garmin_last_sync"),
-        message: "Garmin 백엔드 응답 정상",
+        message: "Garmin 백엔드 응답이 정상입니다.",
         issues: [],
       };
     } catch (error) {
@@ -58,7 +58,7 @@ export const garminProvider: HealthProvider = {
         available: true,
         requiresPermission: false,
         lastSyncAt: localStorage.getItem("garmin_last_sync"),
-        message: "Garmin 백엔드 통신 실패",
+        message: "Garmin 백엔드 통신에 실패했습니다.",
         issues: [error instanceof Error ? error.message : "알 수 없는 Garmin 오류"],
       };
     }
@@ -68,7 +68,7 @@ export const garminProvider: HealthProvider = {
       return;
     }
     if (!hasGarminProviderConfig()) {
-      throw new Error("Garmin 공식 연동용 API Base URL, Access Token, User ID 설정이 필요합니다.");
+      throw new Error("Garmin 연동을 사용하려면 API Base URL, Access Token, User ID 설정이 필요합니다.");
     }
   },
   async getTodayData() {
@@ -79,7 +79,7 @@ export const garminProvider: HealthProvider = {
 
     const config = getGarminProviderConfig();
     if (!config.apiBaseUrl || !config.accessToken || !config.userId) {
-      throw new Error("Garmin 공식 연동용 설정이 아직 없습니다.");
+      throw new Error("Garmin 공식 연동 설정이 아직 완료되지 않았습니다.");
     }
 
     const payload = await fetchGarminDailyPayload(config, getTodayDateString());

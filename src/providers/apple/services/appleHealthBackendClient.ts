@@ -7,12 +7,22 @@ function buildUrl(baseUrl: string, path: string, date: string) {
   return url.toString();
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 async function fetchJson<T>(config: AppleHealthProviderConfig, path: string, date: string) {
   if (!config.apiBaseUrl || !config.accessToken) {
     throw new Error("Apple Health backend bridge 설정이 필요합니다.");
   }
 
-  const response = await fetch(buildUrl(config.apiBaseUrl, path, date), {
+  const response = await fetchWithTimeout(buildUrl(config.apiBaseUrl, path, date), {
     headers: {
       Authorization: `Bearer ${config.accessToken}`,
       Accept: "application/json",

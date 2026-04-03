@@ -22,19 +22,32 @@ export const stravaProvider: HealthProvider = {
     const available = await this.isAvailable();
     const authExpiresAt = getStravaAuthExpiresAt();
     const issues: string[] = [];
+    let connected = available;
+
     if (!hasStravaProviderConfig() && !isMockHealthDataEnabled()) {
-      issues.push("client_id, refresh_token, athlete_id 설정이 필요합니다.");
+      issues.push("client_id, client_secret, refresh_token, athlete_id 설정이 필요합니다.");
     }
+
     if (authExpiresAt && Number(authExpiresAt) * 1000 < Date.now()) {
-      issues.push("Strava access token 만료 시각이 지났습니다. 다음 동기화 때 refresh가 필요합니다.");
+      issues.push("Strava access token 만료 시간이 지났습니다. 다음 동기화 때 refresh가 필요합니다.");
     }
+
+    if (available && !isMockHealthDataEnabled()) {
+      try {
+        await fetchStravaDailyPayload(getStravaProviderConfig(), getTodayDateString());
+      } catch (error) {
+        connected = false;
+        issues.push(error instanceof Error ? error.message : "Strava API 연결 실패");
+      }
+    }
+
     return {
-      connected: available,
+      connected,
       available,
-      requiresPermission: !available,
+      requiresPermission: !connected,
       lastSyncAt: localStorage.getItem("strava_last_sync"),
       authExpiresAt: authExpiresAt ? new Date(Number(authExpiresAt) * 1000).toISOString() : null,
-      message: available ? "Strava 연동 준비됨" : "Strava 설정이 필요합니다.",
+      message: connected ? "Strava 연결 확인 완료" : "Strava 설정 확인이 필요합니다.",
       issues,
     };
   },

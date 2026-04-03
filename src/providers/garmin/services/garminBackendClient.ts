@@ -8,8 +8,18 @@ function buildUrl(baseUrl: string, path: string, date: string, userId: string) {
   return url.toString();
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 async function fetchJson<T>(config: GarminProviderConfig, path: string, date: string) {
-  const response = await fetch(buildUrl(config.apiBaseUrl, path, date, config.userId), {
+  const response = await fetchWithTimeout(buildUrl(config.apiBaseUrl, path, date, config.userId), {
     headers: {
       Authorization: `Bearer ${config.accessToken}`,
       Accept: "application/json",

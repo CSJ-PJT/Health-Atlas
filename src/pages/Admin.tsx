@@ -36,6 +36,7 @@ import {
 } from "@/providers/shared";
 import type { ProviderId } from "@/providers/shared";
 import { createTransferLog } from "@/providers/shared/services/transferLogRepository";
+import { saveHealthSnapshot } from "@/providers/shared/services/healthDataRepository";
 import { getSamsungLastSyncAt, setSamsungLastSyncAt } from "@/providers/samsung/services/samsungConnectionStore";
 import { getStravaProviderConfig, setStravaProviderConfig } from "@/providers/strava";
 import { startKakaoLogin } from "@/services/auth/kakaoAuth";
@@ -541,8 +542,10 @@ function Admin() {
   async function syncHealthData() {
     setIsSyncing(true);
     try {
-      const healthData = await getActiveProvider().getTodayData();
+      const provider = getActiveProvider();
+      const healthData = await provider.getTodayData();
       await createTransferLog("data_collection", "success", "건강 데이터를 수집했습니다.");
+      await saveHealthSnapshot(healthData, provider.id, new Date().toISOString());
 
       const profileId = localStorage.getItem("profile_id");
       if (!profileId) {
