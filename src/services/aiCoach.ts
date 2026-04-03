@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { analyzeRecordQuality, summarizeQualityFlags } from "@/services/healthDataQuality";
 
 type RunningSummary = {
   distanceKm?: number;
@@ -10,26 +11,11 @@ type RunningSummary = {
 
 type HealthRecord = {
   synced_at: string;
-  running_data?: {
-    summary?: RunningSummary;
-  };
-  sleep_data?: {
-    totalMinutes?: number;
-    deepMinutes?: number;
-  };
-  nutrition_data?: {
-    calories?: number;
-    protein?: number;
-    carbs?: number;
-    fat?: number;
-  };
-  body_composition_data?: {
-    weight?: number;
-    bodyFat?: number;
-  };
-  steps_data?: {
-    count?: number;
-  };
+  running_data?: { summary?: RunningSummary };
+  sleep_data?: { totalMinutes?: number; deepMinutes?: number };
+  nutrition_data?: { calories?: number; protein?: number; carbs?: number; fat?: number };
+  body_composition_data?: { weight?: number; bodyFat?: number };
+  steps_data?: { count?: number };
 };
 
 function paceText(minutesValue?: number) {
@@ -67,12 +53,9 @@ export function buildAiRecommendation(records: HealthRecord[], now = new Date())
     return "오늘 추천을 만들 데이터가 아직 부족합니다.";
   }
 
-  const weeklyDistanceAvg = average(
-    weeklyBase.map((record) => Number(record.running_data?.summary?.distanceKm || 0)).filter((value) => value > 0),
-  );
-  const weeklySleepAvg = average(
-    weeklyBase.map((record) => Number(record.sleep_data?.totalMinutes || 0)).filter((value) => value > 0),
-  );
+  const qualitySummary = summarizeQualityFlags(analyzeRecordQuality(latest));
+  const weeklyDistanceAvg = average(weeklyBase.map((record) => Number(record.running_data?.summary?.distanceKm || 0)).filter((value) => value > 0));
+  const weeklySleepAvg = average(weeklyBase.map((record) => Number(record.sleep_data?.totalMinutes || 0)).filter((value) => value > 0));
 
   const distanceDiff = latestRun && previousDay?.running_data?.summary
     ? Number((Number(latestRun.distanceKm || 0) - Number(previousDay.running_data.summary?.distanceKm || 0)).toFixed(1))
@@ -82,18 +65,17 @@ export function buildAiRecommendation(records: HealthRecord[], now = new Date())
   const proteinLevel = Number(latestNutrition?.protein || 0);
   const bodyFat = Number(latestBody?.bodyFat || 0);
   const steps = Number(latestSteps?.count || 0);
-
   const daypart = getDaypart(now.getHours());
 
   if (daypart === "morning") {
-    return `오전 추천: 전일 대비 거리 ${distanceDiff >= 0 ? "+" : ""}${distanceDiff}km, 수면 ${latestSleep ? Math.round(Number(latestSleep.totalMinutes || 0)) : 0}분입니다. 오전에는 ${sleepDebt > 0 ? "강도보다 회복 우선" : "가벼운 활성화 러닝"}으로 시작하고 단백질 ${proteinLevel || "-"}g 보충을 챙기세요.`;
+    return `오전 추천: 전일 대비 거리 ${distanceDiff >= 0 ? "+" : ""}${distanceDiff}km, 수면 ${latestSleep ? Math.round(Number(latestSleep.totalMinutes || 0)) : 0}분입니다. 오전에는 ${sleepDebt > 0 ? "강도보다 회복 우선" : "가벼운 활성화 러닝"}으로 시작하고 단백질 ${proteinLevel || "-"}g 보충을 챙기세요. ${qualitySummary}`;
   }
 
   if (daypart === "afternoon") {
-    return `오후 추천: 최근 1주 평균 대비 거리 ${weeklyDelta >= 0 ? "+" : ""}${weeklyDelta}km, 걸음 수 ${steps.toLocaleString()}걸음입니다. 오후에는 케이던스 ${Math.round(Number(latestRun?.cadence || 0))}spm 유지와 수분 보충, 체지방 ${bodyFat || "-"}% 기준 무리 없는 강도 조절이 좋습니다.`;
+    return `오후 추천: 최근 1주 평균 대비 거리 ${weeklyDelta >= 0 ? "+" : ""}${weeklyDelta}km, 걸음 수 ${steps.toLocaleString()}걸음입니다. 오후에는 케이던스 ${Math.round(Number(latestRun?.cadence || 0))}spm 유지와 수분 보충, 체지방 ${bodyFat || "-"}% 기준 무리 없는 강도 조절이 좋습니다. ${qualitySummary}`;
   }
 
-  return `저녁 추천: 평균 페이스 ${paceText(latestRun?.avgPace)}, 평균 심박 ${Math.round(Number(latestRun?.avgHeartRate || 0))}bpm, 수면 평균 ${Math.round(weeklySleepAvg)}분 기준입니다. 저녁에는 스트레칭 10분과 회복 식사로 마무리하고, 잠들기 전 과도한 강도는 피하는 편이 좋습니다.`;
+  return `저녁 추천: 평균 페이스 ${paceText(latestRun?.avgPace)}, 평균 심박 ${Math.round(Number(latestRun?.avgHeartRate || 0))}bpm, 수면 평균 ${Math.round(weeklySleepAvg)}분 기준입니다. 저녁에는 스트레칭 10분과 회복 식사로 마무리하고 취침 전 강도는 낮추는 편이 좋습니다. ${qualitySummary}`;
 }
 
 export function buildAiCoachSummary(records: HealthRecord[], providerLabel: string, now = new Date()) {
@@ -106,14 +88,14 @@ export function buildAiCoachSummary(records: HealthRecord[], providerLabel: stri
   const latestBody = latest?.body_composition_data;
 
   if (!latest) {
-    return `${providerLabel} 기준 분석을 만들 데이터가 아직 부족합니다.`;
+    return `${providerLabel} 기록 기반 분석을 만들 데이터가 아직 부족합니다.`;
   }
 
   const latestDate = format(new Date(latest.synced_at), "MM-dd");
   const trendText =
     latestRun && previous?.running_data?.summary
       ? Number(latestRun.avgPace || 0) < Number(previous.running_data.summary?.avgPace || 0)
-        ? "전일 대비 페이스가 개선됐습니다."
+        ? "전일 대비 페이스가 개선되었습니다."
         : "전일 대비 페이스가 다소 느려졌습니다."
       : "비교할 전일 러닝 데이터가 아직 부족합니다.";
 
@@ -123,6 +105,7 @@ export function buildAiCoachSummary(records: HealthRecord[], providerLabel: stri
   const runText = latestRun
     ? `러닝 ${latestRun.distanceKm || 0}km, ${latestRun.durationMinutes || 0}분, 평균 페이스 ${paceText(latestRun.avgPace)}`
     : "러닝 데이터 없음";
+  const qualitySummary = summarizeQualityFlags(analyzeRecordQuality(latest));
 
-  return `${providerLabel} 기준 ${latestDate} 기록은 ${runText}, ${sleepText}, ${nutritionText}, ${bodyText}입니다. ${trendText} 현재 시간대 추천은 ${buildAiRecommendation(records, now)}`;
+  return `${providerLabel} 기준 ${latestDate} 기록은 ${runText}, ${sleepText}, ${nutritionText}, ${bodyText}입니다. ${trendText} 데이터 품질 평가는 ${qualitySummary} 현재 시간대 추천은 ${buildAiRecommendation(records, now)}`;
 }
