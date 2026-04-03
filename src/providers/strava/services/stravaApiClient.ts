@@ -1,5 +1,6 @@
 import type {
   StravaActivity,
+  StravaActivityStreamSet,
   StravaAthleteProfile,
   StravaAthleteStats,
   StravaDailyPayload,
@@ -56,6 +57,19 @@ async function fetchStravaJson<T>(accessToken: string, path: string, query?: Rec
   return response.json() as Promise<T>;
 }
 
+async function fetchDetailedActivity(accessToken: string, activityId: number) {
+  return fetchStravaJson<StravaActivity>(accessToken, `/activities/${activityId}`, {
+    include_all_efforts: "false",
+  });
+}
+
+async function fetchActivityStreams(accessToken: string, activityId: number) {
+  return fetchStravaJson<StravaActivityStreamSet>(accessToken, `/activities/${activityId}/streams`, {
+    keys: "time,distance,heartrate,velocity_smooth",
+    key_by_type: "true",
+  });
+}
+
 export async function fetchStravaDailyPayload(config: StravaProviderConfig, date: string): Promise<StravaDailyPayload> {
   const token = await refreshStravaAccessToken(config);
   setSecret("strava_access_token", token.access_token);
@@ -76,17 +90,36 @@ export async function fetchStravaDailyPayload(config: StravaProviderConfig, date
     fetchStravaJson<StravaAthleteStats>(token.access_token, `/athletes/${config.athleteId}/stats`),
   ]);
 
-  const distanceMeters = (activities || []).reduce((sum, item) => sum + (item.distance || 0), 0);
-  const activeCalories = (activities || []).reduce((sum, item) => sum + (item.calories || 0), 0);
-  const heartRateSamples = (activities || [])
+  const detailedActivities = await Promise.all(
+    (activities || []).map(async (activity) => {
+      try {
+        const [detail, streams] = await Promise.all([
+          fetchDetailedActivity(token.access_token, activity.id),
+          fetchActivityStreams(token.access_token, activity.id).catch(() => null),
+        ]);
+
+        return {
+          ...activity,
+          ...detail,
+          stream_set: streams,
+        } satisfies StravaActivity;
+      } catch {
+        return activity;
+      }
+    }),
+  );
+
+  const distanceMeters = detailedActivities.reduce((sum, item) => sum + (item.distance || 0), 0);
+  const activeCalories = detailedActivities.reduce((sum, item) => sum + (item.calories || 0), 0);
+  const heartRateSamples = detailedActivities
     .map((item) => item.average_heartrate || 0)
     .filter((value) => value > 0);
   const averageHeartRate =
     heartRateSamples.length > 0
       ? Math.round(heartRateSamples.reduce((sum, value) => sum + value, 0) / heartRateSamples.length)
       : 0;
-  const vo2Max = activities.some((item) => item.suffer_score)
-    ? Number((40 + (activities.reduce((sum, item) => sum + (item.suffer_score || 0), 0) / Math.max(activities.length, 1)) / 10).toFixed(1))
+  const vo2Max = detailedActivities.some((item) => item.suffer_score)
+    ? Number((40 + (detailedActivities.reduce((sum, item) => sum + (item.suffer_score || 0), 0) / Math.max(detailedActivities.length, 1)) / 10).toFixed(1))
     : undefined;
 
   return {
@@ -97,9 +130,9 @@ export async function fetchStravaDailyPayload(config: StravaProviderConfig, date
       averageHeartRate,
       weightKg: athlete?.weight,
       vo2Max,
-      elevationGain: (activities || []).reduce((sum, item) => sum + (item.total_elevation_gain || 0), 0),
+      elevationGain: detailedActivities.reduce((sum, item) => sum + (item.total_elevation_gain || 0), 0),
     },
-    activities: activities || [],
+    activities: detailedActivities,
     athlete: athlete || null,
     stats: stats || null,
   };

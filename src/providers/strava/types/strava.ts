@@ -18,6 +18,7 @@ export interface StravaActivity {
   name: string;
   type: string;
   start_date: string;
+  start_date_local?: string;
   elapsed_time: number;
   moving_time: number;
   distance: number;
@@ -28,6 +29,34 @@ export interface StravaActivity {
   average_heartrate?: number;
   max_heartrate?: number;
   suffer_score?: number;
+  average_cadence?: number;
+  average_temp?: number;
+  description?: string;
+  splits_metric?: StravaSplitMetric[];
+  stream_set?: StravaActivityStreamSet | null;
+}
+
+export interface StravaSplitMetric {
+  distance: number;
+  elapsed_time: number;
+  moving_time: number;
+  average_speed?: number;
+  average_grade_adjusted_speed?: number;
+  average_heartrate?: number;
+  elevation_difference?: number;
+  pace_zone?: number;
+  split?: number;
+}
+
+export interface StravaActivityStreamSeries {
+  data: number[];
+}
+
+export interface StravaActivityStreamSet {
+  time?: StravaActivityStreamSeries;
+  distance?: StravaActivityStreamSeries;
+  heartrate?: StravaActivityStreamSeries;
+  velocity_smooth?: StravaActivityStreamSeries;
 }
 
 export interface StravaAthleteStats {

@@ -137,6 +137,27 @@ function formatPaceFromSpeed(speedKmh?: number) {
 }
 
 function buildRunningData(normalized: NormalizedHealthData, providerId: ProviderId) {
+  const stravaActivityMetrics = Array.isArray(normalized.source_metrics?.stravaActivities)
+    ? (normalized.source_metrics?.stravaActivities as Array<{
+        id: number;
+        averageCadence?: number;
+        averageTemp?: number;
+        splitsMetric?: Array<{
+          split?: number;
+          distance?: number;
+          moving_time?: number;
+          average_heartrate?: number;
+        }>;
+        streamSet?: {
+          time?: { data: number[] };
+          distance?: { data: number[] };
+          heartrate?: { data: number[] };
+          velocity_smooth?: { data: number[] };
+        } | null;
+        sufferScore?: number;
+      }>)
+    : [];
+
   const runningExercises = normalized.exercise_data.filter((exercise) => {
     const combined = `${exercise.type} ${exercise.exerciseType || ""}`.toLowerCase();
     return combined.includes("run") || combined.includes("running");
@@ -144,6 +165,7 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
 
   const sessions = runningExercises.map((exercise, index) => {
     const activityId = `${providerId}-session-${Date.now()}-${index}`;
+    const stravaMetric = stravaActivityMetrics[index];
     const durationSeconds = Math.round((exercise.duration || 0) * 60);
     const distanceKm = Number(exercise.distance || 0);
     const averageSpeed = Number(exercise.averageSpeed || 0);
@@ -164,23 +186,25 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
       maxSpeedMetersPerSecond: maxSpeed > 0 ? Number((maxSpeed / 3.6).toFixed(3)) : 0,
       averageHR: exercise.averageHeartRate || normalized.heart_rate || 0,
       maxHR: exercise.maxHeartRate || exercise.averageHeartRate || normalized.heart_rate || 0,
-      averageRunCadence: 0,
-      maxRunCadence: 0,
+      averageRunCadence: Math.round(Number(stravaMetric?.averageCadence || 0)),
+      maxRunCadence: Math.round(Number(stravaMetric?.averageCadence || 0)),
       elevationGainMeters: exercise.elevationGainMeters || 0,
       elevationLossMeters: exercise.elevationLossMeters || 0,
       vo2Max: Array.isArray(normalized.vo2max) ? Number((normalized.vo2max[0] as { value?: number } | undefined)?.value || 0) : 0,
       calories: exercise.calories || 0,
-      temperatureCelsius: null,
+      temperatureCelsius: stravaMetric?.averageTemp ?? null,
       trainingEffectLabel: "Measured",
       trainingEffectAerobic: 0,
       trainingEffectAnaerobic: 0,
-      trainingLoad: 0,
+      trainingLoad: Number(stravaMetric?.sufferScore || 0),
       estimatedSweatLossMl: 0,
       averageStrideLengthMeters: 0,
       steps: durationSeconds > 0 ? normalized.steps_data.count : 0,
       startTime: exercise.startTime || null,
       endTime: exercise.endTime || null,
       lapDistanceKm,
+      sourceTimeline: stravaMetric?.streamSet || null,
+      sourceSplits: stravaMetric?.splitsMetric || [],
     };
   });
 
@@ -234,34 +258,56 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
   const session_timelines = Object.fromEntries(
     sessions.map((session) => [
       session.activityId,
-      [
-        {
-          label: "start",
-          minute: 0,
-          distanceKm: 0,
-          heartRate: session.averageHR,
-          pace: session.averagePaceSecondsPerKilometer / 60,
-        },
-        {
-          label: "finish",
-          minute: Math.round(session.durationSeconds / 60),
-          distanceKm: Number((session.distanceMeters / 1000).toFixed(2)),
-          heartRate: session.maxHR,
-          pace: session.bestPaceSecondsPerKilometer / 60,
-        },
-      ],
+      session.sourceTimeline?.time?.data?.length
+        ? session.sourceTimeline.time.data.map((time, index) => {
+            const distanceMeters = Number(session.sourceTimeline?.distance?.data?.[index] || 0);
+            const velocity = Number(session.sourceTimeline?.velocity_smooth?.data?.[index] || 0);
+            return {
+              label: `${index + 1}`,
+              minute: Math.round(time / 60),
+              time: `${Math.floor(time / 60)}:${String(Math.round(time % 60)).padStart(2, "0")}`,
+              distanceKm: Number((distanceMeters / 1000).toFixed(2)),
+              heartRate: Number(session.sourceTimeline?.heartrate?.data?.[index] || session.averageHR),
+              pace: velocity > 0 ? Number((1000 / velocity / 60).toFixed(2)) : session.averagePaceSecondsPerKilometer / 60,
+            };
+          })
+        : [
+            {
+              label: "start",
+              minute: 0,
+              time: "0:00",
+              distanceKm: 0,
+              heartRate: session.averageHR,
+              pace: session.averagePaceSecondsPerKilometer / 60,
+            },
+            {
+              label: "finish",
+              minute: Math.round(session.durationSeconds / 60),
+              time: `${Math.floor(session.durationSeconds / 60)}:00`,
+              distanceKm: Number((session.distanceMeters / 1000).toFixed(2)),
+              heartRate: session.maxHR,
+              pace: session.bestPaceSecondsPerKilometer / 60,
+            },
+          ],
     ]),
   );
 
   const session_laps = Object.fromEntries(
     sessions.map((session) => [
       session.activityId,
-      Array.from({ length: session.lapDistanceKm }).map((_, index) => ({
-        lap: index + 1,
-        distanceKm: 1,
-        durationMinutes: Number((summaryShape.avgPace || 0).toFixed(2)),
-        averageHeartRate: session.averageHR,
-      })),
+      session.sourceSplits.length > 0
+        ? session.sourceSplits.map((split, index) => ({
+            lap: split.split || index + 1,
+            distanceKm: Number((((split.distance || 0) as number) / 1000 || 1).toFixed(2)),
+            durationMinutes: Number((((split.moving_time || 0) as number) / 60).toFixed(2)),
+            averageHeartRate: Number(split.average_heartrate || session.averageHR),
+          }))
+        : Array.from({ length: session.lapDistanceKm }).map((_, index) => ({
+            lap: index + 1,
+            distanceKm: 1,
+            durationMinutes: Number((summaryShape.avgPace || 0).toFixed(2)),
+            averageHeartRate: session.averageHR,
+          })),
     ]),
   );
 

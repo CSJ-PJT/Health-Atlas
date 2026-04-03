@@ -19,6 +19,9 @@ export function mapStravaPayloadToNormalizedHealthData(payload: StravaDailyPaylo
       exerciseType: activity.type,
       distance: Number(((activity.distance || 0) / 1000).toFixed(2)),
       startTime: activity.start_date,
+      endTime: activity.start_date
+        ? new Date(new Date(activity.start_date).getTime() + (activity.elapsed_time || 0) * 1000).toISOString()
+        : undefined,
       averageHeartRate: activity.average_heartrate,
       maxHeartRate: activity.max_heartrate,
       averageSpeed: activity.average_speed ? Number((activity.average_speed * 3.6).toFixed(1)) : undefined,
@@ -44,6 +47,17 @@ export function mapStravaPayloadToNormalizedHealthData(payload: StravaDailyPaylo
       recentRunTotals: payload.stats?.recent_run_totals || null,
       allRunTotals: payload.stats?.all_run_totals || null,
       elevationGain: summary.elevationGain || 0,
+      stravaActivities: activities.map((activity) => ({
+        id: activity.id,
+        type: activity.type,
+        name: activity.name,
+        averageCadence: activity.average_cadence || 0,
+        averageTemp: activity.average_temp || 0,
+        splitsMetric: activity.splits_metric || [],
+        streamSet: activity.stream_set || null,
+        description: activity.description || "",
+        sufferScore: activity.suffer_score || 0,
+      })),
     },
   };
 }
