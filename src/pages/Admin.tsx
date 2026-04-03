@@ -48,7 +48,15 @@ import {
   type RecordType,
 } from "@/services/verifiedRecordStore";
 import { awardBadge } from "@/services/achievementStore";
-import { deleteScopedUserData, downloadUserDataExport } from "@/services/privacy/userDataControl";
+import {
+  deleteScopedUserData,
+  deleteServerUserData,
+  downloadServerUserDataExport,
+  downloadUserDataExport,
+  loadServerAuditEvents,
+  loadServerDeletionRequests,
+  submitServerDeletionRequest,
+} from "@/services/privacy/userDataControl";
 import { startKakaoLogin } from "@/services/auth/kakaoAuth";
 import { startLineLogin } from "@/services/auth/lineAuth";
 import {
@@ -72,6 +80,22 @@ interface EquipmentEntry {
   type: string;
   name: string;
   distanceKm: string;
+}
+
+interface DataRequestEntry {
+  id: string;
+  request_type: string;
+  status: string;
+  details: string;
+  created_at: string;
+}
+
+interface AuditEventEntry {
+  id: string;
+  category: string;
+  status: string;
+  message: string;
+  created_at: string;
 }
 
 const providers: ProviderId[] = ["samsung", "garmin", "apple-health", "strava"];
@@ -191,6 +215,8 @@ const Admin = () => {
   const [displayRecordType, setDisplayRecordTypeState] = useState<RecordType>("full");
   const [verifiedRecords, setVerifiedRecords] = useState(getVerifiedRecords());
   const [backgroundTone, setBackgroundTone] = useState(localStorage.getItem("app_background_hsl") || "");
+  const [deletionRequests, setDeletionRequests] = useState<DataRequestEntry[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEventEntry[]>([]);
   const recordFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -239,6 +265,10 @@ const Admin = () => {
 
     void refreshConnectionState();
     void fetchLogs();
+    void (async () => {
+      setDeletionRequests((await loadServerDeletionRequests()) as DataRequestEntry[]);
+      setAuditEvents((await loadServerAuditEvents()) as AuditEventEntry[]);
+    })();
   }, []);
 
   const refreshConnectionState = async () => {
