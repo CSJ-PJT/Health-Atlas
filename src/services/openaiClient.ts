@@ -1,3 +1,5 @@
+import { getResolvedOpenAiCredentials } from "@/services/security/openAiCredentialStore";
+
 const DEFAULT_MODEL = "gpt-4.1-mini";
 const DEFAULT_TIMEOUT_MS = 25000;
 
@@ -10,16 +12,17 @@ type ResponseItem = {
   content?: ResponseContent[];
 };
 
-function getApiKey() {
-  const apiKey = localStorage.getItem("openai_api_key");
+async function getApiKey() {
+  const { apiKey } = await getResolvedOpenAiCredentials();
   if (!apiKey) {
     throw new Error("OpenAI API Key가 설정되지 않았습니다.");
   }
   return apiKey;
 }
 
-function getProjectId() {
-  return localStorage.getItem("openai_project_id");
+async function getProjectId() {
+  const { projectId } = await getResolvedOpenAiCredentials();
+  return projectId;
 }
 
 export function getOpenAiModel() {
@@ -42,8 +45,8 @@ function parseResponseText(json: { output_text?: string; output?: ResponseItem[]
 }
 
 export async function sendAiCoachMessage(input: string, context: string) {
-  const apiKey = getApiKey();
-  const projectId = getProjectId();
+  const apiKey = await getApiKey();
+  const projectId = await getProjectId();
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 

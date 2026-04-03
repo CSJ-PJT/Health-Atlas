@@ -1,4 +1,5 @@
 import { getKakaoAuthConfig } from "@/services/auth/socialAuthStore";
+import { setSecret } from "@/services/security/secretStorage";
 
 export interface KakaoTokenResponse {
   token_type: string;
@@ -54,9 +55,9 @@ export async function exchangeKakaoCode(code: string) {
   }
 
   const json = (await response.json()) as KakaoTokenResponse;
-  localStorage.setItem("kakao_access_token", json.access_token);
+  setSecret("kakao_access_token", json.access_token);
   if (json.refresh_token) {
-    localStorage.setItem("kakao_refresh_token", json.refresh_token);
+    setSecret("kakao_refresh_token", json.refresh_token);
   }
   return json;
 }

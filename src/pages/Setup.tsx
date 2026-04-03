@@ -10,6 +10,12 @@ import { apiKeySchema, nicknameSchema, projectIdSchema } from "@/lib/validationS
 import { startKakaoLogin } from "@/services/auth/kakaoAuth";
 import { startLineLogin } from "@/services/auth/lineAuth";
 import { getKakaoAuthConfig, getLineAuthConfig } from "@/services/auth/socialAuthStore";
+import {
+  clearPendingOpenAiCredentials,
+  getPendingOpenAiCredentials,
+  hasPendingOpenAiCredentials,
+  savePendingOpenAiCredentials,
+} from "@/services/security/openAiCredentialStore";
 
 const Setup = () => {
   const [apiKey, setApiKey] = useState("");
@@ -28,10 +34,10 @@ const Setup = () => {
       return;
     }
 
-    const existingApiKey = localStorage.getItem("openai_api_key");
-    const existingProjectId = localStorage.getItem("openai_project_id");
-
-    if (existingApiKey && existingProjectId) {
+    if (hasPendingOpenAiCredentials()) {
+      const pending = getPendingOpenAiCredentials();
+      setApiKey(pending.apiKey);
+      setProjectId(pending.projectId);
       setStep(2);
     }
   }, [navigate]);
@@ -50,8 +56,7 @@ const Setup = () => {
       const validatedApiKey = apiKeySchema.parse(apiKey);
       const validatedProjectId = projectIdSchema.parse(projectId);
 
-      localStorage.setItem("openai_api_key", validatedApiKey);
-      localStorage.setItem("openai_project_id", validatedProjectId);
+      savePendingOpenAiCredentials(validatedApiKey, validatedProjectId);
       localStorage.setItem("openai_enabled", "true");
       setStep(2);
     } catch (error: any) {
@@ -66,6 +71,7 @@ const Setup = () => {
   };
 
   const handleSkip = () => {
+    clearPendingOpenAiCredentials();
     localStorage.setItem("openai_enabled", "false");
     setStep(2);
   };
@@ -94,24 +100,27 @@ const Setup = () => {
         .select()
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        throw profileError;
+      }
 
       const openaiEnabled = localStorage.getItem("openai_enabled");
       if (openaiEnabled === "true" && profileData) {
-        const storedApiKey = localStorage.getItem("openai_api_key");
-        const storedProjectId = localStorage.getItem("openai_project_id");
-
-        if (storedApiKey && storedProjectId) {
+        const pending = getPendingOpenAiCredentials();
+        if (pending.apiKey && pending.projectId) {
           const { error: credError } = await supabase.from("openai_credentials").insert({
             profile_id: profileData.id,
-            api_key: storedApiKey,
-            project_id: storedProjectId,
+            api_key: pending.apiKey,
+            project_id: pending.projectId,
           });
 
-          if (credError) throw credError;
+          if (credError) {
+            throw credError;
+          }
         }
       }
 
+      clearPendingOpenAiCredentials();
       localStorage.setItem("user_id", generatedUserId);
       localStorage.setItem("user_nickname", validatedNickname);
       localStorage.setItem("profile_id", profileData.id);
@@ -138,7 +147,7 @@ const Setup = () => {
     if (!config.restApiKey || !config.redirectUri) {
       toast({
         title: "Kakao 설정이 필요합니다",
-        description: "설정 > 연동 설정에서 REST API 키와 Redirect URI를 먼저 저장해 주세요.",
+        description: "설정 > 연동에서 REST API 키와 Redirect URI를 먼저 저장해 주세요.",
         variant: "destructive",
       });
       return;
@@ -151,7 +160,7 @@ const Setup = () => {
     if (!config.channelId || !config.redirectUri) {
       toast({
         title: "LINE 설정이 필요합니다",
-        description: "설정 > 연동 설정에서 Channel ID와 Redirect URI를 먼저 저장해 주세요.",
+        description: "설정 > 연동에서 Channel ID와 Redirect URI를 먼저 저장해 주세요.",
         variant: "destructive",
       });
       return;
@@ -222,12 +231,12 @@ const Setup = () => {
           <Card>
             <CardHeader>
               <CardTitle>닉네임 설정</CardTitle>
-              <CardDescription>사용자 닉네임을 입력해 주세요.</CardDescription>
+              <CardDescription>사용할 닉네임을 입력해 주세요.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="nickname">닉네임</Label>
-                <Input id="nickname" type="text" placeholder="사용자 닉네임을 입력하세요" value={nickname} onChange={(e) => setNickname(e.target.value)} />
+                <Input id="nickname" type="text" placeholder="사용할 닉네임을 입력하세요" value={nickname} onChange={(e) => setNickname(e.target.value)} />
               </div>
 
               <Button onClick={handleComplete} className="w-full">

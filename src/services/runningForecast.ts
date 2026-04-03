@@ -1,5 +1,6 @@
 import { addDays, format } from "date-fns";
 import { sendAiCoachMessage } from "@/services/openaiClient";
+import { getResolvedOpenAiCredentials } from "@/services/security/openAiCredentialStore";
 
 type RunningRecord = {
   synced_at: string;
@@ -158,7 +159,7 @@ function buildDeltaSummary(points: ForecastPoint[], records: RunningRecord[]) {
 
 export async function generateRunningForecast(records: RunningRecord[]) {
   const heuristic = buildHeuristicForecast(records);
-  const apiKey = localStorage.getItem("openai_api_key");
+  const { apiKey } = await getResolvedOpenAiCredentials();
   const recentMonthRecords = getRecentMonthRecords(records);
 
   if (!apiKey) {

@@ -57,6 +57,7 @@ import {
   setKakaoAuthConfig,
   setLineAuthConfig,
 } from "@/services/auth/socialAuthStore";
+import { hasPendingOpenAiCredentials } from "@/services/security/openAiCredentialStore";
 
 interface LogEntry {
   id: string;
@@ -240,7 +241,7 @@ const Admin = () => {
       setProviderStatus("disconnected");
     }
 
-    const gptEnabled = localStorage.getItem("openai_enabled") === "true" || !!localStorage.getItem("openai_api_key");
+    const gptEnabled = localStorage.getItem("openai_enabled") === "true" || hasPendingOpenAiCredentials();
     const lastSync = localStorage.getItem("lastSync");
     setGptStatus(gptEnabled ? "connected" : "disconnected");
     setGptLastSync(lastSync ? new Date(lastSync).toLocaleString("ko-KR") : "");

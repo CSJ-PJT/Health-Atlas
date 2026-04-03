@@ -1,6 +1,9 @@
 import { getEarnedBadges } from "@/services/achievementStore";
 import { getFeedComments, getFeedPosts } from "@/services/feedStore";
 import { getProfileSettings } from "@/services/profileStore";
+import { createAuditLog } from "@/services/security/auditLogRepository";
+import { clearPendingOpenAiCredentials } from "@/services/security/openAiCredentialStore";
+import { removeSecret } from "@/services/security/secretStorage";
 import { getChatMessages, getChatRooms, getFriends } from "@/services/socialStore";
 import { getVerifiedRecords } from "@/services/verifiedRecordStore";
 
@@ -48,8 +51,21 @@ export function downloadUserDataExport() {
   anchor.download = `rh-healthcare-export-${Date.now()}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
+  void createAuditLog("사용자 데이터 내보내기 수행");
 }
 
 export function deleteScopedUserData() {
   scopedKeys().forEach((key) => localStorage.removeItem(key));
+  clearPendingOpenAiCredentials();
+  [
+    "garmin_access_token",
+    "apple_health_access_token",
+    "strava_client_secret",
+    "strava_refresh_token",
+    "kakao_auth_config_client_secret",
+    "line_auth_config_client_secret",
+    "kakao_access_token",
+    "kakao_refresh_token",
+  ].forEach(removeSecret);
+  void createAuditLog("로컬 사용자 데이터 삭제 수행");
 }

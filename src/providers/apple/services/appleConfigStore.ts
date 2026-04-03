@@ -1,4 +1,5 @@
 import type { AppleHealthProviderConfig } from "@/providers/apple/types/apple";
+import { getSecret, setSecret } from "@/services/security/secretStorage";
 
 const APPLE_APP_ID_KEY = "apple_health_app_id";
 const APPLE_TEAM_ID_KEY = "apple_health_team_id";
@@ -12,7 +13,7 @@ export function getAppleHealthProviderConfig(): AppleHealthProviderConfig {
     teamId: localStorage.getItem(APPLE_TEAM_ID_KEY)?.trim() || "",
     redirectUri: localStorage.getItem(APPLE_REDIRECT_URI_KEY)?.trim() || "",
     apiBaseUrl: localStorage.getItem(APPLE_API_BASE_URL_KEY)?.trim() || "",
-    accessToken: localStorage.getItem(APPLE_ACCESS_TOKEN_KEY)?.trim() || "",
+    accessToken: getSecret(APPLE_ACCESS_TOKEN_KEY),
   };
 }
 
@@ -21,7 +22,7 @@ export function setAppleHealthProviderConfig(config: AppleHealthProviderConfig) 
   localStorage.setItem(APPLE_TEAM_ID_KEY, config.teamId.trim());
   localStorage.setItem(APPLE_REDIRECT_URI_KEY, config.redirectUri.trim());
   localStorage.setItem(APPLE_API_BASE_URL_KEY, config.apiBaseUrl?.trim() || "");
-  localStorage.setItem(APPLE_ACCESS_TOKEN_KEY, config.accessToken?.trim() || "");
+  setSecret(APPLE_ACCESS_TOKEN_KEY, config.accessToken?.trim() || "");
 }
 
 export function hasAppleHealthProviderConfig() {
