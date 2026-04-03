@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_state_snapshots: {
+        Row: {
+          created_at: string
+          id: string
+          payload: Json
+          profile_id: string
+          scope_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          payload?: Json
+          profile_id: string
+          scope_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          payload?: Json
+          profile_id?: string
+          scope_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_state_snapshots_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       health_data: {
         Row: {
           body_composition_data: Json | null

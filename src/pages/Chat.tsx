@@ -18,6 +18,7 @@ import {
   getChatRooms,
   getFriends,
   getRoomMessages,
+  hydrateSocialStoreFromServer,
   removeFriend,
   renameChatRoom,
   renameFriend,
@@ -126,6 +127,12 @@ const Chat = () => {
   useEffect(() => {
     ensureSocialSeed();
     refreshSocialState();
+    void (async () => {
+      const changed = await hydrateSocialStoreFromServer();
+      if (changed) {
+        refreshSocialState();
+      }
+    })();
   }, []);
 
   const activeRoom = rooms.find((room) => room.id === activeRoomId) ?? null;

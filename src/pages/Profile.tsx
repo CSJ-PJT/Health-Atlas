@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Award, BarChart3, HeartPulse, Save, Trophy, UserRound } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Header } from "@/components/Header";
@@ -16,9 +16,9 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getEarnedBadges } from "@/services/achievementStore";
-import { getFeedPosts } from "@/services/feedStore";
-import { getProfileSettings, saveProfileSettings } from "@/services/profileStore";
-import { buildRecordTag, findDisplayedRecord } from "@/services/verifiedRecordStore";
+import { getFeedPosts, hydrateFeedStoreFromServer } from "@/services/feedStore";
+import { getProfileSettings, hydrateProfileSettingsFromServer, saveProfileSettings } from "@/services/profileStore";
+import { buildRecordTag, findDisplayedRecord, hydrateVerifiedRecordsFromServer } from "@/services/verifiedRecordStore";
 
 type ProfileState = {
   from?: string;
@@ -38,6 +38,7 @@ const Profile = () => {
   const params = useParams();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [, setReloadTick] = useState(0);
   const state = (location.state || {}) as ProfileState;
   const backTarget = state.from || "/game";
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -96,6 +97,19 @@ const Profile = () => {
 
   const visibleSummary = isMyProfile ? showSummary : settings.showSummary;
   const personalFeed = useMemo(() => getFeedPosts().filter((post) => post.authorId === profile.userId), [profile.userId]);
+
+  useEffect(() => {
+    void (async () => {
+      const [profileChanged, recordChanged, feedChanged] = await Promise.all([
+        hydrateProfileSettingsFromServer(),
+        hydrateVerifiedRecordsFromServer(),
+        hydrateFeedStoreFromServer(),
+      ]);
+      if (profileChanged || recordChanged || feedChanged) {
+        setReloadTick((value) => value + 1);
+      }
+    })();
+  }, []);
 
   const statCards = [
     { label: "활동 상태", value: profile.score, icon: Trophy },

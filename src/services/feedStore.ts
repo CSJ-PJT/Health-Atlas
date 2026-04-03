@@ -1,6 +1,7 @@
 import {
   getStoredFeedComments,
   getStoredFeedPosts,
+  hydrateFeedRepositoryFromServer,
   saveStoredFeedComments,
   saveStoredFeedPosts,
 } from "@/services/repositories/feedRepository";
@@ -317,4 +318,8 @@ export function toggleFeedCommentLike(commentId: string, userId: string) {
   });
 
   return saveComments(next);
+}
+
+export async function hydrateFeedStoreFromServer() {
+  return hydrateFeedRepositoryFromServer();
 }

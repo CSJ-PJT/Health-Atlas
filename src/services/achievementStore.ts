@@ -1,4 +1,5 @@
 import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
+import { loadServerSnapshot, saveServerSnapshot } from "@/services/repositories/serverSnapshotRepository";
 
 export interface EarnedBadge {
   id: string;
@@ -21,5 +22,15 @@ export function awardBadge(badge: Omit<EarnedBadge, "earnedAt">) {
   }
   const next = [...badges, { ...badge, earnedAt: new Date().toISOString() }];
   writeScopedJson(BADGES_KEY, next);
+  void saveServerSnapshot("earned_badges", next);
   return next;
+}
+
+export async function hydrateEarnedBadgesFromServer() {
+  const badges = await loadServerSnapshot<EarnedBadge[]>("earned_badges");
+  if (!Array.isArray(badges)) {
+    return false;
+  }
+  writeScopedJson(BADGES_KEY, badges);
+  return true;
 }

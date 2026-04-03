@@ -16,6 +16,7 @@ import {
   ensureFeedSeed,
   getFeedComments,
   getFeedPosts,
+  hydrateFeedStoreFromServer,
   toggleFeedCommentLike,
   updateFeedPost,
   type FeedComment,
@@ -114,6 +115,12 @@ const Feed = () => {
   useEffect(() => {
     ensureFeedSeed();
     setTick((value) => value + 1);
+    void (async () => {
+      const changed = await hydrateFeedStoreFromServer();
+      if (changed) {
+        setTick((value) => value + 1);
+      }
+    })();
   }, []);
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
+import { loadServerSnapshot, saveServerSnapshot } from "@/services/repositories/serverSnapshotRepository";
 import type { ChatMessage, ChatRoom, FriendEntry } from "@/services/socialStore";
 
 const FRIENDS_KEY = "social_friends";
@@ -11,6 +12,7 @@ export function getStoredFriends() {
 
 export function saveStoredFriends(friends: FriendEntry[]) {
   writeScopedJson(FRIENDS_KEY, friends);
+  void saveServerSnapshot("social_friends", friends);
 }
 
 export function getStoredChatRooms() {
@@ -19,6 +21,7 @@ export function getStoredChatRooms() {
 
 export function saveStoredChatRooms(rooms: ChatRoom[]) {
   writeScopedJson(CHAT_ROOMS_KEY, rooms);
+  void saveServerSnapshot("social_chat_rooms", rooms);
 }
 
 export function getStoredChatMessages() {
@@ -27,4 +30,32 @@ export function getStoredChatMessages() {
 
 export function saveStoredChatMessages(messages: ChatMessage[]) {
   writeScopedJson(CHAT_MESSAGES_KEY, messages);
+  void saveServerSnapshot("social_chat_messages", messages);
+}
+
+export async function hydrateSocialRepositoryFromServer() {
+  const [friends, rooms, messages] = await Promise.all([
+    loadServerSnapshot<FriendEntry[]>("social_friends"),
+    loadServerSnapshot<ChatRoom[]>("social_chat_rooms"),
+    loadServerSnapshot<ChatMessage[]>("social_chat_messages"),
+  ]);
+
+  let changed = false;
+
+  if (Array.isArray(friends) && friends.length > 0) {
+    writeScopedJson(FRIENDS_KEY, friends);
+    changed = true;
+  }
+
+  if (Array.isArray(rooms) && rooms.length > 0) {
+    writeScopedJson(CHAT_ROOMS_KEY, rooms);
+    changed = true;
+  }
+
+  if (Array.isArray(messages)) {
+    writeScopedJson(CHAT_MESSAGES_KEY, messages);
+    changed = true;
+  }
+
+  return changed;
 }

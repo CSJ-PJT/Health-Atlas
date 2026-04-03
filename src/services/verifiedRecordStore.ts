@@ -1,4 +1,5 @@
 import { readScopedJson, readScopedValue, writeScopedJson, writeScopedValue } from "@/services/persistence/scopedStorage";
+import { loadServerSnapshot, saveServerSnapshot } from "@/services/repositories/serverSnapshotRepository";
 
 export type RecordType = "10k" | "half" | "full";
 
@@ -29,6 +30,7 @@ export function saveVerifiedRecord(record: Omit<VerifiedRecord, "id" | "uploaded
     ...records,
   ];
   writeScopedJson(RECORDS_KEY, next);
+  void saveServerSnapshot("verified_records", next);
   return next;
 }
 
@@ -38,6 +40,7 @@ export function getDisplayedRecordType(): RecordType {
 
 export function setDisplayedRecordType(type: RecordType) {
   writeScopedValue(DISPLAY_KEY, type);
+  void saveServerSnapshot("display_record_type", type);
 }
 
 export function findDisplayedRecord() {
@@ -57,4 +60,25 @@ export function buildRecordTag(record: VerifiedRecord | null) {
   if (record.type === "half") return `Half ${record.officialTime}`;
   if (record.type === "10k") return `10K ${record.officialTime}`;
   return record.officialTime;
+}
+
+export async function hydrateVerifiedRecordsFromServer() {
+  const [records, displayType] = await Promise.all([
+    loadServerSnapshot<VerifiedRecord[]>("verified_records"),
+    loadServerSnapshot<RecordType>("display_record_type"),
+  ]);
+
+  let changed = false;
+
+  if (Array.isArray(records)) {
+    writeScopedJson(RECORDS_KEY, records);
+    changed = true;
+  }
+
+  if (displayType === "10k" || displayType === "half" || displayType === "full") {
+    writeScopedValue(DISPLAY_KEY, displayType);
+    changed = true;
+  }
+
+  return changed;
 }

@@ -1,4 +1,5 @@
 import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
+import { loadServerSnapshot, saveServerSnapshot } from "@/services/repositories/serverSnapshotRepository";
 
 export interface UserProfileSettings {
   userId: string;
@@ -63,4 +64,14 @@ export function saveProfileSettings(profile: UserProfileSettings) {
   const all = getAllProfileSettings();
   all[profile.userId] = profile;
   writeScopedJson(PROFILE_SETTINGS_KEY, all);
+  void saveServerSnapshot("profile_settings", all);
+}
+
+export async function hydrateProfileSettingsFromServer() {
+  const all = await loadServerSnapshot<Record<string, UserProfileSettings>>("profile_settings");
+  if (!all) {
+    return false;
+  }
+  writeScopedJson(PROFILE_SETTINGS_KEY, all);
+  return true;
 }

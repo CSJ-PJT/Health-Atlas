@@ -3,6 +3,7 @@ import {
   getStoredChatMessages,
   getStoredChatRooms,
   getStoredFriends,
+  hydrateSocialRepositoryFromServer,
   saveStoredChatMessages,
   saveStoredChatRooms,
   saveStoredFriends,
@@ -219,4 +220,8 @@ export function ensureSocialSeed() {
   saveStoredFriends(seedFriends);
   saveStoredChatRooms([directRoom, groupRoom, recoveryRoom]);
   saveStoredChatMessages(seedMessages);
+}
+
+export async function hydrateSocialStoreFromServer() {
+  return hydrateSocialRepositoryFromServer();
 }
