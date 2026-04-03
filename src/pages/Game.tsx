@@ -11,22 +11,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { GameArena, type PlayableGameId } from "@/components/entertainment/GameArena";
 import { awardBadge } from "@/services/achievementStore";
-import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
-import { loadServerSnapshot, saveServerSnapshot } from "@/services/repositories/serverSnapshotRepository";
+import {
+  getStoredEntertainmentChallenges,
+  getStoredEntertainmentRooms,
+  getStoredEntertainmentScores,
+  hydrateEntertainmentRepositoryFromServer,
+  saveStoredEntertainmentChallenges,
+  saveStoredEntertainmentRooms,
+  saveStoredEntertainmentScores,
+} from "@/services/repositories/entertainmentRepository";
 import { getFriends, type FriendEntry } from "@/services/socialStore";
-
-type ChallengeIcon = "run" | "heart" | "sleep" | "team";
-type RankingRange = "weekly" | "monthly";
-type ChallengeEntry = { id: string; title: string; description: string; details: string; reward: string; icon: ChallengeIcon; progress: number; joinedUserIds: string[]; completedUserIds: string[] };
-type RankingRow = { name: string; userId: string; score: number; rank: number };
-type MultiRoom = { id: string; title: string; hostId: string; hostName: string; gameId: PlayableGameId; durationSeconds: 30 | 60; teamMode: boolean; participants: Array<{ userId: string; name: string }>; chat: Array<{ id: string; name: string; text: string }>; maxPlayers: number };
+import {
+  type ChallengeEntry,
+  type ChallengeIcon,
+  type MultiRoom,
+  type RankingRange,
+  type RankingRow,
+} from "@/services/entertainmentTypes";
 
 const MY_USER_ID = localStorage.getItem("user_id") || "me";
 const MY_USER_NAME = localStorage.getItem("user_nickname") || "사용자";
-const CHALLENGE_KEY = "game_challenges_v7";
-const SCORE_KEY = "playable_game_scores_v4";
-const ROOM_KEY = "multiplayer_rooms_v1";
-
 const challengeIcons = { run: Footprints, heart: HeartPulse, sleep: Moon, team: Users } as const;
 const miniGames: Array<{ id: PlayableGameId; title: string; summary: string }> = [
   { id: "tap-sprint", title: "탭 스프린트", summary: "10초 동안 최대한 많이 탭하는 반응 속도 게임입니다." },
@@ -54,20 +58,19 @@ const featuredBadges = [
 ];
 
 function getChallenges(): ChallengeEntry[] {
-  const data = readScopedJson<ChallengeEntry[]>(CHALLENGE_KEY, []);
+  const data = getStoredEntertainmentChallenges();
   if (data.length > 0) return data;
   const seed: ChallengeEntry[] = [
     { id: "seed-run", title: "주간 18km 러닝", description: "이번 주 18km 이상 러닝", details: "회복 러닝, 템포 러닝, 롱런을 조합해 달성하는 기본 챌린지입니다.", reward: "라벤더 러너 배지", icon: "run", progress: 42, joinedUserIds: [], completedUserIds: [] },
     { id: "seed-sleep", title: "수면 밸런스", description: "7일 평균 수면 7시간 20분", details: "취침과 기상 시간을 일정하게 유지하는 회복 중심 챌린지입니다.", reward: "수면 밸런스 배지", icon: "sleep", progress: 68, joinedUserIds: [], completedUserIds: [] },
     { id: "seed-team", title: "그룹 30km", description: "친구와 함께 누적 30km", details: "여러 명이 참여할수록 더 빨리 달성할 수 있는 커뮤니티형 챌린지입니다.", reward: "커뮤니티 MVP 배지", icon: "team", progress: 27, joinedUserIds: [], completedUserIds: [] },
   ];
-  writeScopedJson(CHALLENGE_KEY, seed);
-  void saveServerSnapshot("entertainment_challenges", seed);
+  saveStoredEntertainmentChallenges(seed);
   return seed;
 }
 
-function getScores(): Record<PlayableGameId, number> { return readScopedJson<Record<PlayableGameId, number>>(SCORE_KEY, { "tap-sprint": 0, "reaction-grid": 0, "pace-memory": 0, tetris: 0 }); }
-function getRooms(): MultiRoom[] { return readScopedJson<MultiRoom[]>(ROOM_KEY, []); }
+function getScores(): Record<PlayableGameId, number> { return getStoredEntertainmentScores(); }
+function getRooms(): MultiRoom[] { return getStoredEntertainmentRooms(); }
 export default function Game() {
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [challenges, setChallenges] = useState<ChallengeEntry[]>([]);
@@ -110,16 +113,12 @@ export default function Game() {
   useEffect(() => {
     let cancelled = false;
     async function hydrateEntertainment() {
-      const [serverChallenges, serverScores, serverRooms] = await Promise.all([
-        loadServerSnapshot<ChallengeEntry[]>("entertainment_challenges"),
-        loadServerSnapshot<Record<PlayableGameId, number>>("entertainment_scores"),
-        loadServerSnapshot<MultiRoom[]>("entertainment_rooms"),
-      ]);
+      await hydrateEntertainmentRepositoryFromServer();
       if (cancelled) return;
       setFriends(getFriends());
-      setChallenges(serverChallenges?.length ? serverChallenges : getChallenges());
-      setScores(serverScores || getScores());
-      setRooms(serverRooms || getRooms());
+      setChallenges(getChallenges());
+      setScores(getScores());
+      setRooms(getRooms());
     }
     void hydrateEntertainment();
     return () => { cancelled = true; };
@@ -132,13 +131,11 @@ export default function Game() {
 
   const saveChallenges = (next: ChallengeEntry[]) => {
     setChallenges(next);
-    writeScopedJson(CHALLENGE_KEY, next);
-    void saveServerSnapshot("entertainment_challenges", next);
+    saveStoredEntertainmentChallenges(next);
   };
   const saveRooms = (next: MultiRoom[]) => {
     setRooms(next);
-    writeScopedJson(ROOM_KEY, next);
-    void saveServerSnapshot("entertainment_rooms", next);
+    saveStoredEntertainmentRooms(next);
   };
 
   const handleCreateChallenge = () => {
@@ -191,8 +188,7 @@ export default function Game() {
     }
     const next = { ...scores, [gameId]: Math.max(scores[gameId] || 0, score) };
     setScores(next);
-    writeScopedJson(SCORE_KEY, next);
-    void saveServerSnapshot("entertainment_scores", next);
+    saveStoredEntertainmentScores(next);
     if (gameId === "tetris" && next.tetris >= 180) awardBadge({ id: "badge-tetris-master", name: "블록 마스터", description: "테트리스 180점 이상을 달성했습니다.", icon: "🧱" });
   };
 
