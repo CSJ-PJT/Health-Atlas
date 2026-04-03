@@ -121,15 +121,9 @@ async function replaceServerFeedComments(comments: FeedComment[]) {
 }
 
 async function loadServerFeedPosts() {
-  const profileId = getProfileId();
-  if (!profileId) {
-    return null;
-  }
-
   const { data, error } = await supabase
     .from("social_feed_posts")
     .select("*")
-    .eq("profile_id", profileId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -151,15 +145,9 @@ async function loadServerFeedPosts() {
 }
 
 async function loadServerFeedComments() {
-  const profileId = getProfileId();
-  if (!profileId) {
-    return null;
-  }
-
   const { data, error } = await supabase
     .from("social_feed_comments")
     .select("*")
-    .eq("profile_id", profileId)
     .order("created_at", { ascending: true });
 
   if (error) {

@@ -130,12 +130,7 @@ async function saveServerProfileSettings(all: Record<string, UserProfileSettings
 }
 
 async function loadServerProfileSettings() {
-  const profileId = getProfileId();
-  if (!profileId) {
-    return null;
-  }
-
-  const { data, error } = await supabase.from("user_profile_settings").select("*").eq("profile_id", profileId);
+  const { data, error } = await supabase.from("user_profile_settings").select("*");
   if (error) {
     return null;
   }
