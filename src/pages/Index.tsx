@@ -380,7 +380,7 @@ const Index = () => {
         title: "심박수",
         body: (
           <div className="space-y-1 text-sm">
-            <div className="text-3xl font-bold text-cyan-600">{data.heart_rate} bpm</div>
+            <div className="text-3xl font-bold text-primary">{data.heart_rate} bpm</div>
             <div className="text-muted-foreground">현재 평균 심박수 기준입니다.</div>
           </div>
         ),
@@ -446,7 +446,7 @@ const Index = () => {
                 {isDisplayMetricEnabled("home", "highlights") ? (
                   <div className="rounded-2xl border bg-background/85 p-4">
                     <div className="flex items-center gap-2 text-sm font-semibold">
-                      <Activity className="h-4 w-4 text-cyan-600" />
+                      <Activity className="h-4 w-4 text-primary" />
                       오늘 운동 하이라이트
                     </div>
                     <div className="mt-3 space-y-3">
@@ -470,7 +470,7 @@ const Index = () => {
                 {isDisplayMetricEnabled("home", "body-balance") ? (
                   <div className="rounded-2xl border bg-background/85 p-4">
                     <div className="flex items-center gap-2 text-sm font-semibold">
-                      <Timer className="h-4 w-4 text-cyan-600" />
+                      <Timer className="h-4 w-4 text-primary" />
                       오늘 바디 밸런스
                     </div>
                     <div className="mt-3">

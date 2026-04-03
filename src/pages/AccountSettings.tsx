@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { nicknameSchema, passwordSchema, userIdSchema } from "@/lib/validationSchemas";
@@ -89,17 +89,26 @@ type PermissionTab = keyof typeof permissionOptions;
 
 const AccountSettings = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  useDeviceBackNavigation("/admin");
+  const backTarget =
+    typeof location.state === "object" &&
+    location.state !== null &&
+    "from" in location.state &&
+    typeof (location.state as { from?: unknown }).from === "string"
+      ? ((location.state as { from?: string }).from || "/admin")
+      : "/admin";
 
-  const [profileId, setProfileId] = useState<string | null>(null);
-  const [userId, setUserId] = useState("");
+  useDeviceBackNavigation(backTarget);
+
+  const [profileId, setProfileId] = useState<string | null>(localStorage.getItem("profile_id"));
+  const [userId, setUserId] = useState(localStorage.getItem("user_id") || "");
   const [newUserId, setNewUserId] = useState("");
   const [userIdChanged, setUserIdChanged] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [nickname, setNickname] = useState("");
+  const [nickname, setNickname] = useState(localStorage.getItem("user_nickname") || "");
   const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem("user_avatar") || "");
   const [isLoading, setIsLoading] = useState(false);
   const [permissionTab, setPermissionTab] = useState<PermissionTab>("health-connect");
@@ -123,41 +132,54 @@ const AccountSettings = () => {
   }, []);
 
   const loadProfileData = async () => {
+    const storedUserId = localStorage.getItem("user_id");
+    const storedProfileId = localStorage.getItem("profile_id");
+
+    if (!storedUserId) {
+      navigate("/setup", { replace: true });
+      return;
+    }
+
+    setUserId(storedUserId);
+
     try {
-      const storedUserId = localStorage.getItem("user_id");
-      if (!storedUserId) {
-        navigate("/setup");
-        return;
+      if (storedProfileId) {
+        const byId = await supabase.from("profiles").select("*").eq("id", storedProfileId).maybeSingle();
+        if (byId.error) throw byId.error;
+        if (byId.data) {
+          setProfileId(byId.data.id);
+          setUserId(byId.data.user_id);
+          setNickname(byId.data.nickname || localStorage.getItem("user_nickname") || "");
+          setUserIdChanged(Boolean(byId.data.user_id_changed));
+          localStorage.setItem("user_id", byId.data.user_id);
+          if (byId.data.nickname) {
+            localStorage.setItem("user_nickname", byId.data.nickname);
+          }
+          return;
+        }
       }
 
-      const { data, error } = await supabase.from("profiles").select("*").eq("user_id", storedUserId).maybeSingle();
-      if (error) throw error;
+      const byUserId = await supabase.from("profiles").select("*").eq("user_id", storedUserId).maybeSingle();
+      if (byUserId.error) throw byUserId.error;
 
-      if (data) {
-        setProfileId(data.id);
-        setUserId(data.user_id);
-        setNickname(data.nickname || localStorage.getItem("user_nickname") || "");
-        setUserIdChanged(Boolean(data.user_id_changed));
-      } else {
-        setUserId(storedUserId);
-        setNickname(localStorage.getItem("user_nickname") || "");
+      if (byUserId.data) {
+        setProfileId(byUserId.data.id);
+        setNickname(byUserId.data.nickname || localStorage.getItem("user_nickname") || "");
+        setUserIdChanged(Boolean(byUserId.data.user_id_changed));
+        localStorage.setItem("profile_id", byUserId.data.id);
+        if (byUserId.data.nickname) {
+          localStorage.setItem("user_nickname", byUserId.data.nickname);
+        }
       }
     } catch (error) {
       console.error("Failed to load profile:", error);
-      toast({
-        title: "프로필을 불러오지 못했습니다",
-        description: "잠시 후 다시 시도해 주세요",
-        variant: "destructive",
-      });
+      setNickname(localStorage.getItem("user_nickname") || "");
     }
   };
 
   const handleUserIdChange = async () => {
     if (userIdChanged) {
-      toast({
-        title: "사용자 ID는 한 번만 변경할 수 있습니다",
-        variant: "destructive",
-      });
+      toast({ title: "사용자 ID는 한 번만 변경할 수 있습니다.", variant: "destructive" });
       return;
     }
 
@@ -165,18 +187,23 @@ const AccountSettings = () => {
       const validated = userIdSchema.parse(newUserId);
       setIsLoading(true);
 
-      const { data: existingUser } = await supabase.from("profiles").select("user_id").eq("user_id", validated).maybeSingle();
+      const { data: existingUser, error: existingError } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", validated)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
       if (existingUser) {
-        toast({
-          title: "이미 사용 중인 ID입니다",
-          description: "다른 ID를 입력해 주세요",
-          variant: "destructive",
-        });
+        toast({ title: "이미 사용 중인 사용자 ID입니다.", variant: "destructive" });
         return;
       }
 
       if (profileId) {
-        const { error } = await supabase.from("profiles").update({ user_id: validated, user_id_changed: true }).eq("id", profileId);
+        const { error } = await supabase
+          .from("profiles")
+          .update({ user_id: validated, user_id_changed: true })
+          .eq("id", profileId);
         if (error) throw error;
       }
 
@@ -184,13 +211,11 @@ const AccountSettings = () => {
       setUserId(validated);
       setUserIdChanged(true);
       setNewUserId("");
-      toast({
-        title: "사용자 ID를 변경했습니다",
-      });
+      toast({ title: "사용자 ID를 변경했습니다." });
     } catch (error: any) {
       toast({
         title: "사용자 ID 변경 실패",
-        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요",
+        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
@@ -201,8 +226,8 @@ const AccountSettings = () => {
   const handlePasswordChange = async () => {
     if (password !== confirmPassword) {
       toast({
-        title: "비밀번호가 일치하지 않습니다",
-        description: "입력값을 다시 확인해 주세요",
+        title: "비밀번호가 일치하지 않습니다.",
+        description: "입력값을 다시 확인해 주세요.",
         variant: "destructive",
       });
       return;
@@ -214,13 +239,11 @@ const AccountSettings = () => {
       localStorage.setItem("user_password", btoa(password));
       setPassword("");
       setConfirmPassword("");
-      toast({
-        title: "비밀번호를 저장했습니다",
-      });
+      toast({ title: "비밀번호를 저장했습니다." });
     } catch (error: any) {
       toast({
         title: "비밀번호 저장 실패",
-        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요",
+        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
@@ -229,20 +252,25 @@ const AccountSettings = () => {
   };
 
   const handleNicknameSave = async () => {
+    const storedUserId = localStorage.getItem("user_id");
+
     try {
       const validated = nicknameSchema.parse(nickname);
-      const storedUserId = localStorage.getItem("user_id");
+      if (!storedUserId) {
+        throw new Error("사용자 정보가 없습니다.");
+      }
+
       setIsLoading(true);
 
-      if (profileId) {
-        const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", profileId);
-        if (error) throw error;
-      } else if (storedUserId) {
-        const existing = await supabase.from("profiles").select("id").eq("user_id", storedUserId).maybeSingle();
+      let ensuredProfileId = profileId;
+      if (!ensuredProfileId) {
+        const existing = await supabase.from("profiles").select("*").eq("user_id", storedUserId).maybeSingle();
+        if (existing.error) throw existing.error;
+
         if (existing.data?.id) {
+          ensuredProfileId = existing.data.id;
           setProfileId(existing.data.id);
-          const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", existing.data.id);
-          if (error) throw error;
+          localStorage.setItem("profile_id", existing.data.id);
         } else {
           const created = await supabase
             .from("profiles")
@@ -255,18 +283,21 @@ const AccountSettings = () => {
             .single();
 
           if (created.error) throw created.error;
+          ensuredProfileId = created.data.id;
           setProfileId(created.data.id);
+          localStorage.setItem("profile_id", created.data.id);
         }
       }
 
+      const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", ensuredProfileId);
+      if (error) throw error;
+
       localStorage.setItem("user_nickname", validated);
-      toast({
-        title: "닉네임을 저장했습니다",
-      });
+      toast({ title: "닉네임을 저장했습니다." });
     } catch (error: any) {
       toast({
         title: "닉네임 저장 실패",
-        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요",
+        description: error?.errors?.[0]?.message || error?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
@@ -286,9 +317,7 @@ const AccountSettings = () => {
       const result = String(reader.result || "");
       localStorage.setItem("user_avatar", result);
       setAvatarUrl(result);
-      toast({
-        title: "프로필 이미지를 변경했습니다",
-      });
+      toast({ title: "프로필 사진을 변경했습니다." });
     };
     reader.readAsDataURL(file);
   };
@@ -300,6 +329,47 @@ const AccountSettings = () => {
 
       <div className="mx-auto max-w-3xl space-y-4 px-3 py-4">
         <h1 className="text-3xl font-bold">사용자 계정 설정</h1>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>프로필</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16 border border-primary/20">
+                <AvatarImage src={avatarUrl} alt={nickname || "profile"} />
+                <AvatarFallback>{(nickname || "U").slice(0, 1)}</AvatarFallback>
+              </Avatar>
+              <div className="space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => handleAvatarFile(event.target.files?.[0] || null)}
+                />
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                  프로필 사진 변경
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="nickname">닉네임</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="nickname"
+                  value={nickname}
+                  onChange={(event) => setNickname(event.target.value)}
+                  placeholder="닉네임 입력"
+                />
+                <Button onClick={() => void handleNicknameSave()} disabled={isLoading}>
+                  저장
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -319,7 +389,7 @@ const AccountSettings = () => {
                 disabled={userIdChanged || isLoading}
               />
             </div>
-            <Button onClick={handleUserIdChange} disabled={userIdChanged || !newUserId || isLoading} className="w-full">
+            <Button onClick={() => void handleUserIdChange()} disabled={userIdChanged || isLoading}>
               사용자 ID 저장
             </Button>
           </CardContent>
@@ -331,46 +401,20 @@ const AccountSettings = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="password">새 비밀번호</Label>
+              <Label htmlFor="password">비밀번호</Label>
               <Input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">비밀번호 확인</Label>
-              <Input id="confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+              />
             </div>
-            <Button onClick={handlePasswordChange} disabled={!password || !confirmPassword || isLoading} className="w-full">
+            <Button onClick={() => void handlePasswordChange()} disabled={isLoading}>
               비밀번호 저장
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>프로필</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => handleAvatarFile(event.target.files?.[0] || null)}
-            />
-            <div className="flex items-center gap-4">
-              <Avatar className="h-20 w-20 border border-primary/20">
-                <AvatarImage src={avatarUrl} alt={nickname || "profile"} />
-                <AvatarFallback>{(nickname || "U").slice(0, 1)}</AvatarFallback>
-              </Avatar>
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                프로필 사진 변경
-              </Button>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nickname">닉네임</Label>
-              <Input id="nickname" value={nickname} onChange={(event) => setNickname(event.target.value)} />
-            </div>
-            <Button onClick={handleNicknameSave} disabled={!nickname || isLoading} className="w-full">
-              닉네임 저장
             </Button>
           </CardContent>
         </Card>
@@ -387,71 +431,58 @@ const AccountSettings = () => {
                 <TabsTrigger value="apple-health">Apple Health</TabsTrigger>
                 <TabsTrigger value="strava">Strava</TabsTrigger>
               </TabsList>
+
+              {(["health-connect", "garmin", "apple-health", "strava"] as const).map((tabKey) => (
+                <TabsContent key={tabKey} value={tabKey} className="space-y-3 pt-4">
+                  {permissionOptions[tabKey].map((option) => {
+                    const currentPermissions =
+                      tabKey === "health-connect"
+                        ? healthConnectPermissions
+                        : tabKey === "garmin"
+                          ? garminPermissions
+                          : tabKey === "apple-health"
+                            ? applePermissions
+                            : stravaPermissions;
+
+                    const setPermissions =
+                      tabKey === "health-connect"
+                        ? setHealthConnectPermissions
+                        : tabKey === "garmin"
+                          ? setGarminPermissions
+                          : tabKey === "apple-health"
+                            ? setApplePermissions
+                            : setStravaPermissions;
+
+                    const storageKey =
+                      tabKey === "health-connect"
+                        ? "health_connect_permissions"
+                        : tabKey === "garmin"
+                          ? "garmin_permissions"
+                          : tabKey === "apple-health"
+                            ? "apple_health_permissions"
+                            : "strava_permissions";
+
+                    return (
+                      <div key={option.key} className="flex items-center justify-between rounded-xl border px-4 py-3">
+                        <span className="text-sm">{option.label}</span>
+                        <Switch
+                          checked={Boolean(currentPermissions[option.key as keyof typeof currentPermissions])}
+                          onCheckedChange={(checked) => {
+                            const next = { ...currentPermissions, [option.key]: checked };
+                            setPermissions(next as typeof currentPermissions);
+                            savePermissionState(storageKey, next as Record<string, boolean>);
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </TabsContent>
+              ))}
             </Tabs>
-
-            {permissionTab === "health-connect" &&
-              permissionOptions["health-connect"].map((permission) => (
-                <div key={permission.key} className="flex items-center justify-between gap-4 rounded-lg border p-3">
-                  <div className="text-sm">{permission.label}</div>
-                  <Switch
-                    checked={healthConnectPermissions[permission.key as keyof typeof healthConnectPermissions]}
-                    onCheckedChange={(checked) => {
-                      const next = { ...healthConnectPermissions, [permission.key]: checked };
-                      setHealthConnectPermissions(next);
-                      savePermissionState("health_connect_permissions", next);
-                    }}
-                  />
-                </div>
-              ))}
-
-            {permissionTab === "garmin" &&
-              permissionOptions.garmin.map((permission) => (
-                <div key={permission.key} className="flex items-center justify-between gap-4 rounded-lg border p-3">
-                  <div className="text-sm">{permission.label}</div>
-                  <Switch
-                    checked={garminPermissions[permission.key as keyof typeof garminPermissions]}
-                    onCheckedChange={(checked) => {
-                      const next = { ...garminPermissions, [permission.key]: checked };
-                      setGarminPermissions(next);
-                      savePermissionState("garmin_permissions", next);
-                    }}
-                  />
-                </div>
-              ))}
-
-            {permissionTab === "apple-health" &&
-              permissionOptions["apple-health"].map((permission) => (
-                <div key={permission.key} className="flex items-center justify-between gap-4 rounded-lg border p-3">
-                  <div className="text-sm">{permission.label}</div>
-                  <Switch
-                    checked={applePermissions[permission.key as keyof typeof applePermissions]}
-                    onCheckedChange={(checked) => {
-                      const next = { ...applePermissions, [permission.key]: checked };
-                      setApplePermissions(next);
-                      savePermissionState("apple_health_permissions", next);
-                    }}
-                  />
-                </div>
-              ))}
-
-            {permissionTab === "strava" &&
-              permissionOptions.strava.map((permission) => (
-                <div key={permission.key} className="flex items-center justify-between gap-4 rounded-lg border p-3">
-                  <div className="text-sm">{permission.label}</div>
-                  <Switch
-                    checked={stravaPermissions[permission.key as keyof typeof stravaPermissions]}
-                    onCheckedChange={(checked) => {
-                      const next = { ...stravaPermissions, [permission.key]: checked };
-                      setStravaPermissions(next);
-                      savePermissionState("strava_permissions", next);
-                    }}
-                  />
-                </div>
-              ))}
           </CardContent>
         </Card>
 
-        <Button onClick={() => navigate("/admin")} variant="outline" className="w-full">
+        <Button variant="outline" onClick={() => navigate(backTarget, { replace: true })}>
           설정으로 돌아가기
         </Button>
       </div>

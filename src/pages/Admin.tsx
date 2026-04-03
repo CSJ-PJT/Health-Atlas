@@ -65,6 +65,10 @@ const themeOptions = [
   { value: "theme-ocean", label: "Ocean", colors: ["#11a8d8", "#9fe7ff"] },
   { value: "theme-peach", label: "Peach", colors: ["#ff8d52", "#ffd0b0"] },
   { value: "theme-midnight", label: "Midnight", colors: ["#9c73ff", "#2b214a"] },
+  { value: "theme-aurora", label: "Aurora", colors: ["#57c9a5", "#d2fff2"] },
+  { value: "theme-sunset", label: "Sunset", colors: ["#ff6f61", "#ffd1c9"] },
+  { value: "theme-forest", label: "Forest", colors: ["#2e8f6a", "#c8f2df"] },
+  { value: "theme-plum", label: "Plum", colors: ["#7a4b9f", "#e4d2f6"] },
 ] as const;
 
 const displayOptions = {
@@ -692,10 +696,6 @@ const Admin = () => {
               <CardHeader>
                 <CardTitle>테마 색상</CardTitle>
               </CardHeader>
-              <CardHeader className="hidden">
-                <CardTitle>테마 변경</CardTitle>
-                <CardDescription>화이트 모드와 블랙 모드를 간단하게 전환합니다.</CardDescription>
-              </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {themeOptions.map((option) => (
                   <Button
@@ -716,14 +716,6 @@ const Admin = () => {
                     <span>{option.label}</span>
                   </Button>
                 ))}
-              </CardContent>
-              <CardContent className="hidden grid grid-cols-2 gap-3">
-                <Button variant={theme === "light" ? "default" : "outline"} onClick={() => setTheme("light")}>
-                  화이트 테마
-                </Button>
-                <Button variant={theme === "dark" ? "default" : "outline"} onClick={() => setTheme("dark")}>
-                  블랙 테마
-                </Button>
               </CardContent>
             </Card>
           </TabsContent>

@@ -41,7 +41,12 @@ export const Header = ({ showNav = false }: HeaderProps) => {
             </Link>
 
             <div className="flex shrink-0 items-center gap-2">
-              <div className="flex flex-col items-center">
+              <AdviceDrawer />
+              <Link
+                to="/profile"
+                state={{ from: location.pathname }}
+                className="flex flex-col items-center transition-opacity hover:opacity-80"
+              >
                 <Avatar className="h-7 w-7 border border-primary/20">
                   <AvatarImage src={avatarUrl} alt={nickname || "profile"} />
                   <AvatarFallback>{(nickname || "U").slice(0, 1)}</AvatarFallback>
@@ -49,8 +54,7 @@ export const Header = ({ showNav = false }: HeaderProps) => {
                 <span className="mt-1 max-w-[64px] truncate text-[10px] text-muted-foreground">
                   {nickname}
                 </span>
-              </div>
-              <AdviceDrawer />
+              </Link>
             </div>
           </div>
         </div>

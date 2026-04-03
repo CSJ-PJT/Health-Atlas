@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, Save } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,17 @@ import { sendAiCoachMessage } from "@/services/openaiClient";
 
 const AiCoach = () => {
   const navigate = useNavigate();
-  useDeviceBackNavigation("/");
+  const location = useLocation();
+  const backTarget =
+    typeof location.state === "object" &&
+    location.state !== null &&
+    "from" in location.state &&
+    typeof (location.state as { from?: unknown }).from === "string"
+      ? ((location.state as { from?: string }).from || "/")
+      : "/";
+
+  useDeviceBackNavigation(backTarget);
+
   const providerId = getStoredProviderId();
   const providerMeta = getProviderMeta(providerId);
   const { data: yearlyRecords = [] } = useHealthStats("year");
@@ -63,7 +73,7 @@ const AiCoach = () => {
       <Header />
       <div className="mx-auto max-w-3xl space-y-4 p-3">
         <div className="flex items-center justify-between gap-3">
-          <Button variant="outline" onClick={() => navigate(-1)} className="gap-2">
+          <Button variant="outline" onClick={() => navigate(backTarget, { replace: true })} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             뒤로가기
           </Button>
@@ -94,7 +104,12 @@ const AiCoach = () => {
                 </div>
               ))}
             </div>
-            <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="질문을 입력해 주세요." className="min-h-32" />
+            <Textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="질문을 입력해 주세요."
+              className="min-h-32"
+            />
             <Button onClick={() => void handleSend()} disabled={isLoading} className="w-full">
               {isLoading ? "응답 생성 중..." : "질문 보내기"}
             </Button>

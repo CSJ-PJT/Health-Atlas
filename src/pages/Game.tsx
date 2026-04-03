@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Award, BookOpenText, Flame, Footprints, HeartPulse, Medal, Moon, Plus, Trophy, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { Button } from "@/components/ui/button";
@@ -143,6 +144,7 @@ const leaderboard = [
 ];
 
 const Game = () => {
+  const navigate = useNavigate();
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [challenges, setChallenges] = useState<ChallengeEntry[]>([]);
   const [showCreate, setShowCreate] = useState(false);
@@ -393,7 +395,24 @@ const Game = () => {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {leaderboard.map((entry) => (
-                      <div key={entry.name} className="flex items-center justify-between rounded-xl border p-3">
+                      <button
+                        key={entry.name}
+                        type="button"
+                        onClick={() =>
+                          navigate(`/profile/${encodeURIComponent(entry.name)}`, {
+                            state: {
+                              from: "/game",
+                              profile: {
+                                name: entry.name,
+                                score: entry.score,
+                                rank: entry.rank,
+                                subtitle: "주간 리더보드",
+                              },
+                            },
+                          })
+                        }
+                        className="flex w-full items-center justify-between rounded-xl border p-3 text-left transition-colors hover:bg-muted/40"
+                      >
                         <div className="flex items-center gap-3">
                           <Medal className="h-4 w-4 text-primary" />
                           <span className="font-medium">
@@ -401,7 +420,7 @@ const Game = () => {
                           </span>
                         </div>
                         <span className="text-sm text-muted-foreground">{entry.score}</span>
-                      </div>
+                      </button>
                     ))}
                   </CardContent>
                 </Card>

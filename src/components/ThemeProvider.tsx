@@ -8,7 +8,20 @@ export const ThemeProvider = ({ children, ...props }: ThemeProviderProps) => {
       defaultTheme="light"
       enableSystem={false}
       disableTransitionOnChange
-      themes={["light", "dark", "theme-lavender", "theme-iris", "theme-rose", "theme-ocean", "theme-peach", "theme-midnight"]}
+      themes={[
+        "light",
+        "dark",
+        "theme-lavender",
+        "theme-iris",
+        "theme-rose",
+        "theme-ocean",
+        "theme-peach",
+        "theme-midnight",
+        "theme-aurora",
+        "theme-sunset",
+        "theme-forest",
+        "theme-plum",
+      ]}
       {...props}
     >
       {children}
