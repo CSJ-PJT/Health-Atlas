@@ -37,6 +37,38 @@ export interface AppleHealthWorkout {
   maxHeartRate?: number;
   averageSpeedMetersPerSecond?: number;
   elevationGainMeters?: number;
+  elevationLossMeters?: number;
+  averagePaceSecondsPerKilometer?: number;
+  bestPaceSecondsPerKilometer?: number;
+  averageRunCadence?: number;
+  maxRunCadence?: number;
+  vo2Max?: number;
+  temperatureCelsius?: number;
+  routePoints?: AppleHealthRoutePoint[];
+  laps?: AppleHealthWorkoutLap[];
+  timeline?: AppleHealthWorkoutTimelinePoint[];
+}
+
+export interface AppleHealthWorkoutLap {
+  lapNumber?: number;
+  distanceMeters?: number;
+  durationSeconds?: number;
+  averageHeartRate?: number;
+  cadence?: number;
+  paceSecondsPerKilometer?: number;
+}
+
+export interface AppleHealthWorkoutTimelinePoint {
+  timeOffsetSeconds?: number;
+  distanceMeters?: number;
+  heartRate?: number;
+  paceSecondsPerKilometer?: number;
+  speedMetersPerSecond?: number;
+}
+
+export interface AppleHealthRoutePoint {
+  latitude: number;
+  longitude: number;
 }
 
 export interface AppleHealthSleepSession {
@@ -47,6 +79,12 @@ export interface AppleHealthSleepSession {
   coreMinutes?: number;
   remMinutes?: number;
   awakeMinutes?: number;
+  stages?: Array<{
+    type?: string;
+    startTime?: string;
+    endTime?: string;
+    durationMinutes?: number;
+  }>;
 }
 
 export interface AppleHealthNutritionEntry {

@@ -191,6 +191,32 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
       }>)
     : [];
 
+  const appleWorkoutMetrics = Array.isArray(normalized.source_metrics?.appleWorkouts)
+    ? (normalized.source_metrics?.appleWorkouts as Array<{
+        id: string;
+        averageRunCadence?: number;
+        maxRunCadence?: number;
+        vo2Max?: number;
+        temperatureCelsius?: number | null;
+        routePoints?: Array<{ latitude: number; longitude: number }>;
+        laps?: Array<{
+          lapNumber?: number;
+          distanceMeters?: number;
+          durationSeconds?: number;
+          averageHeartRate?: number;
+          cadence?: number;
+          paceSecondsPerKilometer?: number;
+        }>;
+        timeline?: Array<{
+          timeOffsetSeconds?: number;
+          distanceMeters?: number;
+          heartRate?: number;
+          paceSecondsPerKilometer?: number;
+          speedMetersPerSecond?: number;
+        }>;
+      }>)
+    : [];
+
   const runningExercises = normalized.exercise_data.filter((exercise) => {
     const combined = `${exercise.type} ${exercise.exerciseType || ""}`.toLowerCase();
     return combined.includes("run") || combined.includes("running");
@@ -200,6 +226,7 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
     const activityId = `${providerId}-session-${Date.now()}-${index}`;
     const stravaMetric = stravaActivityMetrics[index];
     const garminMetric = garminActivityMetrics[index];
+    const appleMetric = appleWorkoutMetrics[index];
     const durationSeconds = Math.round((exercise.duration || 0) * 60);
     const distanceKm = Number(exercise.distance || 0);
     const averageSpeed = Number(exercise.averageSpeed || 0);
@@ -220,15 +247,16 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
       maxSpeedMetersPerSecond: maxSpeed > 0 ? Number((maxSpeed / 3.6).toFixed(3)) : 0,
       averageHR: exercise.averageHeartRate || normalized.heart_rate || 0,
       maxHR: exercise.maxHeartRate || exercise.averageHeartRate || normalized.heart_rate || 0,
-      averageRunCadence: Math.round(Number(garminMetric?.averageRunCadence || stravaMetric?.averageCadence || 0)),
-      maxRunCadence: Math.round(Number(garminMetric?.maxRunCadence || stravaMetric?.averageCadence || 0)),
+      averageRunCadence: Math.round(Number(appleMetric?.averageRunCadence || garminMetric?.averageRunCadence || stravaMetric?.averageCadence || 0)),
+      maxRunCadence: Math.round(Number(appleMetric?.maxRunCadence || garminMetric?.maxRunCadence || stravaMetric?.averageCadence || 0)),
       elevationGainMeters: exercise.elevationGainMeters || 0,
       elevationLossMeters: exercise.elevationLossMeters || 0,
       vo2Max:
+        Number(appleMetric?.vo2Max || 0) ||
         Number(garminMetric?.vo2Max || 0) ||
         (Array.isArray(normalized.vo2max) ? Number((normalized.vo2max[0] as { value?: number } | undefined)?.value || 0) : 0),
       calories: exercise.calories || 0,
-      temperatureCelsius: garminMetric?.temperatureCelsius ?? stravaMetric?.averageTemp ?? null,
+      temperatureCelsius: appleMetric?.temperatureCelsius ?? garminMetric?.temperatureCelsius ?? stravaMetric?.averageTemp ?? null,
       trainingEffectLabel: garminMetric?.trainingEffectLabel || "Measured",
       trainingEffectAerobic: Number(garminMetric?.trainingEffectAerobic || 0),
       trainingEffectAnaerobic: Number(garminMetric?.trainingEffectAnaerobic || 0),
@@ -241,9 +269,9 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
       lapDistanceKm,
       sourceTimeline: stravaMetric?.streamSet || null,
       sourceSplits: stravaMetric?.splitsMetric || [],
-      garminTimeline: garminMetric?.timeline || [],
-      garminLaps: garminMetric?.laps || [],
-      routePoints: garminMetric?.routePoints || [],
+      garminTimeline: garminMetric?.timeline || appleMetric?.timeline || [],
+      garminLaps: garminMetric?.laps || appleMetric?.laps || [],
+      routePoints: garminMetric?.routePoints || appleMetric?.routePoints || [],
     };
   });
 

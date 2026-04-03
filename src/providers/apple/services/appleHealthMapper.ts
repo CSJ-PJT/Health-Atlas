@@ -39,10 +39,20 @@ export function mapAppleHealthPayloadToNormalizedHealthData(payload: AppleHealth
         ? Number((workout.averageSpeedMetersPerSecond * 3.6).toFixed(1))
         : undefined,
       elevationGainMeters: workout.elevationGainMeters,
+      elevationLossMeters: workout.elevationLossMeters,
+      averagePaceSecondsPerKilometer: workout.averagePaceSecondsPerKilometer,
     })),
     sleep_data: {
       totalMinutes: Math.round(sleep.reduce((sum, item) => sum + (item.totalMinutes || 0), 0) || summary.sleepMinutes || 0),
-      stages: sleep,
+      stages: sleep.map((item) => ({
+        startTime: item.startTime,
+        endTime: item.endTime,
+        deepMinutes: item.deepMinutes || 0,
+        coreMinutes: item.coreMinutes || 0,
+        remMinutes: item.remMinutes || 0,
+        awakeMinutes: item.awakeMinutes || 0,
+        stages: item.stages || [],
+      })),
       score: summary.sleepScore,
       hrvAverage: summary.hrvAverage,
       hrvStatus: summary.hrvStatus,
@@ -66,6 +76,23 @@ export function mapAppleHealthPayloadToNormalizedHealthData(payload: AppleHealth
     source_metrics: {
       basalCalories: summary.basalCalories || 0,
       hydrationMl: summary.hydrationMl || 0,
+      appleWorkouts: workouts.map((workout) => ({
+        id: workout.id || "",
+        type: workout.activityType || "",
+        name: workout.name || "",
+        averageRunCadence: workout.averageRunCadence || 0,
+        maxRunCadence: workout.maxRunCadence || 0,
+        vo2Max: workout.vo2Max || 0,
+        temperatureCelsius: workout.temperatureCelsius ?? null,
+        routePoints: workout.routePoints || [],
+        laps: workout.laps || [],
+        timeline: workout.timeline || [],
+      })),
+      appleSleepStages: sleep.map((item) => ({
+        startTime: item.startTime,
+        endTime: item.endTime,
+        stages: item.stages || [],
+      })),
     },
   };
 }

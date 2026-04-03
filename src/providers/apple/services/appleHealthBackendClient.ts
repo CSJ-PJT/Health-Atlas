@@ -38,6 +38,21 @@ async function fetchJson<T>(config: AppleHealthProviderConfig, path: string, dat
   return response.json() as Promise<T>;
 }
 
+async function fetchWorkoutDetails(config: AppleHealthProviderConfig, date: string, workoutIds: string[]) {
+  const details = await Promise.all(
+    workoutIds.map(async (workoutId) => {
+      try {
+        const detail = await fetchJson<Record<string, unknown>>(config, `/apple-health/workouts/${workoutId}`, date);
+        return { workoutId, detail };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return details.filter(Boolean) as Array<{ workoutId: string; detail: Record<string, unknown> }>;
+}
+
 export async function fetchAppleHealthDailyPayload(
   config: AppleHealthProviderConfig,
   date: string,
@@ -50,9 +65,17 @@ export async function fetchAppleHealthDailyPayload(
     fetchJson(config, "/apple-health/hydration", date),
   ]);
 
+  const normalizedWorkouts = Array.isArray(workouts) ? workouts : [];
+  const workoutIds = normalizedWorkouts.map((workout) => workout?.id).filter((value): value is string => typeof value === "string" && value.length > 0);
+  const details = workoutIds.length > 0 ? await fetchWorkoutDetails(config, date, workoutIds) : [];
+  const detailedWorkouts = normalizedWorkouts.map((workout) => {
+    const detail = details.find((item) => item.workoutId === workout.id)?.detail;
+    return detail ? { ...workout, ...detail } : workout;
+  });
+
   return {
     summary,
-    workouts: Array.isArray(workouts) ? workouts : [],
+    workouts: detailedWorkouts,
     sleep: Array.isArray(sleep) ? sleep : [],
     nutrition: Array.isArray(nutrition) ? nutrition : [],
     hydration: Array.isArray(hydration) ? hydration : [],
