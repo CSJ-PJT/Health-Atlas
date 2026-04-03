@@ -1,17 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Film, Heart, ImagePlus, MessageCircle, Pencil, Plus, Search, Tag, Trash2, Upload } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
@@ -32,6 +25,7 @@ import {
 const MY_USER_ID = localStorage.getItem("user_id") || "me";
 const MY_USER_NAME = localStorage.getItem("user_nickname") || "사용자";
 const SAMPLE_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
+const PAGE_SIZE = 8;
 
 function buildVideoThumb(label: string) {
   const svg = `
@@ -95,7 +89,9 @@ const Feed = () => {
   const [tick, setTick] = useState(0);
   const [isBusy, setIsBusy] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useDeviceBackNavigation({
     fallback: "/",
@@ -150,6 +146,28 @@ const Feed = () => {
       );
     });
   }, [posts, search]);
+
+  const visiblePosts = filteredPosts.slice(0, visibleCount);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, tick]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
+          setVisibleCount((current) => Math.min(current + PAGE_SIZE, filteredPosts.length));
+        }
+      },
+      { rootMargin: "120px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [filteredPosts.length]);
 
   const resetComposer = () => {
     setCaption("");
@@ -258,13 +276,11 @@ const Feed = () => {
       toast({ title: "댓글 내용을 입력해 주세요.", variant: "destructive" });
       return;
     }
-
     const success = addFeedComment(detailPost.id, MY_USER_ID, MY_USER_NAME, commentDraft.trim(), replyTarget?.id || null);
     if (!success) {
       toast({ title: "댓글 저장 실패", description: "잠시 후 다시 시도해 주세요.", variant: "destructive" });
       return;
     }
-
     setCommentDraft("");
     setReplyTarget(null);
     setShowCommentComposer(false);
@@ -290,7 +306,7 @@ const Feed = () => {
       return <span key={`${part}-${index}`}>{part}</span>;
     });
 
-  const renderCommentTree = (parentId: string | null, depth = 0): React.ReactNode =>
+  const renderCommentTree = (parentId: string | null, depth = 0): ReactNode =>
     comments
       .filter((comment) => comment.parentId === parentId)
       .map((comment) => (
@@ -345,9 +361,7 @@ const Feed = () => {
               open={composerOpen}
               onOpenChange={(open) => {
                 setComposerOpen(open);
-                if (!open) {
-                  resetComposer();
-                }
+                if (!open) resetComposer();
               }}
             >
               <DialogTrigger asChild>
@@ -359,33 +373,18 @@ const Feed = () => {
                 <DialogHeader>
                   <DialogTitle>{editingPostId ? "게시글 수정" : "새 게시글"}</DialogTitle>
                 </DialogHeader>
-
                 <div className="space-y-4">
                   <Textarea value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="내용을 입력해 주세요" className="min-h-32" />
                   <div className="relative">
                     <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={tags}
-                      onChange={(event) => setTags(event.target.value)}
-                      placeholder="태그를 쉼표로 입력해 주세요. 예: 러닝, 회복, HRV"
-                      className="pl-9"
-                    />
+                    <Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="태그를 쉼표로 입력해 주세요" className="pl-9" />
                   </div>
-
                   <div className="space-y-3 rounded-2xl border border-dashed p-4">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*,video/*"
-                      multiple
-                      className="hidden"
-                      onChange={(event) => void handleFiles(event.target.files)}
-                    />
+                    <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={(event) => void handleFiles(event.target.files)} />
                     <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2">
                       <Upload className="h-4 w-4" />
                       사진 / 동영상 추가
                     </Button>
-
                     <div className="grid grid-cols-3 gap-3">
                       {media.map((item) => (
                         <div key={item.id} className="overflow-hidden rounded-xl border bg-muted/20">
@@ -404,7 +403,6 @@ const Feed = () => {
                     </div>
                   </div>
                 </div>
-
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setComposerOpen(false)}>
                     취소
@@ -419,18 +417,12 @@ const Feed = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-              {filteredPosts.map((post) => {
+              {visiblePosts.map((post) => {
                 const cover = post.media?.[0];
                 const commentCount = getFeedComments(post.id).length;
                 const tagsList = Array.isArray(post.tags) ? post.tags : [];
-
                 return (
-                  <button
-                    key={post.id}
-                    type="button"
-                    onClick={() => setDetailPostId(post.id)}
-                    className="group overflow-hidden rounded-2xl border bg-card text-left"
-                  >
+                  <button key={post.id} type="button" onClick={() => setDetailPostId(post.id)} className="group overflow-hidden rounded-2xl border bg-card text-left">
                     <div className="relative aspect-square bg-muted/40">
                       {cover?.type === "video" ? (
                         <>
@@ -444,16 +436,12 @@ const Feed = () => {
                           <ImagePlus className="h-8 w-8" />
                         </div>
                       )}
-
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white">
                         <div className="truncate text-sm font-semibold">{post.authorName}</div>
                         <div className="line-clamp-2 text-xs text-white/80">{post.content || "미디어 게시물"}</div>
-                        {tagsList.length > 0 ? (
-                          <div className="mt-1 truncate text-[11px] text-white/70">{tagsList.map((tag) => `#${tag}`).join(" ")}</div>
-                        ) : null}
+                        {tagsList.length > 0 ? <div className="mt-1 truncate text-[11px] text-white/70">{tagsList.map((tag) => `#${tag}`).join(" ")}</div> : null}
                       </div>
                     </div>
-
                     <div className="flex items-center justify-between gap-2 p-3">
                       <div className="min-w-0">
                         <div className="truncate text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleString("ko-KR")}</div>
@@ -494,6 +482,7 @@ const Feed = () => {
                 );
               })}
             </div>
+            <div ref={loadMoreRef} className="h-6" />
           </CardContent>
         </Card>
 
@@ -503,6 +492,7 @@ const Feed = () => {
             if (!open) {
               setDetailPostId(null);
               setReplyTarget(null);
+              setShowCommentComposer(false);
             }
           }}
         >
@@ -546,7 +536,7 @@ const Feed = () => {
                       <CardTitle>댓글</CardTitle>
                     </CardHeader>
                     <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
-                      <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+                      <div className="min-h-0 flex-1 overflow-y-auto pr-2" style={{ touchAction: "pan-y" }}>
                         <div className="space-y-3">
                           {comments.length > 0 ? renderCommentTree(null) : <div className="text-sm text-muted-foreground">첫 댓글을 남겨 보세요.</div>}
                         </div>
@@ -587,12 +577,7 @@ const Feed = () => {
                             </div>
                           ) : null}
 
-                          <Textarea
-                            value={commentDraft}
-                            onChange={(event) => setCommentDraft(event.target.value)}
-                            placeholder="댓글이나 @id 태그를 입력해 주세요"
-                            className="min-h-24"
-                          />
+                          <Textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글이나 @id 태그를 입력해 주세요" className="min-h-24" />
                           <Button onClick={handleAddComment} className="w-full">
                             댓글 등록
                           </Button>

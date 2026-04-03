@@ -102,18 +102,18 @@ export const Header = ({ showNav = false }: HeaderProps) => {
                 <View className="h-5 w-5" />
               </NavLink>
               <NavLink
-                to="/game"
-                className="flex min-w-0 items-center justify-center rounded-xl bg-cyan-500/14 px-2 py-3 text-cyan-700 transition-colors hover:bg-cyan-500/22 dark:text-cyan-200"
-                activeClassName="ring-2 ring-primary/40"
-              >
-                <Gamepad2 className="h-5 w-5" />
-              </NavLink>
-              <NavLink
                 to="/admin"
                 className="flex min-w-0 items-center justify-center rounded-xl bg-indigo-500/14 px-2 py-3 text-indigo-700 transition-colors hover:bg-indigo-500/22 dark:text-indigo-200"
                 activeClassName="ring-2 ring-primary/40"
               >
                 <Settings className="h-5 w-5" />
+              </NavLink>
+              <NavLink
+                to="/game"
+                className="flex min-w-0 items-center justify-center rounded-xl bg-cyan-500/14 px-2 py-3 text-cyan-700 transition-colors hover:bg-cyan-500/22 dark:text-cyan-200"
+                activeClassName="ring-2 ring-primary/40"
+              >
+                <Gamepad2 className="h-5 w-5" />
               </NavLink>
             </div>
           </nav>

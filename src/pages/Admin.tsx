@@ -39,6 +39,15 @@ import { createTransferLog } from "@/providers/shared/services/transferLogReposi
 import { getSamsungLastSyncAt, setSamsungLastSyncAt } from "@/providers/samsung/services/samsungConnectionStore";
 import { getStravaProviderConfig, setStravaProviderConfig } from "@/providers/strava";
 import { getDisplaySettings, saveDisplaySettings, type DisplaySettings } from "@/services/displaySettings";
+import {
+  buildRecordTag,
+  getDisplayedRecordType,
+  getVerifiedRecords,
+  saveVerifiedRecord,
+  setDisplayedRecordType,
+  type RecordType,
+} from "@/services/verifiedRecordStore";
+import { awardBadge } from "@/services/achievementStore";
 import { startKakaoLogin } from "@/services/auth/kakaoAuth";
 import { startLineLogin } from "@/services/auth/lineAuth";
 import {
@@ -158,6 +167,11 @@ const Admin = () => {
   const [equipmentType, setEquipmentType] = useState("신발");
   const [equipmentName, setEquipmentName] = useState("");
   const [equipmentDistanceKm, setEquipmentDistanceKm] = useState("");
+  const [recordType, setRecordType] = useState<RecordType>("full");
+  const [recordLabel, setRecordLabel] = useState("");
+  const [officialTime, setOfficialTime] = useState("");
+  const [displayRecordType, setDisplayRecordTypeState] = useState<RecordType>("full");
+  const [verifiedRecords, setVerifiedRecords] = useState(getVerifiedRecords());
 
   useEffect(() => {
     const garminConfig = getGarminProviderConfig();
@@ -191,6 +205,8 @@ const Admin = () => {
     setLineRedirectUri(lineConfig.redirectUri);
     setLineScope(lineConfig.scope);
     setEquipments(storedEquipments ? JSON.parse(storedEquipments) : []);
+    setDisplayRecordTypeState(getDisplayedRecordType());
+    setVerifiedRecords(getVerifiedRecords());
     if (savedSyncEnabled !== null) {
       setScheduledSyncEnabled(savedSyncEnabled === "true");
     }
@@ -294,6 +310,39 @@ const Admin = () => {
     setEquipmentName("");
     setEquipmentDistanceKm("");
     toast({ title: "장비를 저장했습니다." });
+  };
+
+  const handleRecordSave = () => {
+    if (!officialTime.trim()) {
+      toast({ title: "공인 기록 시간을 입력해 주세요.", variant: "destructive" });
+      return;
+    }
+    const next = saveVerifiedRecord({
+      type: recordType,
+      label: recordLabel.trim() || (recordType === "10k" ? "10K" : recordType === "half" ? "Half Marathon" : "Full Marathon"),
+      officialTime: officialTime.trim(),
+      certified: true,
+    });
+    setVerifiedRecords(next);
+    if (recordType === "full") {
+      const tag = buildRecordTag(next[0]);
+      if (tag === "Sub4" || tag === "Sub3") {
+        awardBadge({
+          id: `record-${tag.toLowerCase()}`,
+          name: tag,
+          description: `${tag} 공인 기록을 등록했습니다.`,
+          icon: "🏁",
+        });
+      }
+    }
+    toast({ title: "인증 기록을 저장했습니다." });
+    setRecordLabel("");
+    setOfficialTime("");
+  };
+
+  const handleDisplayRecordChange = (type: RecordType) => {
+    setDisplayRecordTypeState(type);
+    setDisplayedRecordType(type);
   };
 
   const handleDeleteEquipment = (id: string) => {
@@ -449,11 +498,13 @@ const Admin = () => {
         <h1 className="text-3xl font-bold">설정</h1>
 
         <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="general">일반</TabsTrigger>
             <TabsTrigger value="providers">연동</TabsTrigger>
             <TabsTrigger value="theme">테마</TabsTrigger>
+            <TabsTrigger value="records">기록</TabsTrigger>
             <TabsTrigger value="display">표시 데이터</TabsTrigger>
+            <TabsTrigger value="equipment">장비</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general">
@@ -481,44 +532,6 @@ const Admin = () => {
                   </div>
                   <Switch id="mock-mode" checked={mockHealthDataEnabled} onCheckedChange={handleMockModeChange} />
                 </div>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>장비</CardTitle>
-                    <CardDescription>신발 등 장비별 누적 거리 파라미터를 입력합니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-4">
-                      <Input value={equipmentType} onChange={(event) => setEquipmentType(event.target.value)} placeholder="장비 유형" />
-                      <Input value={equipmentName} onChange={(event) => setEquipmentName(event.target.value)} placeholder="장비 이름" />
-                      <Input value={equipmentDistanceKm} onChange={(event) => setEquipmentDistanceKm(event.target.value)} placeholder="누적 거리(km)" />
-                      <Button onClick={handleAddEquipment} className="gap-2">
-                        <Plus className="h-4 w-4" />
-                        장비 추가
-                      </Button>
-                    </div>
-
-                    <div className="space-y-3">
-                      {equipments.length === 0 ? (
-                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">저장된 장비가 없습니다.</div>
-                      ) : (
-                        equipments.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between rounded-xl border p-3">
-                            <div>
-                              <div className="font-medium">{item.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {item.type} · {item.distanceKm} km
-                              </div>
-                            </div>
-                            <Button variant="outline" size="icon" onClick={() => handleDeleteEquipment(item.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
               </CardContent>
             </Card>
           </TabsContent>
@@ -770,6 +783,62 @@ const Admin = () => {
             </div>
           </TabsContent>
 
+          <TabsContent value="records">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>인증 기록 업로드</CardTitle>
+                  <CardDescription>10K, 하프, 풀 기록을 등록하고 프로필에 표시할 기록을 선택합니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["10k", "half", "full"] as RecordType[]).map((type) => (
+                      <Button key={type} variant={recordType === type ? "default" : "outline"} onClick={() => setRecordType(type)}>
+                        {type === "10k" ? "10K" : type === "half" ? "하프" : "풀"}
+                      </Button>
+                    ))}
+                  </div>
+                  <Input value={recordLabel} onChange={(event) => setRecordLabel(event.target.value)} placeholder="표시 이름" />
+                  <Input value={officialTime} onChange={(event) => setOfficialTime(event.target.value)} placeholder="공인 기록 예: 3:50:22" />
+                  <Button onClick={handleRecordSave} className="w-full">
+                    기록 저장
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>프로필 표기 기록</CardTitle>
+                  <CardDescription>프로필 요약에 표시할 인증 기록을 선택합니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["10k", "half", "full"] as RecordType[]).map((type) => (
+                      <Button key={type} variant={displayRecordType === type ? "default" : "outline"} onClick={() => handleDisplayRecordChange(type)}>
+                        {type === "10k" ? "10K" : type === "half" ? "하프" : "풀"}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="space-y-3">
+                    {verifiedRecords.length === 0 ? (
+                      <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">등록된 인증 기록이 없습니다.</div>
+                    ) : (
+                      verifiedRecords.map((record) => (
+                        <div key={record.id} className="rounded-xl border p-4">
+                          <div className="font-medium">{record.label}</div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {record.officialTime} · {record.type} · {record.certified ? "인증됨" : "미인증"}
+                          </div>
+                          {buildRecordTag(record) ? <div className="mt-2 text-xs text-primary">{buildRecordTag(record)}</div> : null}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
           <TabsContent value="theme">
             <Card>
               <CardHeader>
@@ -821,6 +890,46 @@ const Admin = () => {
                 </Card>
               ))}
             </div>
+          </TabsContent>
+
+          <TabsContent value="equipment">
+            <Card>
+              <CardHeader>
+                <CardTitle>장비</CardTitle>
+                <CardDescription>신발 등 장비별 누적 거리 파라미터를 입력합니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-4">
+                  <Input value={equipmentType} onChange={(event) => setEquipmentType(event.target.value)} placeholder="장비 유형" />
+                  <Input value={equipmentName} onChange={(event) => setEquipmentName(event.target.value)} placeholder="장비 이름" />
+                  <Input value={equipmentDistanceKm} onChange={(event) => setEquipmentDistanceKm(event.target.value)} placeholder="누적 거리(km)" />
+                  <Button onClick={handleAddEquipment} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    장비 추가
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {equipments.length === 0 ? (
+                    <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">저장된 장비가 없습니다.</div>
+                  ) : (
+                    equipments.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between rounded-xl border p-3">
+                        <div>
+                          <div className="font-medium">{item.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.type} · {item.distanceKm} km
+                          </div>
+                        </div>
+                        <Button variant="outline" size="icon" onClick={() => handleDeleteEquipment(item.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 

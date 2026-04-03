@@ -1,16 +1,24 @@
-import { useMemo, useState } from "react";
-import { ArrowLeft, Award, BarChart3, HeartPulse, Save, Trophy, UserRound } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { ArrowLeft, Award, BarChart3, HeartPulse, Save, Trophy, UserRound, X } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { getEarnedBadges } from "@/services/achievementStore";
 import { getFeedPosts } from "@/services/feedStore";
 import { getProfileSettings, saveProfileSettings } from "@/services/profileStore";
+import { buildRecordTag, findDisplayedRecord } from "@/services/verifiedRecordStore";
 
 type ProfileState = {
   from?: string;
@@ -29,9 +37,20 @@ const Profile = () => {
   const location = useLocation();
   const params = useParams();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const state = (location.state || {}) as ProfileState;
   const backTarget = state.from || "/game";
-  useDeviceBackNavigation(backTarget);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  useDeviceBackNavigation({
+    fallback: backTarget,
+    onBackWithinPage: () => {
+      if (photoOpen) {
+        setPhotoOpen(false);
+        return true;
+      }
+      return false;
+    },
+  });
 
   const myUserId = localStorage.getItem("user_id") || "me";
   const myNickname = localStorage.getItem("user_nickname") || "사용자";
@@ -49,13 +68,16 @@ const Profile = () => {
 
   const [bio, setBio] = useState(settings.bio);
   const [showSummary, setShowSummary] = useState(settings.showSummary);
+  const earnedBadges = getEarnedBadges();
+  const displayedRecord = findDisplayedRecord();
+  const recordTag = buildRecordTag(displayedRecord);
 
   const profile = useMemo(() => {
     if (isMyProfile) {
       return {
         name: myNickname,
         userId: myUserId,
-        subtitle: "내 프로필",
+        subtitle: "나의 프로필",
         score: "나의 활동",
         rank: undefined,
         avatarUrl: myAvatarUrl,
@@ -86,11 +108,21 @@ const Profile = () => {
     saveProfileSettings({
       userId: myUserId,
       nickname: myNickname,
-      avatarUrl: myAvatarUrl,
+      avatarUrl: localStorage.getItem("user_avatar") || myAvatarUrl,
       bio,
       showSummary,
     });
     toast({ title: "프로필 설명을 저장했습니다." });
+  };
+
+  const handleAvatarChange = (file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      localStorage.setItem("user_avatar", String(reader.result || ""));
+      window.location.reload();
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -104,14 +136,17 @@ const Profile = () => {
 
         <Card className="border-primary/20 bg-gradient-to-br from-primary/10 via-secondary/70 to-accent/40">
           <CardContent className="flex items-center gap-4 p-6">
-            <Avatar className="h-20 w-20 border border-primary/20">
-              <AvatarImage src={profile.avatarUrl} alt={profile.name} />
-              <AvatarFallback>{profile.name.slice(0, 1)}</AvatarFallback>
-            </Avatar>
+            <button type="button" className="relative" onClick={() => setPhotoOpen(true)}>
+              <Avatar className="h-24 w-24 border border-primary/20">
+                <AvatarImage src={profile.avatarUrl} alt={profile.name} />
+                <AvatarFallback>{profile.name.slice(0, 1)}</AvatarFallback>
+              </Avatar>
+            </button>
             <div className="space-y-1">
               <div className="text-2xl font-bold">{profile.name}</div>
               <div className="text-sm text-muted-foreground">@{profile.userId}</div>
               <div className="text-sm text-primary">{profile.subtitle}</div>
+              {recordTag ? <div className="inline-flex rounded-full bg-primary/12 px-3 py-1 text-xs font-semibold text-primary">{recordTag}</div> : null}
             </div>
           </CardContent>
         </Card>
@@ -123,10 +158,25 @@ const Profile = () => {
           <CardContent className="space-y-4">
             {isMyProfile ? (
               <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => handleAvatarChange(event.target.files?.[0] || null)}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => setPhotoOpen(true)}>
+                    사진 크게 보기
+                  </Button>
+                  <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                    사진 변경
+                  </Button>
+                </div>
                 <Textarea
                   value={bio}
                   onChange={(event) => setBio(event.target.value)}
-                  placeholder="나의 설명을 입력해 주세요."
+                  placeholder="나의 설명을 입력해 주세요"
                   className="min-h-28"
                 />
                 <div className="flex items-center justify-between rounded-xl border p-4">
@@ -139,12 +189,27 @@ const Profile = () => {
                 </Button>
               </>
             ) : (
-              <div className="rounded-xl border p-4 text-sm leading-6 text-muted-foreground">
-                {settings.bio || "등록된 소개가 없습니다."}
-              </div>
+              <div className="rounded-xl border p-4 text-sm leading-6 text-muted-foreground">{settings.bio || "등록된 소개가 없습니다."}</div>
             )}
           </CardContent>
         </Card>
+
+        {earnedBadges.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>나의 배지</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {earnedBadges.map((badge) => (
+                <div key={badge.id} className="rounded-2xl border p-4">
+                  <div className="text-lg font-semibold">{badge.icon}</div>
+                  <div className="mt-2 font-medium">{badge.name}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{badge.description}</div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
 
         {visibleSummary ? (
           <Card>
@@ -195,13 +260,36 @@ const Profile = () => {
                 })}
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                아직 등록된 개인 피드가 없습니다.
-              </div>
+              <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">아직 등록된 개인 피드가 없습니다.</div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={photoOpen} onOpenChange={setPhotoOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader className="flex flex-row items-center justify-between">
+            <DialogTitle>{profile.name}</DialogTitle>
+            <Button variant="ghost" size="icon" onClick={() => setPhotoOpen(false)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </DialogHeader>
+          <div className="overflow-hidden rounded-2xl border bg-muted/20">
+            {profile.avatarUrl ? (
+              <img src={profile.avatarUrl} alt={profile.name} className="w-full object-cover" />
+            ) : (
+              <div className="flex h-80 items-center justify-center">이미지가 없습니다.</div>
+            )}
+          </div>
+          {isMyProfile ? (
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                사진 변경
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
