@@ -25,7 +25,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useInvalidateHealthData } from "@/hooks/useHealthData";
 import { supabase } from "@/integrations/supabase/client";
 import { getAppleHealthProviderConfig, setAppleHealthProviderConfig } from "@/providers/apple";
+import { appleHealthProvider } from "@/providers/apple";
 import { getGarminProviderConfig, setGarminProviderConfig } from "@/providers/garmin";
+import { garminProvider } from "@/providers/garmin";
 import {
   getActiveProvider,
   getProviderMeta,
@@ -38,7 +40,9 @@ import type { ProviderId } from "@/providers/shared";
 import { createTransferLog } from "@/providers/shared/services/transferLogRepository";
 import { saveHealthSnapshot } from "@/providers/shared/services/healthDataRepository";
 import { getSamsungLastSyncAt, setSamsungLastSyncAt } from "@/providers/samsung/services/samsungConnectionStore";
+import { samsungProvider } from "@/providers/samsung/services/samsungProvider";
 import { getStravaProviderConfig, setStravaProviderConfig } from "@/providers/strava";
+import { stravaProvider } from "@/providers/strava";
 import { startKakaoLogin } from "@/services/auth/kakaoAuth";
 import { startLineLogin } from "@/services/auth/lineAuth";
 import {
@@ -222,6 +226,7 @@ function Admin() {
   const [scheduledSyncEnabled, setScheduledSyncEnabled] = useState(true);
   const [syncTime, setSyncTime] = useState("09:00");
   const [isSyncing, setIsSyncing] = useState(false);
+  const [testingProviderId, setTestingProviderId] = useState<ProviderId | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [deletionRequests, setDeletionRequests] = useState<DataRequestEntry[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEventEntry[]>([]);
@@ -527,6 +532,42 @@ function Admin() {
     }
     setApiDialog(null);
     void refreshConnectionState();
+  }
+
+  async function testProviderFetch(providerId: ProviderId) {
+    setTestingProviderId(providerId);
+    try {
+      const provider =
+        providerId === "samsung"
+          ? samsungProvider
+          : providerId === "garmin"
+            ? garminProvider
+            : providerId === "apple-health"
+              ? appleHealthProvider
+              : stravaProvider;
+
+      const healthData = await provider.getTodayData();
+      await saveHealthSnapshot(healthData, provider.id, new Date().toISOString());
+      await createTransferLog("provider_test", "success", `${provider.displayName} 실데이터 테스트 성공`);
+      invalidateHealthData();
+      toast({
+        title: `${provider.displayName} 테스트 성공`,
+        description: "실데이터 fetch와 health_data 적재를 완료했습니다.",
+      });
+      await refreshConnectionState();
+      await fetchLogs();
+    } catch (error) {
+      console.error("Provider test failed:", error);
+      await createTransferLog("provider_test", "error", error instanceof Error ? error.message : "provider test failed");
+      toast({
+        title: `${getProviderMeta(providerId).label} 테스트 실패`,
+        description: error instanceof Error ? error.message : "실데이터 테스트 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+      await fetchLogs();
+    } finally {
+      setTestingProviderId(null);
+    }
   }
 
   function handleScheduledSyncToggle(enabled: boolean) {
@@ -871,6 +912,27 @@ function Admin() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>실데이터 테스트</CardTitle>
+                <CardDescription>공급자별로 즉시 fetch와 health_data 적재를 검증합니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {providers.map((providerId) => (
+                  <Button
+                    key={providerId}
+                    variant="outline"
+                    className="gap-2"
+                    disabled={testingProviderId !== null}
+                    onClick={() => void testProviderFetch(providerId)}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${testingProviderId === providerId ? "animate-spin" : ""}`} />
+                    {testingProviderId === providerId ? "테스트 중..." : `${getProviderMeta(providerId).label} 테스트`}
+                  </Button>
                 ))}
               </CardContent>
             </Card>
