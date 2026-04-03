@@ -26,16 +26,14 @@ export function getVerifiedRecords() {
 
 export function saveVerifiedRecord(record: Omit<VerifiedRecord, "id" | "uploadedAt">) {
   const records = getVerifiedRecords();
-  const next = [
-    {
-      ...record,
-      id: `record-${Date.now()}`,
-      uploadedAt: new Date().toISOString(),
-    },
-    ...records,
-  ];
+  const newRecord = {
+    ...record,
+    id: `record-${Date.now()}`,
+    uploadedAt: new Date().toISOString(),
+  };
+  const next = [newRecord, ...records];
   writeScopedJson(RECORDS_KEY, next);
-  void saveServerVerifiedRecords(next);
+  void saveServerVerifiedRecord(newRecord, next);
   return next;
 }
 
@@ -97,36 +95,25 @@ export async function hydrateVerifiedRecordsFromServer() {
   return changed;
 }
 
-async function saveServerVerifiedRecords(records: VerifiedRecord[]) {
+async function saveServerVerifiedRecord(record: VerifiedRecord, records: VerifiedRecord[]) {
   const profileId = getProfileId();
   if (!profileId) {
     return false;
   }
+  const { error } = await supabase.from("user_verified_records").upsert({
+    id: record.id,
+    profile_id: profileId,
+    record_type: record.type,
+    label: record.label,
+    official_time: record.officialTime,
+    certified: record.certified,
+    uploaded_at: record.uploadedAt,
+    updated_at: new Date().toISOString(),
+  });
 
-  const { error: deleteError } = await supabase.from("user_verified_records").delete().eq("profile_id", profileId);
-  if (deleteError) {
+  if (error) {
     void saveServerSnapshot("verified_records", records);
     return false;
-  }
-
-  if (records.length > 0) {
-    const { error: insertError } = await supabase.from("user_verified_records").insert(
-      records.map((record) => ({
-        id: record.id,
-        profile_id: profileId,
-        record_type: record.type,
-        label: record.label,
-        official_time: record.officialTime,
-        certified: record.certified,
-        uploaded_at: record.uploadedAt,
-        updated_at: new Date().toISOString(),
-      })),
-    );
-
-    if (insertError) {
-      void saveServerSnapshot("verified_records", records);
-      return false;
-    }
   }
 
   return true;

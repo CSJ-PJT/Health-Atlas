@@ -25,9 +25,10 @@ export function awardBadge(badge: Omit<EarnedBadge, "earnedAt">) {
   if (badges.some((item) => item.id === badge.id)) {
     return badges;
   }
-  const next = [...badges, { ...badge, earnedAt: new Date().toISOString() }];
+  const earnedBadge = { ...badge, earnedAt: new Date().toISOString() };
+  const next = [...badges, earnedBadge];
   writeScopedJson(BADGES_KEY, next);
-  void saveServerBadges(next);
+  void saveServerBadge(earnedBadge, next);
   return next;
 }
 
@@ -46,36 +47,25 @@ export async function hydrateEarnedBadgesFromServer() {
   return true;
 }
 
-async function saveServerBadges(badges: EarnedBadge[]) {
+async function saveServerBadge(badge: EarnedBadge, badges: EarnedBadge[]) {
   const profileId = getProfileId();
   if (!profileId) {
     return false;
   }
+  const { error } = await supabase.from("user_earned_badges").upsert({
+    id: `${profileId}:${badge.id}`,
+    profile_id: profileId,
+    badge_id: badge.id,
+    name: badge.name,
+    description: badge.description,
+    icon: badge.icon,
+    earned_at: badge.earnedAt,
+    updated_at: new Date().toISOString(),
+  });
 
-  const { error: deleteError } = await supabase.from("user_earned_badges").delete().eq("profile_id", profileId);
-  if (deleteError) {
+  if (error) {
     void saveServerSnapshot("earned_badges", badges);
     return false;
-  }
-
-  if (badges.length > 0) {
-    const { error: insertError } = await supabase.from("user_earned_badges").insert(
-      badges.map((badge) => ({
-        id: `${profileId}:${badge.id}`,
-        profile_id: profileId,
-        badge_id: badge.id,
-        name: badge.name,
-        description: badge.description,
-        icon: badge.icon,
-        earned_at: badge.earnedAt,
-        updated_at: new Date().toISOString(),
-      })),
-    );
-
-    if (insertError) {
-      void saveServerSnapshot("earned_badges", badges);
-      return false;
-    }
   }
 
   return true;

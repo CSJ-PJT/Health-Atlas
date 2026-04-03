@@ -73,7 +73,7 @@ export function saveProfileSettings(profile: UserProfileSettings) {
   const all = getAllProfileSettings();
   all[profile.userId] = profile;
   writeScopedJson(PROFILE_SETTINGS_KEY, all);
-  void saveServerProfileSettings(all);
+  void saveServerProfileSettings(profile);
 }
 
 export async function hydrateProfileSettingsFromServer() {
@@ -91,39 +91,28 @@ export async function hydrateProfileSettingsFromServer() {
   return true;
 }
 
-async function saveServerProfileSettings(all: Record<string, UserProfileSettings>) {
+async function saveServerProfileSettings(profile: UserProfileSettings) {
   const profileId = getProfileId();
   if (!profileId) {
     return false;
   }
+  const all = getAllProfileSettings();
+  const { error } = await supabase.from("user_profile_settings").upsert({
+    id: `${profileId}:${profile.userId}`,
+    profile_id: profileId,
+    user_id: profile.userId,
+    nickname: profile.nickname,
+    avatar_url: profile.avatarUrl,
+    bio: profile.bio,
+    show_summary: profile.showSummary,
+    show_badges: profile.showBadges,
+    show_personal_feed: profile.showPersonalFeed,
+    updated_at: new Date().toISOString(),
+  });
 
-  const rows = Object.values(all);
-  const { error: deleteError } = await supabase.from("user_profile_settings").delete().eq("profile_id", profileId);
-  if (deleteError) {
+  if (error) {
     void saveServerSnapshot("profile_settings", all);
     return false;
-  }
-
-  if (rows.length > 0) {
-    const { error: insertError } = await supabase.from("user_profile_settings").insert(
-      rows.map((row) => ({
-        id: `${profileId}:${row.userId}`,
-        profile_id: profileId,
-        user_id: row.userId,
-        nickname: row.nickname,
-        avatar_url: row.avatarUrl,
-        bio: row.bio,
-        show_summary: row.showSummary,
-        show_badges: row.showBadges,
-        show_personal_feed: row.showPersonalFeed,
-        updated_at: new Date().toISOString(),
-      })),
-    );
-
-    if (insertError) {
-      void saveServerSnapshot("profile_settings", all);
-      return false;
-    }
   }
 
   return true;
