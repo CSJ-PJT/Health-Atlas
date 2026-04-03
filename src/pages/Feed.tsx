@@ -90,6 +90,7 @@ const Feed = () => {
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [replyTarget, setReplyTarget] = useState<FeedComment | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
+  const [showCommentComposer, setShowCommentComposer] = useState(false);
   const [media, setMedia] = useState<FeedMedia[]>([]);
   const [tick, setTick] = useState(0);
   const [isBusy, setIsBusy] = useState(false);
@@ -107,6 +108,7 @@ const Feed = () => {
       if (detailPostId) {
         setDetailPostId(null);
         setReplyTarget(null);
+        setShowCommentComposer(false);
         return true;
       }
       return false;
@@ -122,6 +124,7 @@ const Feed = () => {
     setComposerOpen(false);
     setDetailPostId(null);
     setReplyTarget(null);
+    setShowCommentComposer(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -264,6 +267,7 @@ const Feed = () => {
 
     setCommentDraft("");
     setReplyTarget(null);
+    setShowCommentComposer(false);
     setTick((value) => value + 1);
     toast({ title: "댓글을 남겼습니다." });
   };
@@ -271,6 +275,7 @@ const Feed = () => {
   const handleReply = (comment: FeedComment) => {
     setReplyTarget(comment);
     setCommentDraft(`@${comment.authorId} `);
+    setShowCommentComposer(true);
   };
 
   const renderTaggedContent = (content: string) =>
@@ -313,8 +318,9 @@ const Feed = () => {
                 <Heart className={`h-3.5 w-3.5 ${comment.likedUserIds.includes(MY_USER_ID) ? "fill-current text-primary" : ""}`} />
                 좋아요 {comment.likedUserIds.length}
               </button>
-              <button type="button" className="font-medium text-primary" onClick={() => handleReply(comment)}>
-                답글 달기
+              <button type="button" className="flex items-center gap-1 font-medium text-primary" onClick={() => handleReply(comment)}>
+                <MessageCircle className="h-3.5 w-3.5" />
+                답글
               </button>
             </div>
           </div>
@@ -534,38 +540,64 @@ const Feed = () => {
                   </div>
                 </div>
 
-                <div className="min-h-0 space-y-4">
-                  <Card>
+                <div className="min-h-0">
+                  <Card className="flex h-full flex-col">
                     <CardHeader>
                       <CardTitle>댓글</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="max-h-[44vh] overflow-y-auto pr-2">
+                    <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
+                      <div className="min-h-0 flex-1 overflow-y-auto pr-2">
                         <div className="space-y-3">
                           {comments.length > 0 ? renderCommentTree(null) : <div className="text-sm text-muted-foreground">첫 댓글을 남겨 보세요.</div>}
                         </div>
                       </div>
 
-                      {replyTarget ? (
-                        <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
-                          <div className="font-medium">{replyTarget.authorName}님에게 답글 작성 중</div>
-                          <button type="button" className="mt-1 text-primary" onClick={() => setReplyTarget(null)}>
-                            답글 취소
-                          </button>
-                        </div>
-                      ) : null}
-
-                      <div className="space-y-3">
-                        <Textarea
-                          value={commentDraft}
-                          onChange={(event) => setCommentDraft(event.target.value)}
-                          placeholder="댓글이나 @id 태그를 입력해 주세요"
-                          className="min-h-24"
-                        />
-                        <Button onClick={handleAddComment} className="w-full">
-                          댓글 등록
+                      <div className="flex items-center justify-between gap-2">
+                        <Button
+                          variant={showCommentComposer ? "default" : "outline"}
+                          className="gap-2"
+                          onClick={() => {
+                            setShowCommentComposer((current) => !current);
+                            if (showCommentComposer) {
+                              setReplyTarget(null);
+                              setCommentDraft("");
+                            }
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                          댓글 쓰기
                         </Button>
                       </div>
+
+                      {showCommentComposer ? (
+                        <div className="space-y-3">
+                          {replyTarget ? (
+                            <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+                              <div className="font-medium">{replyTarget.authorName}님에게 답글 작성 중</div>
+                              <button
+                                type="button"
+                                className="mt-1 text-primary"
+                                onClick={() => {
+                                  setReplyTarget(null);
+                                  setCommentDraft("");
+                                }}
+                              >
+                                답글 취소
+                              </button>
+                            </div>
+                          ) : null}
+
+                          <Textarea
+                            value={commentDraft}
+                            onChange={(event) => setCommentDraft(event.target.value)}
+                            placeholder="댓글이나 @id 태그를 입력해 주세요"
+                            className="min-h-24"
+                          />
+                          <Button onClick={handleAddComment} className="w-full">
+                            댓글 등록
+                          </Button>
+                        </div>
+                      ) : null}
                     </CardContent>
                   </Card>
                 </div>

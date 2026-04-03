@@ -463,10 +463,6 @@ const AccountSettings = () => {
             <CardTitle>비밀번호</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
-              상태: <span className="font-semibold">{hasPassword ? "저장됨" : "미설정"}</span>
-            </div>
-
             {!hasPassword || showPasswordEditor ? (
               <div className="space-y-3">
                 {hasPassword ? (

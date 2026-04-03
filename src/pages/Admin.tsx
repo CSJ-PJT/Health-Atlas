@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Clock, KeyRound, RefreshCw, Settings2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, KeyRound, Plus, RefreshCw, Settings2, Trash2, XCircle } from "lucide-react";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,13 @@ interface LogEntry {
   log_type: string;
   status: string;
   message: string;
+}
+
+interface EquipmentEntry {
+  id: string;
+  type: string;
+  name: string;
+  distanceKm: string;
 }
 
 const providers: ProviderId[] = ["samsung", "garmin", "apple-health", "strava"];
@@ -147,6 +154,10 @@ const Admin = () => {
   const [lineClientSecret, setLineClientSecret] = useState("");
   const [lineRedirectUri, setLineRedirectUri] = useState("https://rhhealthcare.app/auth/line/callback");
   const [lineScope, setLineScope] = useState("profile openid email");
+  const [equipments, setEquipments] = useState<EquipmentEntry[]>([]);
+  const [equipmentType, setEquipmentType] = useState("신발");
+  const [equipmentName, setEquipmentName] = useState("");
+  const [equipmentDistanceKm, setEquipmentDistanceKm] = useState("");
 
   useEffect(() => {
     const garminConfig = getGarminProviderConfig();
@@ -156,6 +167,7 @@ const Admin = () => {
     const lineConfig = getLineAuthConfig();
     const savedSyncEnabled = localStorage.getItem("scheduled_sync_enabled");
     const savedSyncTime = localStorage.getItem("sync_time");
+    const storedEquipments = localStorage.getItem("equipment_settings_v1");
 
     setActiveProvider(getStoredProviderId());
     setMockHealthDataState(isMockHealthDataEnabled());
@@ -178,6 +190,7 @@ const Admin = () => {
     setLineClientSecret(lineConfig.clientSecret);
     setLineRedirectUri(lineConfig.redirectUri);
     setLineScope(lineConfig.scope);
+    setEquipments(storedEquipments ? JSON.parse(storedEquipments) : []);
     if (savedSyncEnabled !== null) {
       setScheduledSyncEnabled(savedSyncEnabled === "true");
     }
@@ -259,6 +272,34 @@ const Admin = () => {
     };
     setDisplaySettings(next);
     saveDisplaySettings(next);
+  };
+
+  const handleAddEquipment = () => {
+    if (!equipmentName.trim()) {
+      toast({ title: "장비 이름을 입력해 주세요.", variant: "destructive" });
+      return;
+    }
+
+    const next = [
+      ...equipments,
+      {
+        id: `equipment-${Date.now()}`,
+        type: equipmentType,
+        name: equipmentName.trim(),
+        distanceKm: equipmentDistanceKm.trim() || "0",
+      },
+    ];
+    setEquipments(next);
+    localStorage.setItem("equipment_settings_v1", JSON.stringify(next));
+    setEquipmentName("");
+    setEquipmentDistanceKm("");
+    toast({ title: "장비를 저장했습니다." });
+  };
+
+  const handleDeleteEquipment = (id: string) => {
+    const next = equipments.filter((item) => item.id !== id);
+    setEquipments(next);
+    localStorage.setItem("equipment_settings_v1", JSON.stringify(next));
   };
 
   const handleGarminConfigSave = () => {
@@ -440,6 +481,44 @@ const Admin = () => {
                   </div>
                   <Switch id="mock-mode" checked={mockHealthDataEnabled} onCheckedChange={handleMockModeChange} />
                 </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>장비</CardTitle>
+                    <CardDescription>신발 등 장비별 누적 거리 파라미터를 입력합니다.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <Input value={equipmentType} onChange={(event) => setEquipmentType(event.target.value)} placeholder="장비 유형" />
+                      <Input value={equipmentName} onChange={(event) => setEquipmentName(event.target.value)} placeholder="장비 이름" />
+                      <Input value={equipmentDistanceKm} onChange={(event) => setEquipmentDistanceKm(event.target.value)} placeholder="누적 거리(km)" />
+                      <Button onClick={handleAddEquipment} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        장비 추가
+                      </Button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {equipments.length === 0 ? (
+                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">저장된 장비가 없습니다.</div>
+                      ) : (
+                        equipments.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between rounded-xl border p-3">
+                            <div>
+                              <div className="font-medium">{item.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {item.type} · {item.distanceKm} km
+                              </div>
+                            </div>
+                            <Button variant="outline" size="icon" onClick={() => handleDeleteEquipment(item.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               </CardContent>
             </Card>
           </TabsContent>

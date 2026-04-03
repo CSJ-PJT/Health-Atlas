@@ -10,6 +10,7 @@ import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { DeviceContacts, type DeviceContact } from "@/lib/deviceContacts";
 import { supabase } from "@/integrations/supabase/client";
+import { generateLocalAiReply } from "@/services/localAiEngine";
 import {
   createGroupRoom,
   deleteChatRoom,
@@ -285,7 +286,11 @@ const Chat = () => {
     const senderFriend = friends.find((friend) => activeRoom.memberIds.includes(friend.id));
     const responderId = activeRoom.type === "group" ? activeRoom.memberIds[0] || "group-bot" : senderFriend?.id || "chat-bot";
     const responderName = activeRoom.type === "group" ? activeRoom.name : senderFriend?.name || activeRoom.name;
-    const reply = buildAutoReply(message, activeRoom, friends);
+    const reply = generateLocalAiReply(message, {
+      roomName: activeRoom.name,
+      roomType: activeRoom.type,
+      participantNames: friends.filter((friend) => activeRoom.memberIds.includes(friend.id)).map((friend) => friend.name),
+    });
 
     window.setTimeout(() => {
       saveChatMessage({
@@ -459,15 +464,6 @@ const Chat = () => {
         {showLists ? (
           <Card>
             <CardContent className="space-y-5 pt-6">
-              <div className="flex gap-2" data-no-swipe="true">
-                <Button size="icon" variant={listTab === "friends" ? "default" : "outline"} onClick={() => setListTab("friends")} aria-label="친구목록 탭">
-                  <ContactRound className="h-4 w-4" />
-                </Button>
-                <Button size="icon" variant={listTab === "rooms" ? "default" : "outline"} onClick={() => setListTab("rooms")} aria-label="대화목록 탭">
-                  <MessageCircleMore className="h-4 w-4" />
-                </Button>
-              </div>
-
               {composePanel === "friend" ? (
                 <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
                   <Card className="border-dashed">
