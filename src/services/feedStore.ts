@@ -1,3 +1,5 @@
+import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
+
 export type FeedMediaType = "image" | "video";
 
 export interface FeedMedia {
@@ -32,22 +34,9 @@ const POSTS_KEY = "social_feed_posts_v5";
 const COMMENTS_KEY = "social_feed_comments_v3";
 const SAMPLE_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 
-function readJson<T>(key: string, fallback: T): T {
-  const stored = localStorage.getItem(key);
-  if (!stored) {
-    return fallback;
-  }
-
-  try {
-    return JSON.parse(stored) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 function writeJson<T>(key: string, value: T) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    writeScopedJson(key, value);
     return true;
   } catch {
     return false;
@@ -126,13 +115,13 @@ function normalizeComment(comment: Omit<FeedComment, "likedUserIds"> & { likedUs
 }
 
 export function getFeedPosts() {
-  return readJson<FeedPost[]>(POSTS_KEY, []).sort(
+  return readScopedJson<FeedPost[]>(POSTS_KEY, []).sort(
     (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );
 }
 
 export function getFeedComments(postId?: string) {
-  const comments = readJson<Array<Omit<FeedComment, "likedUserIds"> & { likedUserIds?: string[] }>>(COMMENTS_KEY, [])
+  const comments = readScopedJson<Array<Omit<FeedComment, "likedUserIds"> & { likedUserIds?: string[] }>>(COMMENTS_KEY, [])
     .map(normalizeComment)
     .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime());
   return postId ? comments.filter((comment) => comment.postId === postId) : comments;

@@ -1,3 +1,5 @@
+import { readScopedJson, readScopedValue, writeScopedJson, writeScopedValue } from "@/services/persistence/scopedStorage";
+
 export type RecordType = "10k" | "half" | "full";
 
 export interface VerifiedRecord {
@@ -12,22 +14,8 @@ export interface VerifiedRecord {
 const RECORDS_KEY = "verified_records_v1";
 const DISPLAY_KEY = "profile_display_record_type_v1";
 
-function readJson<T>(key: string, fallback: T): T {
-  const stored = localStorage.getItem(key);
-  if (!stored) return fallback;
-  try {
-    return JSON.parse(stored) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJson<T>(key: string, value: T) {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-
 export function getVerifiedRecords() {
-  return readJson<VerifiedRecord[]>(RECORDS_KEY, []);
+  return readScopedJson<VerifiedRecord[]>(RECORDS_KEY, []);
 }
 
 export function saveVerifiedRecord(record: Omit<VerifiedRecord, "id" | "uploadedAt">) {
@@ -40,16 +28,16 @@ export function saveVerifiedRecord(record: Omit<VerifiedRecord, "id" | "uploaded
     },
     ...records,
   ];
-  writeJson(RECORDS_KEY, next);
+  writeScopedJson(RECORDS_KEY, next);
   return next;
 }
 
 export function getDisplayedRecordType(): RecordType {
-  return (localStorage.getItem(DISPLAY_KEY) as RecordType) || "full";
+  return (readScopedValue(DISPLAY_KEY, "full") as RecordType) || "full";
 }
 
 export function setDisplayedRecordType(type: RecordType) {
-  localStorage.setItem(DISPLAY_KEY, type);
+  writeScopedValue(DISPLAY_KEY, type);
 }
 
 export function findDisplayedRecord() {

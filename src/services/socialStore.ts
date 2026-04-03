@@ -1,4 +1,5 @@
 import type { DeviceContact } from "@/lib/deviceContacts";
+import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
 
 export interface FriendEntry {
   id: string;
@@ -28,25 +29,12 @@ const FRIENDS_KEY = "social_friends";
 const CHAT_ROOMS_KEY = "social_chat_rooms";
 const CHAT_MESSAGES_KEY = "social_chat_messages";
 
-function readJson<T>(key: string, fallback: T): T {
-  const stored = localStorage.getItem(key);
-  if (!stored) {
-    return fallback;
-  }
-
-  try {
-    return JSON.parse(stored) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 function writeJson<T>(key: string, value: T) {
-  localStorage.setItem(key, JSON.stringify(value));
+  writeScopedJson(key, value);
 }
 
 export function getFriends() {
-  return readJson<FriendEntry[]>(FRIENDS_KEY, []);
+  return readScopedJson<FriendEntry[]>(FRIENDS_KEY, []);
 }
 
 export function saveFriend(contact: DeviceContact) {
@@ -86,7 +74,7 @@ export function removeFriend(friendId: string) {
 }
 
 export function getChatRooms() {
-  return readJson<ChatRoom[]>(CHAT_ROOMS_KEY, []);
+  return readScopedJson<ChatRoom[]>(CHAT_ROOMS_KEY, []);
 }
 
 export function renameChatRoom(roomId: string, name: string) {
@@ -104,7 +92,7 @@ export function deleteChatRoom(roomId: string) {
 }
 
 export function getChatMessages() {
-  return readJson<ChatMessage[]>(CHAT_MESSAGES_KEY, []);
+  return readScopedJson<ChatMessage[]>(CHAT_MESSAGES_KEY, []);
 }
 
 export function getRoomMessages(roomId: string) {

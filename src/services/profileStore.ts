@@ -1,3 +1,5 @@
+import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
+
 export interface UserProfileSettings {
   userId: string;
   nickname: string;
@@ -7,20 +9,6 @@ export interface UserProfileSettings {
 }
 
 const PROFILE_SETTINGS_KEY = "user_profile_settings_v1";
-
-function readJson<T>(key: string, fallback: T): T {
-  const stored = localStorage.getItem(key);
-  if (!stored) return fallback;
-  try {
-    return JSON.parse(stored) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJson<T>(key: string, value: T) {
-  localStorage.setItem(key, JSON.stringify(value));
-}
 
 function buildInitials(name: string) {
   return name.slice(0, 1).toUpperCase() || "U";
@@ -42,7 +30,7 @@ function buildPlaceholderAvatar(name: string, userId: string) {
 }
 
 export function getAllProfileSettings() {
-  return readJson<Record<string, UserProfileSettings>>(PROFILE_SETTINGS_KEY, {});
+  return readScopedJson<Record<string, UserProfileSettings>>(PROFILE_SETTINGS_KEY, {});
 }
 
 export function getProfileSettings(
@@ -74,5 +62,5 @@ export function getProfileSettings(
 export function saveProfileSettings(profile: UserProfileSettings) {
   const all = getAllProfileSettings();
   all[profile.userId] = profile;
-  writeJson(PROFILE_SETTINGS_KEY, all);
+  writeScopedJson(PROFILE_SETTINGS_KEY, all);
 }
