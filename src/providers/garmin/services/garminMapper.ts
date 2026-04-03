@@ -16,6 +16,7 @@ export function mapGarminPayloadToNormalizedHealthData(payload: GarminDailyPaylo
       count: summary.steps || 0,
       distance: ((summary.distanceMeters || 0) / 1000).toFixed(2),
       calories: Math.round(summary.activeCalories || 0),
+      movingMinutes: Math.round(activities.reduce((sum, activity) => sum + (activity.durationMinutes || 0), 0)),
     },
     exercise_data: activities.length > 0
       ? activities.map((activity) => ({
@@ -24,6 +25,9 @@ export function mapGarminPayloadToNormalizedHealthData(payload: GarminDailyPaylo
           calories: Math.round(activity.calories || 0),
           exerciseType: activity.type,
           distance: activity.distanceMeters ? Number((activity.distanceMeters / 1000).toFixed(2)) : undefined,
+          startTime: activity.startTime,
+          endTime: activity.endTime,
+          averageHeartRate: activity.averageHeartRate,
         }))
       : [{
           type: "Garmin Activity",
@@ -42,6 +46,7 @@ export function mapGarminPayloadToNormalizedHealthData(payload: GarminDailyPaylo
         remMinutes: session.remMinutes || 0,
         awakeMinutes: session.awakeMinutes || 0,
       })),
+      hrvStatus: "Balanced",
     },
     body_composition_data: {
       weight: summary.weightKg || 0,
@@ -50,9 +55,18 @@ export function mapGarminPayloadToNormalizedHealthData(payload: GarminDailyPaylo
     nutrition_data: {
       calories: Math.round(totalNutritionCalories || summary.caloriesConsumed || 0),
       nutrition,
+      proteinGrams: Number(nutrition.reduce((sum, item) => sum + (item.proteinGrams || 0), 0).toFixed(1)),
+      carbsGrams: Number(nutrition.reduce((sum, item) => sum + (item.carbsGrams || 0), 0).toFixed(1)),
+      fatGrams: Number(nutrition.reduce((sum, item) => sum + (item.fatGrams || 0), 0).toFixed(1)),
     },
     heart_rate: Math.round(summary.averageHeartRate || summary.restingHeartRate || 0),
+    resting_heart_rate: summary.restingHeartRate,
     hydration: totalHydrationLiters > 0 ? [{ totalLiters: totalHydrationLiters, entries: hydration }] : [],
     vo2max: summary.vo2Max ? [{ value: summary.vo2Max }] : [],
+    source_metrics: {
+      hydrationMl: summary.hydrationMl || 0,
+      activeCalories: summary.activeCalories || 0,
+      restingCalories: summary.restingCalories || 0,
+    },
   };
 }

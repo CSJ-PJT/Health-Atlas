@@ -152,6 +152,8 @@ const Admin = () => {
   const [appleAppId, setAppleAppId] = useState("");
   const [appleTeamId, setAppleTeamId] = useState("");
   const [appleRedirectUri, setAppleRedirectUri] = useState("");
+  const [appleApiBaseUrl, setAppleApiBaseUrl] = useState("");
+  const [appleAccessToken, setAppleAccessToken] = useState("");
   const [stravaClientId, setStravaClientId] = useState("");
   const [stravaClientSecret, setStravaClientSecret] = useState("");
   const [stravaRefreshToken, setStravaRefreshToken] = useState("");
@@ -193,6 +195,8 @@ const Admin = () => {
     setAppleAppId(appleConfig.appId);
     setAppleTeamId(appleConfig.teamId);
     setAppleRedirectUri(appleConfig.redirectUri);
+    setAppleApiBaseUrl(appleConfig.apiBaseUrl || "");
+    setAppleAccessToken(appleConfig.accessToken || "");
     setStravaClientId(stravaConfig.clientId);
     setStravaClientSecret(stravaConfig.clientSecret);
     setStravaRefreshToken(stravaConfig.refreshToken);
@@ -366,7 +370,13 @@ const Admin = () => {
   };
 
   const handleAppleConfigSave = () => {
-    setAppleHealthProviderConfig({ appId: appleAppId, teamId: appleTeamId, redirectUri: appleRedirectUri });
+    setAppleHealthProviderConfig({
+      appId: appleAppId,
+      teamId: appleTeamId,
+      redirectUri: appleRedirectUri,
+      apiBaseUrl: appleApiBaseUrl,
+      accessToken: appleAccessToken,
+    });
     toast({ title: "Apple Health 설정을 저장했습니다" });
     setApiDialog(null);
   };
@@ -665,6 +675,8 @@ const Admin = () => {
                         <Input value={appleAppId} onChange={(e) => setAppleAppId(e.target.value)} placeholder="App ID" />
                         <Input value={appleTeamId} onChange={(e) => setAppleTeamId(e.target.value)} placeholder="Team ID" />
                         <Input value={appleRedirectUri} onChange={(e) => setAppleRedirectUri(e.target.value)} placeholder="Redirect URI" />
+                        <Input value={appleApiBaseUrl} onChange={(e) => setAppleApiBaseUrl(e.target.value)} placeholder="Backend API Base URL" />
+                        <Input value={appleAccessToken} onChange={(e) => setAppleAccessToken(e.target.value)} placeholder="Backend Access Token" />
                       </div>
                       <DialogFooter>
                         <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>

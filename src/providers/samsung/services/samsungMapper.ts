@@ -49,9 +49,16 @@ export function mapTodaySnapshotToNormalizedHealthData(
     nutrition_data: {
       calories: Math.round(totalNutritionCalories),
       nutrition: snapshot.nutrition,
+      proteinGrams: Number(snapshot.nutrition.reduce((sum, item) => sum + (item.proteinGrams || 0), 0).toFixed(1)),
+      carbsGrams: Number(snapshot.nutrition.reduce((sum, item) => sum + (item.carbsGrams || 0), 0).toFixed(1)),
+      fatGrams: Number(snapshot.nutrition.reduce((sum, item) => sum + (item.fatGrams || 0), 0).toFixed(1)),
     },
     heart_rate: avgHeartRate,
     hydration: snapshot.hydration,
     vo2max: snapshot.vo2max,
+    source_metrics: {
+      exerciseDurationMinutes: snapshot.aggregate.exerciseDurationMinutes,
+      sleepDurationMinutes: snapshot.aggregate.sleepDurationMinutes,
+    },
   };
 }

@@ -1,5 +1,9 @@
 import type { GarminDailyPayload } from "@/providers/garmin/types/garmin";
+import type { AppleHealthDailyPayload } from "@/providers/apple/types/apple";
+import type { StravaDailyPayload } from "@/providers/strava/types/strava";
 import { mapGarminPayloadToNormalizedHealthData } from "@/providers/garmin/services/garminMapper";
+import { mapAppleHealthPayloadToNormalizedHealthData } from "@/providers/apple/services/appleHealthMapper";
+import { mapStravaPayloadToNormalizedHealthData } from "@/providers/strava/services/stravaMapper";
 import type { TodaySnapshot } from "@/providers/samsung/types/healthConnect";
 import { mapTodaySnapshotToNormalizedHealthData } from "@/providers/samsung/services/samsungMapper";
 import { getProviderMeta } from "@/providers/shared/services/providerMeta";
@@ -314,9 +318,138 @@ export function getMockGarminDailyPayload(): GarminDailyPayload {
   };
 }
 
+export function getMockAppleHealthDailyPayload(): AppleHealthDailyPayload {
+  const now = new Date();
+
+  return {
+    summary: {
+      steps: 13640,
+      distanceMeters: 10180,
+      activeCalories: 724,
+      basalCalories: 1560,
+      sleepMinutes: 431,
+      sleepScore: 87,
+      averageHeartRate: 78,
+      restingHeartRate: 56,
+      hrvAverage: 54,
+      hrvStatus: "Balanced",
+      weightKg: 68.4,
+      bodyFatPercent: 17.6,
+      bmi: 22.1,
+      vo2Max: 49.2,
+      hydrationMl: 2100,
+    },
+    workouts: [
+      {
+        id: "apple-workout-1",
+        name: "Outdoor Run",
+        activityType: "running",
+        startTime: toIso(new Date(now.getTime() - 1000 * 60 * 60 * 8)),
+        endTime: toIso(new Date(now.getTime() - 1000 * 60 * 60 * 7 - 1000 * 60 * 8)),
+        durationMinutes: 52,
+        distanceMeters: 9020,
+        calories: 564,
+        averageHeartRate: 146,
+        maxHeartRate: 171,
+        averageSpeedMetersPerSecond: 2.89,
+        elevationGainMeters: 82,
+      },
+    ],
+    sleep: [
+      {
+        startTime: toIso(new Date(now.getTime() - 1000 * 60 * 60 * 15)),
+        endTime: toIso(new Date(now.getTime() - 1000 * 60 * 60 * 7 - 1000 * 60 * 49)),
+        totalMinutes: 431,
+        deepMinutes: 79,
+        coreMinutes: 232,
+        remMinutes: 92,
+        awakeMinutes: 28,
+      },
+    ],
+    nutrition: [
+      { consumedAt: toIso(new Date(now.getTime() - 1000 * 60 * 60 * 9)), calories: 410, proteinGrams: 24, carbsGrams: 46, fatGrams: 12, name: "Overnight Oats" },
+      { consumedAt: toIso(new Date(now.getTime() - 1000 * 60 * 60 * 3)), calories: 720, proteinGrams: 32, carbsGrams: 84, fatGrams: 18, name: "Salmon Rice Bowl" },
+    ],
+    hydration: [
+      { consumedAt: toIso(new Date(now.getTime() - 1000 * 60 * 60 * 10)), milliliters: 650 },
+      { consumedAt: toIso(new Date(now.getTime() - 1000 * 60 * 60 * 2)), milliliters: 850 },
+    ],
+  };
+}
+
+export function getMockStravaDailyPayload(): StravaDailyPayload {
+  const now = new Date();
+
+  return {
+    summary: {
+      steps: 11980,
+      distanceMeters: 12460,
+      activeCalories: 781,
+      averageHeartRate: 151,
+      weightKg: 70.1,
+      vo2Max: 52.4,
+      elevationGain: 126,
+    },
+    activities: [
+      {
+        id: 401,
+        name: "Riverside Tempo",
+        type: "Run",
+        start_date: toIso(new Date(now.getTime() - 1000 * 60 * 60 * 6)),
+        elapsed_time: 3390,
+        moving_time: 3270,
+        distance: 10140,
+        total_elevation_gain: 118,
+        calories: 688,
+        average_speed: 3.1,
+        max_speed: 4.72,
+        average_heartrate: 151,
+        max_heartrate: 178,
+        suffer_score: 82,
+      },
+      {
+        id: 402,
+        name: "Cooldown Walk",
+        type: "Walk",
+        start_date: toIso(new Date(now.getTime() - 1000 * 60 * 70)),
+        elapsed_time: 1260,
+        moving_time: 1200,
+        distance: 2320,
+        total_elevation_gain: 8,
+        calories: 93,
+        average_speed: 1.9,
+        max_speed: 2.3,
+      },
+    ],
+    athlete: {
+      weight: 70.1,
+    },
+    stats: {
+      recent_run_totals: {
+        distance: 48200,
+        moving_time: 14920,
+        elevation_gain: 482,
+      },
+      all_run_totals: {
+        distance: 1842000,
+        moving_time: 546200,
+        elevation_gain: 21482,
+      },
+    },
+  };
+}
+
 export function getMockNormalizedHealthData(providerId = getStoredProviderId()) {
   if (providerId === "samsung") {
     return mapTodaySnapshotToNormalizedHealthData(getMockSamsungTodaySnapshot());
+  }
+
+  if (providerId === "apple-health") {
+    return mapAppleHealthPayloadToNormalizedHealthData(getMockAppleHealthDailyPayload());
+  }
+
+  if (providerId === "strava") {
+    return mapStravaPayloadToNormalizedHealthData(getMockStravaDailyPayload());
   }
 
   const garminLikeData = mapGarminPayloadToNormalizedHealthData(getMockGarminDailyPayload());
