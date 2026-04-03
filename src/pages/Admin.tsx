@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Clock, KeyRound, Plus, RefreshCw, Settings2, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, KeyRound, Plus, RefreshCw, Settings2, Trash2, Upload, XCircle } from "lucide-react";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { Button } from "@/components/ui/button";
@@ -38,16 +38,16 @@ import type { ProviderId } from "@/providers/shared";
 import { createTransferLog } from "@/providers/shared/services/transferLogRepository";
 import { getSamsungLastSyncAt, setSamsungLastSyncAt } from "@/providers/samsung/services/samsungConnectionStore";
 import { getStravaProviderConfig, setStravaProviderConfig } from "@/providers/strava";
-import { getDisplaySettings, saveDisplaySettings, type DisplaySettings } from "@/services/displaySettings";
+import { startKakaoLogin } from "@/services/auth/kakaoAuth";
+import { startLineLogin } from "@/services/auth/lineAuth";
 import {
-  buildRecordTag,
-  getDisplayedRecordType,
-  getVerifiedRecords,
-  saveVerifiedRecord,
-  setDisplayedRecordType,
-  type RecordType,
-} from "@/services/verifiedRecordStore";
+  getKakaoAuthConfig,
+  getLineAuthConfig,
+  setKakaoAuthConfig,
+  setLineAuthConfig,
+} from "@/services/auth/socialAuthStore";
 import { awardBadge } from "@/services/achievementStore";
+import { getDisplaySettings, saveDisplaySettings, type DisplaySettings } from "@/services/displaySettings";
 import {
   deleteScopedUserData,
   deleteServerUserData,
@@ -57,15 +57,15 @@ import {
   loadServerDeletionRequests,
   submitServerDeletionRequest,
 } from "@/services/privacy/userDataControl";
-import { startKakaoLogin } from "@/services/auth/kakaoAuth";
-import { startLineLogin } from "@/services/auth/lineAuth";
-import {
-  getKakaoAuthConfig,
-  getLineAuthConfig,
-  setKakaoAuthConfig,
-  setLineAuthConfig,
-} from "@/services/auth/socialAuthStore";
 import { hasPendingOpenAiCredentials } from "@/services/security/openAiCredentialStore";
+import {
+  buildRecordTag,
+  getDisplayedRecordType,
+  getVerifiedRecords,
+  saveVerifiedRecord,
+  setDisplayedRecordType,
+  type RecordType,
+} from "@/services/verifiedRecordStore";
 
 interface LogEntry {
   id: string;
@@ -73,13 +73,6 @@ interface LogEntry {
   log_type: string;
   status: string;
   message: string;
-}
-
-interface EquipmentEntry {
-  id: string;
-  type: string;
-  name: string;
-  distanceKm: string;
 }
 
 interface DataRequestEntry {
@@ -98,7 +91,17 @@ interface AuditEventEntry {
   created_at: string;
 }
 
+interface EquipmentEntry {
+  id: string;
+  type: string;
+  name: string;
+  distanceKm: string;
+}
+
+type ApiDialogId = "garmin" | "samsung" | "apple" | "strava" | "kakao" | "line";
+
 const providers: ProviderId[] = ["samsung", "garmin", "apple-health", "strava"];
+const equipmentTypes = ["신발", "트레일 신발", "레이싱화", "워킹화", "자전거", "기타"];
 
 const themeOptions = [
   { value: "theme-lavender", label: "Lavender", colors: ["#9f67f5", "#d3b5ff"] },
@@ -122,11 +125,6 @@ const backgroundOptions = [
   { value: "244 24% 8%", label: "Midnight Ink" },
 ] as const;
 
-function parseOfficialTimeFromText(raw: string) {
-  const match = raw.match(/\b(\d{1,2}:\d{2}:\d{2})\b/);
-  return match ? match[1] : "";
-}
-
 const displayOptions = {
   home: [
     { key: "steps", label: "걸음 목표" },
@@ -147,7 +145,20 @@ const displayOptions = {
     { key: "averageSpeed", label: "평균 시속" },
     { key: "maxSpeed", label: "최고 시속" },
     { key: "avgHeartRate", label: "평균 심박수" },
+    { key: "maxHeartRate", label: "최대 심박수" },
     { key: "cadence", label: "평균 케이던스" },
+    { key: "maxCadence", label: "최대 케이던스" },
+    { key: "vo2max", label: "VO2 Max" },
+    { key: "elevationGain", label: "총 상승" },
+    { key: "elevationLoss", label: "총 하강" },
+    { key: "trainingEffectLabel", label: "기본 효과" },
+    { key: "trainingEffectAerobic", label: "유산소 효과" },
+    { key: "trainingEffectAnaerobic", label: "무산소 효과" },
+    { key: "trainingLoad", label: "운동 부하" },
+    { key: "estimatedSweatLossMl", label: "예상 수분 손실" },
+    { key: "averageStrideLengthMeters", label: "보폭" },
+    { key: "steps", label: "걸음 수" },
+    { key: "calories", label: "칼로리" },
   ],
   comparison: [
     { key: "distanceKm", label: "거리" },
@@ -157,34 +168,62 @@ const displayOptions = {
     { key: "averageSpeed", label: "평균 시속" },
     { key: "maxSpeed", label: "최고 시속" },
     { key: "avgHeartRate", label: "평균 심박수" },
+    { key: "maxHeartRate", label: "최대 심박수" },
     { key: "cadence", label: "평균 케이던스" },
+    { key: "maxCadence", label: "최대 케이던스" },
     { key: "vo2max", label: "VO2 Max" },
     { key: "elevationGain", label: "총 상승" },
+    { key: "elevationLoss", label: "총 하강" },
+    { key: "trainingEffectLabel", label: "기본 효과" },
+    { key: "trainingEffectAerobic", label: "유산소 효과" },
+    { key: "trainingEffectAnaerobic", label: "무산소 효과" },
+    { key: "trainingLoad", label: "운동 부하" },
+    { key: "estimatedSweatLossMl", label: "예상 수분 손실" },
+    { key: "averageStrideLengthMeters", label: "보폭" },
+    { key: "steps", label: "걸음 수" },
+    { key: "calories", label: "칼로리" },
   ],
 } as const;
 
-const Admin = () => {
+function parseOfficialTimeFromText(raw: string) {
+  const match = raw.match(/\b(\d{1,2}:\d{2}:\d{2})\b/);
+  return match ? match[1] : "";
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "없음";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("ko-KR");
+}
+
+function Admin() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const invalidateHealthData = useInvalidateHealthData();
+  const recordFileInputRef = useRef<HTMLInputElement | null>(null);
+
   useDeviceBackNavigation({ fallback: "/admin", isRootPage: true });
+
   const [activeProvider, setActiveProvider] = useState<ProviderId>("samsung");
   const [mockHealthDataEnabled, setMockHealthDataState] = useState(true);
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(getDisplaySettings());
-  const [apiDialog, setApiDialog] = useState<null | "garmin" | "samsung" | "apple" | "strava" | "kakao" | "line">(null);
+  const [apiDialog, setApiDialog] = useState<ApiDialogId | null>(null);
   const [providerStatus, setProviderStatus] = useState<"checking" | "connected" | "disconnected">("checking");
-  const [gptStatus, setGptStatus] = useState<"checking" | "connected" | "disconnected">("checking");
-  const [scheduledSyncEnabled, setScheduledSyncEnabled] = useState(true);
-  const [syncTime, setSyncTime] = useState("09:00");
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [remainingTokens, setRemainingTokens] = useState(0);
   const [providerLastSync, setProviderLastSync] = useState("");
   const [providerMessage, setProviderMessage] = useState("");
   const [providerIssues, setProviderIssues] = useState<string[]>([]);
   const [providerAuthExpiresAt, setProviderAuthExpiresAt] = useState("");
+  const [gptStatus, setGptStatus] = useState<"checking" | "connected" | "disconnected">("checking");
   const [gptLastSync, setGptLastSync] = useState("");
+  const [remainingTokens, setRemainingTokens] = useState(0);
+  const [scheduledSyncEnabled, setScheduledSyncEnabled] = useState(true);
+  const [syncTime, setSyncTime] = useState("09:00");
+  const [isSyncing, setIsSyncing] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [deletionRequests, setDeletionRequests] = useState<DataRequestEntry[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEventEntry[]>([]);
 
   const [garminApiBaseUrl, setGarminApiBaseUrl] = useState("");
   const [garminAccessToken, setGarminAccessToken] = useState("");
@@ -208,19 +247,23 @@ const Admin = () => {
   const [lineClientSecret, setLineClientSecret] = useState("");
   const [lineRedirectUri, setLineRedirectUri] = useState("https://rhhealthcare.app/auth/line/callback");
   const [lineScope, setLineScope] = useState("profile openid email");
+
   const [equipments, setEquipments] = useState<EquipmentEntry[]>([]);
   const [equipmentType, setEquipmentType] = useState("신발");
   const [equipmentName, setEquipmentName] = useState("");
   const [equipmentDistanceKm, setEquipmentDistanceKm] = useState("");
-  const [recordType, setRecordType] = useState<RecordType>("full");
+
+  const [verifiedRecords, setVerifiedRecords] = useState(getVerifiedRecords());
+  const [recordType, setRecordTypeState] = useState<RecordType>("full");
   const [recordLabel, setRecordLabel] = useState("");
   const [officialTime, setOfficialTime] = useState("");
-  const [displayRecordType, setDisplayRecordTypeState] = useState<RecordType>("full");
-  const [verifiedRecords, setVerifiedRecords] = useState(getVerifiedRecords());
+  const [displayRecordType, setDisplayRecordTypeState] = useState<RecordType>(getDisplayedRecordType());
   const [backgroundTone, setBackgroundTone] = useState(localStorage.getItem("app_background_hsl") || "");
-  const [deletionRequests, setDeletionRequests] = useState<DataRequestEntry[]>([]);
-  const [auditEvents, setAuditEvents] = useState<AuditEventEntry[]>([]);
-  const recordFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const featuredRecord = useMemo(
+    () => verifiedRecords.find((record) => record.type === displayRecordType && record.certified) || null,
+    [displayRecordType, verifiedRecords],
+  );
 
   useEffect(() => {
     const garminConfig = getGarminProviderConfig();
@@ -249,40 +292,47 @@ const Admin = () => {
     setStravaAthleteId(stravaConfig.athleteId);
     setKakaoRestApiKey(kakaoConfig.restApiKey);
     setKakaoClientSecret(kakaoConfig.clientSecret);
-    setKakaoRedirectUri(kakaoConfig.redirectUri);
-    setKakaoConsentScope(kakaoConfig.consentScope);
+    setKakaoRedirectUri(kakaoConfig.redirectUri || "https://rhhealthcare.app/auth/kakao/callback");
+    setKakaoConsentScope(kakaoConfig.consentScope || "profile_nickname,account_email,name,phone_number");
     setLineChannelId(lineConfig.channelId);
     setLineClientSecret(lineConfig.clientSecret);
-    setLineRedirectUri(lineConfig.redirectUri);
-    setLineScope(lineConfig.scope);
-    setEquipments(storedEquipments ? JSON.parse(storedEquipments) : []);
-    setDisplayRecordTypeState(getDisplayedRecordType());
-    setVerifiedRecords(getVerifiedRecords());
-    setBackgroundTone(localStorage.getItem("app_background_hsl") || "");
+    setLineRedirectUri(lineConfig.redirectUri || "https://rhhealthcare.app/auth/line/callback");
+    setLineScope(lineConfig.scope || "profile openid email");
+
     if (savedSyncEnabled !== null) {
       setScheduledSyncEnabled(savedSyncEnabled === "true");
     }
     if (savedSyncTime) {
       setSyncTime(savedSyncTime);
     }
+    if (storedEquipments) {
+      try {
+        setEquipments(JSON.parse(storedEquipments) as EquipmentEntry[]);
+      } catch {
+        setEquipments([]);
+      }
+    }
 
     void refreshConnectionState();
     void fetchLogs();
-    void (async () => {
-      setDeletionRequests((await loadServerDeletionRequests()) as DataRequestEntry[]);
-      setAuditEvents((await loadServerAuditEvents()) as AuditEventEntry[]);
-    })();
+    void refreshServerPrivacyData();
   }, []);
 
-  const refreshConnectionState = async () => {
+  async function refreshServerPrivacyData() {
+    setDeletionRequests(await loadServerDeletionRequests());
+    setAuditEvents(await loadServerAuditEvents());
+  }
+
+  async function refreshConnectionState() {
     const provider = getActiveProvider();
     setProviderStatus("checking");
+
     try {
       const status = await provider.getConnectionStatus();
       setProviderStatus(status.connected ? "connected" : "disconnected");
       setProviderMessage(status.message || "");
       setProviderIssues(status.issues || []);
-      setProviderAuthExpiresAt(status.authExpiresAt ? new Date(status.authExpiresAt).toLocaleString("ko-KR") : "");
+      setProviderAuthExpiresAt(status.authExpiresAt || "");
       if (status.lastSyncAt) {
         setProviderLastSync(new Date(status.lastSyncAt).toLocaleString("ko-KR"));
       } else {
@@ -293,18 +343,18 @@ const Admin = () => {
       console.error("Failed to refresh provider state:", error);
       setProviderStatus("disconnected");
       setProviderMessage("연결 상태를 확인하지 못했습니다.");
-      setProviderIssues([error instanceof Error ? error.message : "알 수 없는 provider 상태 확인 오류"]);
+      setProviderIssues([]);
       setProviderAuthExpiresAt("");
     }
 
-    const gptEnabled = localStorage.getItem("openai_enabled") === "true" || hasPendingOpenAiCredentials();
+    const hasOpenAi = hasPendingOpenAiCredentials() || localStorage.getItem("openai_enabled") === "true";
     const lastSync = localStorage.getItem("lastSync");
-    setGptStatus(gptEnabled ? "connected" : "disconnected");
+    setGptStatus(hasOpenAi ? "connected" : "disconnected");
     setGptLastSync(lastSync ? new Date(lastSync).toLocaleString("ko-KR") : "");
-    setRemainingTokens(gptEnabled ? Math.floor(Math.random() * 10000) + 5000 : 0);
-  };
+    setRemainingTokens(hasOpenAi ? Math.floor(Math.random() * 10000) + 5000 : 0);
+  }
 
-  const fetchLogs = async () => {
+  async function fetchLogs() {
     const profileId = localStorage.getItem("profile_id");
     if (!profileId) {
       setLogs([]);
@@ -318,10 +368,10 @@ const Admin = () => {
       .order("created_at", { ascending: false })
       .limit(5);
 
-    setLogs(data || []);
-  };
+    setLogs((data as LogEntry[]) || []);
+  }
 
-  const handleProviderChange = (providerId: ProviderId) => {
+  function handleProviderChange(providerId: ProviderId) {
     setActiveProvider(providerId);
     setStoredProviderId(providerId);
     toast({
@@ -329,186 +379,166 @@ const Admin = () => {
       description: `${getProviderMeta(providerId).label}를 선택했습니다.`,
     });
     void refreshConnectionState();
-  };
+  }
 
-  const handleMockModeChange = (enabled: boolean) => {
+  function handleMockModeChange(enabled: boolean) {
     setMockHealthDataState(enabled);
     setMockHealthDataEnabled(enabled);
+    invalidateHealthData();
     toast({
       title: enabled ? "가데이터 모드를 켰습니다" : "가데이터 모드를 껐습니다",
       description: "홈, 기록, 비교 화면에 바로 반영됩니다.",
     });
-    invalidateHealthData();
-  };
+  }
 
-  const handleDisplayToggle = (section: keyof DisplaySettings, key: string, checked: boolean) => {
+  function handleDisplayToggle(section: keyof DisplaySettings, key: string, checked: boolean) {
     const next = {
       ...displaySettings,
-      [section]: checked
-        ? [...displaySettings[section], key]
-        : displaySettings[section].filter((item) => item !== key),
+      [section]: checked ? [...displaySettings[section], key] : displaySettings[section].filter((item) => item !== key),
     };
     setDisplaySettings(next);
     saveDisplaySettings(next);
-  };
+  }
 
-  const handleAddEquipment = () => {
+  function saveBackgroundTone(next: string) {
+    setBackgroundTone(next);
+    localStorage.setItem("app_background_hsl", next);
+    document.documentElement.style.setProperty("--background", next);
+    toast({ title: "배경 톤을 변경했습니다" });
+  }
+
+  function saveEquipments(next: EquipmentEntry[]) {
+    setEquipments(next);
+    localStorage.setItem("equipment_settings_v1", JSON.stringify(next));
+  }
+
+  function addEquipment() {
     if (!equipmentName.trim()) {
-      toast({ title: "장비 이름을 입력해 주세요.", variant: "destructive" });
+      toast({ title: "장비 이름을 입력해 주세요", variant: "destructive" });
       return;
     }
-
-    const next = [
-      ...equipments,
+    const next: EquipmentEntry[] = [
       {
         id: `equipment-${Date.now()}`,
         type: equipmentType,
         name: equipmentName.trim(),
         distanceKm: equipmentDistanceKm.trim() || "0",
       },
+      ...equipments,
     ];
-    setEquipments(next);
-    localStorage.setItem("equipment_settings_v1", JSON.stringify(next));
+    saveEquipments(next);
     setEquipmentName("");
     setEquipmentDistanceKm("");
-    toast({ title: "장비를 저장했습니다." });
-  };
+    toast({ title: "장비를 추가했습니다" });
+  }
 
-  const handleRecordSave = () => {
-    if (!officialTime.trim()) {
-      toast({ title: "공인 기록 시간을 입력해 주세요.", variant: "destructive" });
+  function removeEquipment(id: string) {
+    saveEquipments(equipments.filter((item) => item.id !== id));
+  }
+
+  async function handleRecordFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const text = await file.text();
+    const parsedTime = parseOfficialTimeFromText(text);
+    if (!parsedTime) {
+      toast({
+        title: "기록을 찾지 못했습니다",
+        description: "파일 안에서 3:50:22 형식의 기록을 찾지 못했습니다.",
+        variant: "destructive",
+      });
       return;
     }
+
+    setOfficialTime(parsedTime);
+    setRecordLabel(file.name.replace(/\.[^.]+$/, ""));
+    toast({ title: "파일에서 기록을 불러왔습니다", description: parsedTime });
+  }
+
+  function saveRecord() {
+    if (!officialTime.trim()) {
+      toast({ title: "공식 기록을 입력해 주세요", variant: "destructive" });
+      return;
+    }
+
     const next = saveVerifiedRecord({
       type: recordType,
-      label: recordLabel.trim() || (recordType === "10k" ? "10K" : recordType === "half" ? "Half Marathon" : "Full Marathon"),
+      label: recordLabel.trim() || `${recordType.toUpperCase()} 인증 기록`,
       officialTime: officialTime.trim(),
       certified: true,
     });
     setVerifiedRecords(next);
-    if (recordType === "full") {
-      const tag = buildRecordTag(next[0]);
-      if (tag === "Sub4" || tag === "Sub3") {
-        awardBadge({
-          id: `record-${tag.toLowerCase()}`,
-          name: tag,
-          description: `${tag} 공인 기록을 등록했습니다.`,
-          icon: "🏁",
-        });
-      }
+    setDisplayedRecordType(recordType);
+    setDisplayRecordTypeState(recordType);
+    if (recordType === "full" && officialTime.trim() < "04:00:00") {
+      awardBadge("badge-sub4", "Sub4 마라토너", "4시간 이내 풀코스 인증");
     }
-    toast({ title: "인증 기록을 저장했습니다." });
-    setRecordLabel("");
-    setOfficialTime("");
-  };
+    toast({ title: "인증 기록을 저장했습니다", description: buildRecordTag(next[0]) || officialTime.trim() });
+  }
 
-  const handleDisplayRecordChange = (type: RecordType) => {
-    setDisplayRecordTypeState(type);
-    setDisplayedRecordType(type);
-  };
-
-  const handleRecordFileUpload = async (file: File | null) => {
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const detected = parseOfficialTimeFromText(text) || parseOfficialTimeFromText(file.name);
-      if (!detected) {
-        toast({ title: "기록 시간을 찾지 못했습니다.", description: "파일 안에 3:50:22 같은 형식이 필요합니다.", variant: "destructive" });
-        return;
-      }
-      setOfficialTime(detected);
-      if (!recordLabel.trim()) {
-        setRecordLabel(file.name.replace(/\.[^.]+$/, ""));
-      }
-      toast({ title: "기록 파일을 불러왔습니다." });
-    } catch (error) {
-      console.error("Failed to parse record file:", error);
-      toast({ title: "파일을 읽지 못했습니다.", variant: "destructive" });
+  function saveProviderConfig(type: ApiDialogId) {
+    if (type === "garmin") {
+      setGarminProviderConfig({ apiBaseUrl: garminApiBaseUrl, accessToken: garminAccessToken, userId: garminUserId });
+      toast({ title: "Garmin 설정을 저장했습니다" });
     }
-  };
-
-  const handleBackgroundToneChange = (value: string) => {
-    setBackgroundTone(value);
-    localStorage.setItem("app_background_hsl", value);
-    document.documentElement.style.setProperty("--background", value);
-    toast({ title: "배경 색상을 적용했습니다." });
-  };
-
-  const handleDeleteEquipment = (id: string) => {
-    const next = equipments.filter((item) => item.id !== id);
-    setEquipments(next);
-    localStorage.setItem("equipment_settings_v1", JSON.stringify(next));
-  };
-
-  const handleGarminConfigSave = () => {
-    setGarminProviderConfig({ apiBaseUrl: garminApiBaseUrl, accessToken: garminAccessToken, userId: garminUserId });
-    toast({ title: "Garmin 설정을 저장했습니다" });
+    if (type === "samsung") {
+      localStorage.setItem("samsung_health_api_key", samsungApiKey);
+      localStorage.setItem("samsung_health_client_id", samsungClientId);
+      toast({ title: "Samsung Health 설정을 저장했습니다" });
+    }
+    if (type === "apple") {
+      setAppleHealthProviderConfig({
+        appId: appleAppId,
+        teamId: appleTeamId,
+        redirectUri: appleRedirectUri,
+        apiBaseUrl: appleApiBaseUrl,
+        accessToken: appleAccessToken,
+      });
+      toast({ title: "Apple Health 설정을 저장했습니다" });
+    }
+    if (type === "strava") {
+      setStravaProviderConfig({
+        clientId: stravaClientId,
+        clientSecret: stravaClientSecret,
+        refreshToken: stravaRefreshToken,
+        athleteId: stravaAthleteId,
+      });
+      toast({ title: "Strava 설정을 저장했습니다" });
+    }
+    if (type === "kakao") {
+      setKakaoAuthConfig({
+        restApiKey: kakaoRestApiKey,
+        clientSecret: kakaoClientSecret,
+        redirectUri: kakaoRedirectUri,
+        consentScope: kakaoConsentScope,
+      });
+      toast({ title: "Kakao 로그인 설정을 저장했습니다" });
+    }
+    if (type === "line") {
+      setLineAuthConfig({
+        channelId: lineChannelId,
+        clientSecret: lineClientSecret,
+        redirectUri: lineRedirectUri,
+        scope: lineScope,
+      });
+      toast({ title: "LINE 로그인 설정을 저장했습니다" });
+    }
     setApiDialog(null);
-  };
+    void refreshConnectionState();
+  }
 
-  const handleSamsungConfigSave = () => {
-    localStorage.setItem("samsung_health_api_key", samsungApiKey);
-    localStorage.setItem("samsung_health_client_id", samsungClientId);
-    toast({ title: "Samsung Health 설정을 저장했습니다" });
-    setApiDialog(null);
-  };
-
-  const handleAppleConfigSave = () => {
-    setAppleHealthProviderConfig({
-      appId: appleAppId,
-      teamId: appleTeamId,
-      redirectUri: appleRedirectUri,
-      apiBaseUrl: appleApiBaseUrl,
-      accessToken: appleAccessToken,
-    });
-    toast({ title: "Apple Health 설정을 저장했습니다" });
-    setApiDialog(null);
-  };
-
-  const handleStravaConfigSave = () => {
-    setStravaProviderConfig({
-      clientId: stravaClientId,
-      clientSecret: stravaClientSecret,
-      refreshToken: stravaRefreshToken,
-      athleteId: stravaAthleteId,
-    });
-    toast({ title: "Strava 설정을 저장했습니다" });
-    setApiDialog(null);
-  };
-
-  const handleKakaoConfigSave = () => {
-    setKakaoAuthConfig({
-      restApiKey: kakaoRestApiKey,
-      clientSecret: kakaoClientSecret,
-      redirectUri: kakaoRedirectUri,
-      consentScope: kakaoConsentScope,
-    });
-    toast({ title: "Kakao 로그인 설정을 저장했습니다" });
-    setApiDialog(null);
-  };
-
-  const handleLineConfigSave = () => {
-    setLineAuthConfig({
-      channelId: lineChannelId,
-      clientSecret: lineClientSecret,
-      redirectUri: lineRedirectUri,
-      scope: lineScope,
-    });
-    toast({ title: "LINE 로그인 설정을 저장했습니다" });
-    setApiDialog(null);
-  };
-
-  const handleScheduledSyncToggle = (enabled: boolean) => {
+  function handleScheduledSyncToggle(enabled: boolean) {
     setScheduledSyncEnabled(enabled);
-    localStorage.setItem("scheduled_sync_enabled", enabled.toString());
-  };
+    localStorage.setItem("scheduled_sync_enabled", String(enabled));
+  }
 
-  const handleSyncTimeChange = (time: string) => {
-    setSyncTime(time);
-    localStorage.setItem("sync_time", time);
-  };
+  function handleSyncTimeChange(next: string) {
+    setSyncTime(next);
+    localStorage.setItem("sync_time", next);
+  }
 
-  const syncHealthData = async () => {
+  async function syncHealthData() {
     setIsSyncing(true);
     try {
       const healthData = await getActiveProvider().getTodayData();
@@ -526,9 +556,7 @@ const Admin = () => {
         .maybeSingle();
 
       if (credentials?.api_key) {
-        const { error } = await supabase.functions.invoke("send-health-data", {
-          body: { healthData },
-        });
+        const { error } = await supabase.functions.invoke("send-health-data", { body: { healthData } });
         if (error) {
           throw error;
         }
@@ -558,9 +586,42 @@ const Admin = () => {
     } finally {
       setIsSyncing(false);
     }
-  };
+  }
 
-  const getStatusChip = (status: "checking" | "connected" | "disconnected") => {
+  async function handleLocalExport() {
+    await downloadUserDataExport();
+    toast({ title: "로컬 데이터 내보내기를 시작했습니다" });
+  }
+
+  async function handleServerExport() {
+    await downloadServerUserDataExport();
+    toast({ title: "서버 데이터 내보내기를 시작했습니다" });
+  }
+
+  async function handleLocalDelete() {
+    deleteScopedUserData();
+    toast({ title: "로컬 데이터를 삭제했습니다" });
+  }
+
+  async function handleServerDelete() {
+    const success = await deleteServerUserData();
+    toast({
+      title: success ? "서버 데이터를 삭제했습니다" : "서버 데이터 삭제에 실패했습니다",
+      variant: success ? "default" : "destructive",
+    });
+    await refreshServerPrivacyData();
+  }
+
+  async function handleDeletionRequest() {
+    const success = await submitServerDeletionRequest("사용자가 서버 데이터 삭제 요청을 제출했습니다.");
+    toast({
+      title: success ? "삭제 요청을 제출했습니다" : "삭제 요청 제출에 실패했습니다",
+      variant: success ? "default" : "destructive",
+    });
+    await refreshServerPrivacyData();
+  }
+
+  function getStatusChip(status: "checking" | "connected" | "disconnected") {
     if (status === "connected") {
       return (
         <div className="flex items-center gap-2 text-emerald-600">
@@ -583,24 +644,20 @@ const Admin = () => {
         미연결
       </div>
     );
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
-      <Header showNav={true} />
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 pb-32">
+      <Header showNav />
       <ScrollToTop />
-      <div className="mx-auto max-w-5xl space-y-6 p-4">
-        <input
-          ref={recordFileInputRef}
-          type="file"
-          accept=".txt,.csv,.json,.log"
-          className="hidden"
-          onChange={(event) => void handleRecordFileUpload(event.target.files?.[0] || null)}
-        />
-        <h1 className="text-3xl font-bold">설정</h1>
+      <div className="mx-auto max-w-6xl space-y-6 px-4 pb-8 pt-6">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold">설정</h1>
+          <p className="text-sm text-muted-foreground">연동, 기록, 장비, 데이터 권리와 테마를 한 곳에서 관리합니다.</p>
+        </div>
 
         <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid h-auto w-full grid-cols-3 gap-2 md:grid-cols-6">
             <TabsTrigger value="general">일반</TabsTrigger>
             <TabsTrigger value="providers">연동</TabsTrigger>
             <TabsTrigger value="theme">테마</TabsTrigger>
@@ -609,30 +666,45 @@ const Admin = () => {
             <TabsTrigger value="data">데이터</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="general">
+          <TabsContent value="general" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>기본 설정</CardTitle>
-                <CardDescription>연동 공급자 선택과 가데이터 모드를 관리합니다.</CardDescription>
+                <CardDescription>현재 사용할 공급자와 가데이터 모드를 관리합니다.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <Label>연동 공급자 선택</Label>
                   <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                     {providers.map((providerId) => (
-                      <Button key={providerId} variant={activeProvider === providerId ? "default" : "outline"} onClick={() => handleProviderChange(providerId)}>
+                      <Button
+                        key={providerId}
+                        variant={activeProvider === providerId ? "default" : "outline"}
+                        onClick={() => handleProviderChange(providerId)}
+                      >
                         {getProviderMeta(providerId).label}
                       </Button>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="flex items-center justify-between rounded-xl border p-4">
                   <div>
                     <Label htmlFor="mock-mode">가데이터 사용</Label>
-                    <p className="mt-1 text-sm text-muted-foreground">실연동이 준비되기 전에도 모든 화면을 mock 데이터로 채웁니다.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">실연동이 준비되지 않아도 모든 화면을 mock 데이터로 채웁니다.</p>
                   </div>
                   <Switch id="mock-mode" checked={mockHealthDataEnabled} onCheckedChange={handleMockModeChange} />
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="text-sm font-medium">AI 연결 상태</div>
+                  <div className="mt-3 flex items-center justify-between">
+                    {getStatusChip(gptStatus)}
+                    <div className="text-right text-xs text-muted-foreground">
+                      <div>최근 확인: {gptLastSync || "없음"}</div>
+                      <div>예상 잔여 토큰: {remainingTokens.toLocaleString()}</div>
+                    </div>
+                  </div>
                 </div>
 
                 <Button onClick={() => navigate("/account-settings", { state: { from: "/admin" } })} className="w-full gap-2">
@@ -643,49 +715,34 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="providers">
-            <div className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{getProviderMeta(activeProvider).label}</CardTitle>
-                    <CardDescription>현재 선택된 연동 공급자의 연결 상태입니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {getStatusChip(providerStatus)}
-                    <div className="text-sm text-muted-foreground">
-                      최근 동기화: {providerLastSync || "없음"}
-                    </div>
-                    {providerAuthExpiresAt ? <div className="text-sm text-muted-foreground">인증 만료: {providerAuthExpiresAt}</div> : null}
-                    {providerMessage ? <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">{providerMessage}</div> : null}
-                    {providerIssues.length > 0 ? (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
-                        {providerIssues.map((issue, index) => (
-                          <div key={`${issue}-${index}`}>{issue}</div>
+          <TabsContent value="providers" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{getProviderMeta(activeProvider).label}</CardTitle>
+                  <CardDescription>현재 선택한 공급자의 연결 상태입니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {getStatusChip(providerStatus)}
+                  <div className="text-sm text-muted-foreground">최근 동기화: {providerLastSync || "없음"}</div>
+                  {providerAuthExpiresAt ? <div className="text-sm text-muted-foreground">인증 만료: {formatDateTime(providerAuthExpiresAt)}</div> : null}
+                  {providerMessage ? <div className="rounded-lg bg-muted p-3 text-sm">{providerMessage}</div> : null}
+                  {providerIssues.length > 0 ? (
+                    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                      <div className="mb-1 font-medium">확인할 항목</div>
+                      <ul className="space-y-1">
+                        {providerIssues.map((issue) => (
+                          <li key={issue}>- {issue}</li>
                         ))}
-                      </div>
-                    ) : null}
-                    <Button variant="outline" onClick={() => void refreshConnectionState()} className="w-full gap-2">
-                      <RefreshCw className="h-4 w-4" />
-                      상태 새로고침
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>GPT 연결</CardTitle>
-                    <CardDescription>AI 코치와 자동 분석에 사용하는 GPT 연결 상태입니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {getStatusChip(gptStatus)}
-                    <div className="text-sm text-muted-foreground">
-                      최근 확인: {gptLastSync || "없음"}
+                      </ul>
                     </div>
-                    <div className="text-sm text-muted-foreground">예상 잔여 토큰: {remainingTokens.toLocaleString()}</div>
-                  </CardContent>
-                </Card>
-              </div>
+                  ) : null}
+                  <Button variant="outline" onClick={() => void refreshConnectionState()} className="w-full gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    상태 새로고침
+                  </Button>
+                </CardContent>
+              </Card>
 
               <Card>
                 <CardHeader>
@@ -693,7 +750,7 @@ const Admin = () => {
                   <CardDescription>지정한 시간에 자동 동기화를 수행합니다.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="flex items-center justify-between rounded-xl border p-4">
                     <div>
                       <Label htmlFor="scheduled-sync">자동 동기화</Label>
                       <p className="mt-1 text-sm text-muted-foreground">매일 설정한 시간에 건강 데이터를 동기화합니다.</p>
@@ -710,396 +767,423 @@ const Admin = () => {
                   </Button>
                 </CardContent>
               </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>API 설정</CardTitle>
-                  <CardDescription>서비스별 API 값은 버튼을 눌러 열리는 창에서 관리합니다.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <Dialog open={apiDialog === "garmin"} onOpenChange={(open) => setApiDialog(open ? "garmin" : null)}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <KeyRound className="h-4 w-4" />
-                        Garmin API 설정
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Garmin API 설정</DialogTitle>
-                        <DialogDescription>승인받은 Garmin API 키와 사용자 정보를 입력합니다.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3">
-                        <Input value={garminApiBaseUrl} onChange={(e) => setGarminApiBaseUrl(e.target.value)} placeholder="API Base URL" />
-                        <Input value={garminAccessToken} onChange={(e) => setGarminAccessToken(e.target.value)} placeholder="Access Token" />
-                        <Input value={garminUserId} onChange={(e) => setGarminUserId(e.target.value)} placeholder="User ID" />
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
-                        <Button onClick={handleGarminConfigSave}>저장</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Dialog open={apiDialog === "samsung"} onOpenChange={(open) => setApiDialog(open ? "samsung" : null)}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <KeyRound className="h-4 w-4" />
-                        Samsung Health 설정
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Samsung Health API 설정</DialogTitle>
-                        <DialogDescription>Samsung 개발자용 키가 있다면 저장해 둘 수 있습니다.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3">
-                        <Input value={samsungApiKey} onChange={(e) => setSamsungApiKey(e.target.value)} placeholder="API Key" />
-                        <Input value={samsungClientId} onChange={(e) => setSamsungClientId(e.target.value)} placeholder="Client ID" />
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
-                        <Button onClick={handleSamsungConfigSave}>저장</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Dialog open={apiDialog === "apple"} onOpenChange={(open) => setApiDialog(open ? "apple" : null)}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <KeyRound className="h-4 w-4" />
-                        Apple Health 설정
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Apple Health API 설정</DialogTitle>
-                        <DialogDescription>Apple Health 연결에 필요한 앱 식별 정보를 입력합니다.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3">
-                        <Input value={appleAppId} onChange={(e) => setAppleAppId(e.target.value)} placeholder="App ID" />
-                        <Input value={appleTeamId} onChange={(e) => setAppleTeamId(e.target.value)} placeholder="Team ID" />
-                        <Input value={appleRedirectUri} onChange={(e) => setAppleRedirectUri(e.target.value)} placeholder="Redirect URI" />
-                        <Input value={appleApiBaseUrl} onChange={(e) => setAppleApiBaseUrl(e.target.value)} placeholder="Backend API Base URL" />
-                        <Input value={appleAccessToken} onChange={(e) => setAppleAccessToken(e.target.value)} placeholder="Backend Access Token" />
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
-                        <Button onClick={handleAppleConfigSave}>저장</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Dialog open={apiDialog === "strava"} onOpenChange={(open) => setApiDialog(open ? "strava" : null)}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <KeyRound className="h-4 w-4" />
-                        Strava API 설정
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Strava API 설정</DialogTitle>
-                        <DialogDescription>Strava OAuth 설정값을 입력합니다.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3">
-                        <Input value={stravaClientId} onChange={(e) => setStravaClientId(e.target.value)} placeholder="Client ID" />
-                        <Input value={stravaClientSecret} onChange={(e) => setStravaClientSecret(e.target.value)} placeholder="Client Secret" />
-                        <Input value={stravaRefreshToken} onChange={(e) => setStravaRefreshToken(e.target.value)} placeholder="Refresh Token" />
-                        <Input value={stravaAthleteId} onChange={(e) => setStravaAthleteId(e.target.value)} placeholder="Athlete ID" />
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
-                        <Button onClick={handleStravaConfigSave}>저장</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Dialog open={apiDialog === "kakao"} onOpenChange={(open) => setApiDialog(open ? "kakao" : null)}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <KeyRound className="h-4 w-4" />
-                        Kakao 로그인 설정
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Kakao 로그인 설정</DialogTitle>
-                        <DialogDescription>REST API 키, Redirect URI, 동의항목을 입력합니다.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3">
-                        <Input value={kakaoRestApiKey} onChange={(e) => setKakaoRestApiKey(e.target.value)} placeholder="REST API Key" />
-                        <Input value={kakaoClientSecret} onChange={(e) => setKakaoClientSecret(e.target.value)} placeholder="Client Secret" />
-                        <Input value={kakaoRedirectUri} onChange={(e) => setKakaoRedirectUri(e.target.value)} placeholder="Redirect URI" />
-                        <Input value={kakaoConsentScope} onChange={(e) => setKakaoConsentScope(e.target.value)} placeholder="Scopes" />
-                      </div>
-                      <DialogFooter className="sm:justify-between">
-                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
-                        <div className="flex gap-2">
-                          <Button variant="outline" onClick={startKakaoLogin}>로그인 테스트</Button>
-                          <Button onClick={handleKakaoConfigSave}>저장</Button>
-                        </div>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Dialog open={apiDialog === "line"} onOpenChange={(open) => setApiDialog(open ? "line" : null)}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <KeyRound className="h-4 w-4" />
-                        LINE 로그인 설정
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>LINE 로그인 설정</DialogTitle>
-                        <DialogDescription>Channel ID, Redirect URI, scope를 입력합니다.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3">
-                        <Input value={lineChannelId} onChange={(e) => setLineChannelId(e.target.value)} placeholder="Channel ID" />
-                        <Input value={lineClientSecret} onChange={(e) => setLineClientSecret(e.target.value)} placeholder="Client Secret" />
-                        <Input value={lineRedirectUri} onChange={(e) => setLineRedirectUri(e.target.value)} placeholder="Redirect URI" />
-                        <Input value={lineScope} onChange={(e) => setLineScope(e.target.value)} placeholder="Scope" />
-                      </div>
-                      <DialogFooter className="sm:justify-between">
-                        <Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button>
-                        <div className="flex gap-2">
-                          <Button variant="outline" onClick={startLineLogin}>로그인 테스트</Button>
-                          <Button onClick={handleLineConfigSave}>저장</Button>
-                        </div>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>최근 연동 로그</CardTitle>
-                  <CardDescription>최근 5개의 동기화 로그만 간단히 보여줍니다.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {logs.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">표시할 로그가 없습니다.</div>
-                  ) : (
-                    logs.map((log) => (
-                      <div key={log.id} className="flex items-start justify-between rounded-xl border p-4">
-                        <div className="min-w-0">
-                          <div className="font-medium">{log.log_type}</div>
-                          <div className="mt-1 text-sm text-muted-foreground">{log.message}</div>
-                          <div className="mt-1 text-xs text-muted-foreground">{new Date(log.created_at).toLocaleString("ko-KR")}</div>
-                        </div>
-                        <div className="ml-3 flex items-center gap-2 text-xs text-muted-foreground">
-                          <Clock className="h-4 w-4" />
-                          {log.status}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
             </div>
-          </TabsContent>
 
-          <TabsContent value="records">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>인증 기록 업로드</CardTitle>
-                  <CardDescription>10K, 하프, 풀 기록을 등록하고 프로필에 표시할 기록을 선택합니다.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["10k", "half", "full"] as RecordType[]).map((type) => (
-                      <Button key={type} variant={recordType === type ? "default" : "outline"} onClick={() => setRecordType(type)}>
-                        {type === "10k" ? "10K" : type === "half" ? "하프" : "풀"}
-                      </Button>
-                    ))}
-                  </div>
-                  <Input value={recordLabel} onChange={(event) => setRecordLabel(event.target.value)} placeholder="표시 이름" />
-                  <Input value={officialTime} onChange={(event) => setOfficialTime(event.target.value)} placeholder="공인 기록 예: 3:50:22" />
-                  <Button variant="outline" onClick={() => recordFileInputRef.current?.click()} className="w-full">
-                    기록 파일 불러오기
-                  </Button>
-                  <Button onClick={handleRecordSave} className="w-full">
-                    기록 저장
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>프로필 표기 기록</CardTitle>
-                  <CardDescription>프로필 요약에 표시할 인증 기록을 선택합니다.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["10k", "half", "full"] as RecordType[]).map((type) => (
-                      <Button key={type} variant={displayRecordType === type ? "default" : "outline"} onClick={() => handleDisplayRecordChange(type)}>
-                        {type === "10k" ? "10K" : type === "half" ? "하프" : "풀"}
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="space-y-3">
-                    {verifiedRecords.length === 0 ? (
-                      <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">등록된 인증 기록이 없습니다.</div>
-                    ) : (
-                      verifiedRecords.map((record) => (
-                        <div key={record.id} className="rounded-xl border p-4">
-                          <div className="font-medium">{record.label}</div>
-                          <div className="mt-1 text-sm text-muted-foreground">
-                            {record.officialTime} · {record.type} · {record.certified ? "인증됨" : "미인증"}
-                          </div>
-                          {buildRecordTag(record) ? <div className="mt-2 text-xs text-primary">{buildRecordTag(record)}</div> : null}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="theme">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>테마 색상</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {themeOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      variant={theme === option.value ? "default" : "outline"}
-                      onClick={() => setTheme(option.value)}
-                      className="h-auto justify-start gap-3 px-4 py-4"
-                    >
-                      <div className="flex gap-1.5">
-                        {option.colors.map((color) => (
-                          <span
-                            key={`${option.value}-${color}`}
-                            className="h-4 w-4 rounded-full border border-black/10"
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                      <span>{option.label}</span>
-                    </Button>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>배경 색상</CardTitle>
-                  <CardDescription>홈과 전체 앱의 기본 배경 톤을 함께 조정합니다.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {backgroundOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      variant={backgroundTone === option.value ? "default" : "outline"}
-                      onClick={() => handleBackgroundToneChange(option.value)}
-                      className="h-auto justify-start gap-3 px-4 py-4"
-                    >
-                      <span className="h-5 w-5 rounded-full border border-black/10" style={{ backgroundColor: `hsl(${option.value})` }} />
-                      <span>{option.label}</span>
-                    </Button>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="data">
-            <div className="space-y-6">
-              {(["home", "history", "comparison"] as const).map((section) => (
-                <Card key={section}>
-                  <CardHeader>
-                    <CardTitle>{section === "home" ? "홈" : section === "history" ? "기록" : "비교"} 데이터 설정</CardTitle>
-                    <CardDescription>표출 가능한 데이터를 사용자가 직접 선택합니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-3 md:grid-cols-2">
-                    {displayOptions[section].map((option) => (
-                      <label key={option.key} className="flex items-center gap-3 rounded-lg border p-3">
-                        <Checkbox
-                          checked={displaySettings[section].includes(option.key)}
-                          onCheckedChange={(checked) => handleDisplayToggle(section, option.key, checked === true)}
-                        />
-                        <span className="text-sm">{option.label}</span>
-                      </label>
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>데이터 권리</CardTitle>
-                  <CardDescription>내 데이터 내보내기와 로컬 데이터 삭제를 지원합니다.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-2">
-                  <Button variant="outline" onClick={downloadUserDataExport}>
-                    데이터 내보내기
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      deleteScopedUserData();
-                      toast({ title: "로컬 사용자 데이터를 삭제했습니다." });
-                    }}
-                  >
-                    로컬 데이터 삭제
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="equipment">
             <Card>
               <CardHeader>
-                <CardTitle>장비</CardTitle>
-                <CardDescription>신발 등 장비별 누적 거리 파라미터를 입력합니다.</CardDescription>
+                <CardTitle>API 설정</CardTitle>
+                <CardDescription>서비스별 API 값은 별도 창에서 저장합니다.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-4">
-                  <Input value={equipmentType} onChange={(event) => setEquipmentType(event.target.value)} placeholder="장비 유형" />
-                  <Input value={equipmentName} onChange={(event) => setEquipmentName(event.target.value)} placeholder="장비 이름" />
-                  <Input value={equipmentDistanceKm} onChange={(event) => setEquipmentDistanceKm(event.target.value)} placeholder="누적 거리(km)" />
-                  <Button onClick={handleAddEquipment} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    장비 추가
-                  </Button>
+              <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {[
+                  { key: "garmin", label: "Garmin API 설정" },
+                  { key: "samsung", label: "Samsung Health API 설정" },
+                  { key: "apple", label: "Apple Health API 설정" },
+                  { key: "strava", label: "Strava API 설정" },
+                  { key: "kakao", label: "Kakao 로그인 설정" },
+                  { key: "line", label: "LINE 로그인 설정" },
+                ].map((item) => (
+                  <Dialog key={item.key} open={apiDialog === item.key} onOpenChange={(open) => setApiDialog(open ? (item.key as ApiDialogId) : null)}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        {item.label}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>{item.label}</DialogTitle>
+                        <DialogDescription>연동에 필요한 값을 저장합니다.</DialogDescription>
+                      </DialogHeader>
+
+                      {item.key === "garmin" ? (
+                        <div className="space-y-3">
+                          <Input value={garminApiBaseUrl} onChange={(e) => setGarminApiBaseUrl(e.target.value)} placeholder="API Base URL" />
+                          <Input value={garminAccessToken} onChange={(e) => setGarminAccessToken(e.target.value)} placeholder="Access Token" />
+                          <Input value={garminUserId} onChange={(e) => setGarminUserId(e.target.value)} placeholder="User ID" />
+                        </div>
+                      ) : null}
+
+                      {item.key === "samsung" ? (
+                        <div className="space-y-3">
+                          <Input value={samsungApiKey} onChange={(e) => setSamsungApiKey(e.target.value)} placeholder="API Key" />
+                          <Input value={samsungClientId} onChange={(e) => setSamsungClientId(e.target.value)} placeholder="Client ID" />
+                        </div>
+                      ) : null}
+
+                      {item.key === "apple" ? (
+                        <div className="space-y-3">
+                          <Input value={appleAppId} onChange={(e) => setAppleAppId(e.target.value)} placeholder="App ID" />
+                          <Input value={appleTeamId} onChange={(e) => setAppleTeamId(e.target.value)} placeholder="Team ID" />
+                          <Input value={appleRedirectUri} onChange={(e) => setAppleRedirectUri(e.target.value)} placeholder="Redirect URI" />
+                          <Input value={appleApiBaseUrl} onChange={(e) => setAppleApiBaseUrl(e.target.value)} placeholder="Bridge API Base URL" />
+                          <Input value={appleAccessToken} onChange={(e) => setAppleAccessToken(e.target.value)} placeholder="Bridge Access Token" />
+                        </div>
+                      ) : null}
+
+                      {item.key === "strava" ? (
+                        <div className="space-y-3">
+                          <Input value={stravaClientId} onChange={(e) => setStravaClientId(e.target.value)} placeholder="Client ID" />
+                          <Input value={stravaClientSecret} onChange={(e) => setStravaClientSecret(e.target.value)} placeholder="Client Secret" />
+                          <Input value={stravaRefreshToken} onChange={(e) => setStravaRefreshToken(e.target.value)} placeholder="Refresh Token" />
+                          <Input value={stravaAthleteId} onChange={(e) => setStravaAthleteId(e.target.value)} placeholder="Athlete ID" />
+                        </div>
+                      ) : null}
+
+                      {item.key === "kakao" ? (
+                        <div className="space-y-3">
+                          <Input value={kakaoRestApiKey} onChange={(e) => setKakaoRestApiKey(e.target.value)} placeholder="REST API Key" />
+                          <Input value={kakaoClientSecret} onChange={(e) => setKakaoClientSecret(e.target.value)} placeholder="Client Secret" />
+                          <Input value={kakaoRedirectUri} onChange={(e) => setKakaoRedirectUri(e.target.value)} placeholder="Redirect URI" />
+                          <Input value={kakaoConsentScope} onChange={(e) => setKakaoConsentScope(e.target.value)} placeholder="Scopes" />
+                        </div>
+                      ) : null}
+
+                      {item.key === "line" ? (
+                        <div className="space-y-3">
+                          <Input value={lineChannelId} onChange={(e) => setLineChannelId(e.target.value)} placeholder="Channel ID" />
+                          <Input value={lineClientSecret} onChange={(e) => setLineClientSecret(e.target.value)} placeholder="Client Secret" />
+                          <Input value={lineRedirectUri} onChange={(e) => setLineRedirectUri(e.target.value)} placeholder="Redirect URI" />
+                          <Input value={lineScope} onChange={(e) => setLineScope(e.target.value)} placeholder="Scope" />
+                        </div>
+                      ) : null}
+
+                      <DialogFooter className="sm:justify-between">
+                        <Button variant="outline" onClick={() => setApiDialog(null)}>
+                          닫기
+                        </Button>
+                        <div className="flex gap-2">
+                          {item.key === "kakao" ? (
+                            <Button variant="outline" onClick={startKakaoLogin}>
+                              로그인 테스트
+                            </Button>
+                          ) : null}
+                          {item.key === "line" ? (
+                            <Button variant="outline" onClick={startLineLogin}>
+                              로그인 테스트
+                            </Button>
+                          ) : null}
+                          <Button onClick={() => saveProviderConfig(item.key as ApiDialogId)}>저장</Button>
+                        </div>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>최근 연동 로그</CardTitle>
+                <CardDescription>최근 5개의 동기화 로그를 표시합니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {logs.length === 0 ? (
+                  <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">표시할 로그가 없습니다.</div>
+                ) : (
+                  logs.map((log) => (
+                    <div key={log.id} className="flex items-start justify-between rounded-xl border p-4">
+                      <div className="min-w-0">
+                        <div className="font-medium">{log.log_type}</div>
+                        <div className="mt-1 text-sm text-muted-foreground">{log.message}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{formatDateTime(log.created_at)}</div>
+                      </div>
+                      <div className="ml-3 flex items-center gap-2 text-xs text-muted-foreground">
+                        <Clock className="h-4 w-4" />
+                        {log.status}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="theme" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>테마</CardTitle>
+                <CardDescription>앱의 메인 색상을 선택합니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                {themeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setTheme(option.value)}
+                    className={`rounded-2xl border p-4 text-left transition ${theme === option.value ? "border-primary ring-2 ring-primary/30" : "border-border"}`}
+                  >
+                    <div className="mb-3 flex gap-2">
+                      {option.colors.map((color) => (
+                        <span key={color} className="h-6 w-6 rounded-full" style={{ backgroundColor: color }} />
+                      ))}
+                    </div>
+                    <div className="font-medium">{option.label}</div>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>배경 톤</CardTitle>
+                <CardDescription>홈과 카드 뒤쪽에 보이는 배경 밝기를 조정합니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {backgroundOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => saveBackgroundTone(option.value)}
+                    className={`rounded-2xl border p-4 text-left transition ${backgroundTone === option.value ? "border-primary ring-2 ring-primary/30" : "border-border"}`}
+                  >
+                    <div className="mb-3 h-14 rounded-xl border" style={{ backgroundColor: `hsl(${option.value})` }} />
+                    <div className="font-medium">{option.label}</div>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="records" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>인증 기록 업로드</CardTitle>
+                <CardDescription>기록 파일을 읽어 공식 시간을 저장하고 프로필 요약에 표시할 기록을 선택합니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <input ref={recordFileInputRef} type="file" accept=".txt,.csv" className="hidden" onChange={handleRecordFileChange} />
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>종목</Label>
+                    <select
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={recordType}
+                      onChange={(e) => setRecordTypeState(e.target.value as RecordType)}
+                    >
+                      <option value="10k">10K</option>
+                      <option value="half">하프</option>
+                      <option value="full">풀</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>표시할 대표 기록</Label>
+                    <select
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={displayRecordType}
+                      onChange={(e) => {
+                        const next = e.target.value as RecordType;
+                        setDisplayedRecordType(next);
+                        setDisplayRecordTypeState(next);
+                      }}
+                    >
+                      <option value="10k">10K</option>
+                      <option value="half">하프</option>
+                      <option value="full">풀</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div className="space-y-3">
-                  {equipments.length === 0 ? (
-                    <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">저장된 장비가 없습니다.</div>
-                  ) : (
-                    equipments.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between rounded-xl border p-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>기록 이름</Label>
+                    <Input value={recordLabel} onChange={(e) => setRecordLabel(e.target.value)} placeholder="예: 서울마라톤 2026" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>공식 기록</Label>
+                    <Input value={officialTime} onChange={(e) => setOfficialTime(e.target.value)} placeholder="예: 3:50:22" />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Button variant="outline" className="gap-2" onClick={() => recordFileInputRef.current?.click()}>
+                    <Upload className="h-4 w-4" />
+                    기록 파일 불러오기
+                  </Button>
+                  <Button onClick={saveRecord}>기록 저장</Button>
+                </div>
+
+                <div className="rounded-xl border p-4 text-sm">
+                  <div className="font-medium">현재 프로필 대표 기록</div>
+                  <div className="mt-2 text-muted-foreground">{buildRecordTag(featuredRecord) || "아직 선택된 인증 기록이 없습니다."}</div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>저장된 인증 기록</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {verifiedRecords.length === 0 ? (
+                  <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">저장된 인증 기록이 없습니다.</div>
+                ) : (
+                  verifiedRecords.map((record) => (
+                    <div key={record.id} className="rounded-xl border p-4">
+                      <div className="flex items-center justify-between gap-4">
                         <div>
-                          <div className="font-medium">{item.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {item.type} · {item.distanceKm} km
+                          <div className="font-medium">{record.label}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {record.type.toUpperCase()} · {record.officialTime} · {record.certified ? "인증 완료" : "미인증"}
                           </div>
                         </div>
-                        <Button variant="outline" size="icon" onClick={() => handleDeleteEquipment(item.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="text-xs text-muted-foreground">{formatDateTime(record.uploadedAt)}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="equipment" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>장비 관리</CardTitle>
+                <CardDescription>신발, 워킹화, 자전거 등의 누적 거리를 입력합니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={equipmentType}
+                    onChange={(e) => setEquipmentType(e.target.value)}
+                  >
+                    {equipmentTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <Input value={equipmentName} onChange={(e) => setEquipmentName(e.target.value)} placeholder="장비 이름" />
+                  <Input value={equipmentDistanceKm} onChange={(e) => setEquipmentDistanceKm(e.target.value)} placeholder="누적 거리 km" />
+                </div>
+                <Button onClick={addEquipment} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  장비 추가
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>등록된 장비</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {equipments.length === 0 ? (
+                  <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">등록된 장비가 없습니다.</div>
+                ) : (
+                  equipments.map((equipment) => (
+                    <div key={equipment.id} className="flex items-center justify-between rounded-xl border p-4">
+                      <div>
+                        <div className="font-medium">{equipment.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {equipment.type} · {equipment.distanceKm} km
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => removeEquipment(equipment.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="data" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>표시 데이터</CardTitle>
+                <CardDescription>홈, 기록, 비교 화면에서 보일 항목을 직접 고릅니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {(["home", "history", "comparison"] as const).map((section) => (
+                  <div key={section} className="space-y-3">
+                    <div className="font-medium">{section === "home" ? "홈" : section === "history" ? "기록" : "비교"}</div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {displayOptions[section].map((option) => (
+                        <label key={option.key} className="flex items-center gap-3 rounded-xl border p-3">
+                          <Checkbox
+                            checked={displaySettings[section].includes(option.key)}
+                            onCheckedChange={(checked) => handleDisplayToggle(section, option.key, checked === true)}
+                          />
+                          <span className="text-sm">{option.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>데이터 내보내기 / 삭제</CardTitle>
+                  <CardDescription>로컬 데이터와 서버 데이터를 개별적으로 관리할 수 있습니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3">
+                  <Button variant="outline" onClick={() => void handleLocalExport()}>로컬 데이터 내보내기</Button>
+                  <Button variant="outline" onClick={() => void handleServerExport()}>서버 데이터 내보내기</Button>
+                  <Button variant="outline" onClick={() => void handleLocalDelete()}>로컬 데이터 삭제</Button>
+                  <Button variant="destructive" onClick={() => void handleServerDelete()}>서버 데이터 삭제</Button>
+                  <Button onClick={() => void handleDeletionRequest()}>서버 삭제 요청 제출</Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>삭제 요청 현황</CardTitle>
+                  <CardDescription>서버에 접수된 데이터 삭제 요청입니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {deletionRequests.length === 0 ? (
+                    <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">접수된 요청이 없습니다.</div>
+                  ) : (
+                    deletionRequests.map((request) => (
+                      <div key={request.id} className="rounded-xl border p-4">
+                        <div className="font-medium">
+                          {request.request_type} · {request.status}
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground">{request.details}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{formatDateTime(request.created_at)}</div>
                       </div>
                     ))
                   )}
-                </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>감사 로그</CardTitle>
+                <CardDescription>내보내기, 삭제, 요청 제출과 같은 민감 작업 이력을 표시합니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {auditEvents.length === 0 ? (
+                  <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">감사 로그가 없습니다.</div>
+                ) : (
+                  auditEvents.map((event) => (
+                    <div key={event.id} className="flex items-start justify-between rounded-xl border p-4">
+                      <div>
+                        <div className="font-medium">
+                          {event.category} · {event.status}
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground">{event.message}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{formatDateTime(event.created_at)}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-
       </div>
     </div>
   );
-};
+}
 
 export default Admin;
