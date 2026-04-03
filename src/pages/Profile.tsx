@@ -44,6 +44,7 @@ const Profile = () => {
     viewedUserId,
     isMyProfile ? myNickname : state.profile?.name,
     isMyProfile ? myAvatarUrl : state.profile?.avatarUrl,
+    { isCurrentUser: isMyProfile },
   );
 
   const [bio, setBio] = useState(settings.bio);
@@ -67,15 +68,12 @@ const Profile = () => {
       subtitle: state.profile?.subtitle || "커뮤니티 멤버",
       score: state.profile?.score || "피드 사용자",
       rank: state.profile?.rank,
-      avatarUrl: state.profile?.avatarUrl || settings.avatarUrl,
+      avatarUrl: settings.avatarUrl,
     };
   }, [isMyProfile, myAvatarUrl, myNickname, myUserId, params.profileName, settings.avatarUrl, state.profile, viewedUserId]);
 
   const visibleSummary = isMyProfile ? showSummary : settings.showSummary;
-  const personalFeed = useMemo(
-    () => getFeedPosts().filter((post) => post.authorId === profile.userId),
-    [profile.userId],
-  );
+  const personalFeed = useMemo(() => getFeedPosts().filter((post) => post.authorId === profile.userId), [profile.userId]);
 
   const statCards = [
     { label: "활동 상태", value: profile.score, icon: Trophy },

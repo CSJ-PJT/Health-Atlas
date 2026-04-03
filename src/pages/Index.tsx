@@ -424,6 +424,7 @@ const Index = () => {
       <div className="space-y-6">
         <Card className="relative overflow-hidden border-primary/20 bg-gradient-to-br from-primary/14 via-secondary to-accent/35">
           <div className="pointer-events-none absolute inset-x-12 top-8 h-24 rounded-full bg-primary/12 blur-3xl" />
+          <div className="pointer-events-none absolute -right-4 bottom-6 h-28 w-28 rounded-full bg-accent/35 blur-3xl" />
           <CardContent className="grid gap-6 p-6 lg:grid-cols-[1.3fr_0.9fr]">
             <div className="space-y-5">
               <div className="space-y-2">

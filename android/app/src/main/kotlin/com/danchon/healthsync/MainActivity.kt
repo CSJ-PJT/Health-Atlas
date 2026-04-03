@@ -15,22 +15,25 @@ class MainActivity : BridgeActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                val webView = bridge.webView
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                    return
-                }
+                bridge.webView.evaluateJavascript(
+                    "(function(){try{return window.__rhHandleBack ? (window.__rhHandleBack() ? 'handled' : 'unhandled') : 'unhandled';}catch(e){return 'unhandled';}})();"
+                ) { result ->
+                    val normalized = result?.replace("\"", "") ?: "unhandled"
+                    if (normalized == "handled") {
+                        return@evaluateJavascript
+                    }
 
-                val now = System.currentTimeMillis()
-                if (now - lastBackPressAt < 2000) {
-                    finishAffinity()
-                } else {
-                    lastBackPressAt = now
-                    Toast.makeText(
-                        this@MainActivity,
-                        "종료하려면 다시 눌러 주세요",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    val now = System.currentTimeMillis()
+                    if (now - lastBackPressAt < 2000) {
+                        finishAffinity()
+                    } else {
+                        lastBackPressAt = now
+                        Toast.makeText(
+                            this@MainActivity,
+                            "종료하려면 다시 눌러 주세요",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
         })

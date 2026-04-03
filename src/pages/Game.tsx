@@ -30,11 +30,7 @@ type ChallengeEntry = {
 const CHALLENGE_KEY = "game_challenges_v3";
 const MY_USER_ID = localStorage.getItem("user_id") || "me";
 
-const challengeIcons: Array<{
-  key: ChallengeIcon;
-  label: string;
-  Icon: typeof Footprints;
-}> = [
+const challengeIcons: Array<{ key: ChallengeIcon; label: string; Icon: typeof Footprints }> = [
   { key: "run", label: "러닝", Icon: Footprints },
   { key: "heart", label: "회복", Icon: HeartPulse },
   { key: "sleep", label: "수면", Icon: Moon },
@@ -42,11 +38,31 @@ const challengeIcons: Array<{
   { key: "team", label: "그룹", Icon: Users },
 ];
 
-const localizedBadges: Record<string, string[]> = {
-  ko: ["라벤더 러너", "리커버리 마스터", "케이던스 키퍼", "나이트 올 슬리퍼"],
-  en: ["Lavender Runner", "Recovery Master", "Cadence Keeper", "Night Owl Sleeper"],
-  ja: ["ラベンダーランナー", "リカバリーマスター", "ケイデンスキーパー", "ナイトオウルスリーパー"],
-  zh: ["薰衣草跑者", "恢复大师", "步频守护者", "夜猫睡眠家"],
+const localizedBadges: Record<string, { name: string; detail: string }[]> = {
+  ko: [
+    { name: "라벤더 러너", detail: "7일 이상 러닝 루틴을 안정적으로 이어간 사용자에게 주어지는 배지입니다." },
+    { name: "리커버리 마스터", detail: "회복, 수면, 스트레칭 데이터를 고르게 관리한 사용자에게 주어집니다." },
+    { name: "케이던스 키퍼", detail: "러닝 리듬과 주법을 꾸준히 유지한 기록에 대한 배지입니다." },
+    { name: "나이트 올 슬리퍼", detail: "늦은 시간에도 수면 균형을 안정적으로 유지한 흐름을 뜻합니다." },
+  ],
+  en: [
+    { name: "Lavender Runner", detail: "Awarded for maintaining a stable running routine for at least 7 days." },
+    { name: "Recovery Master", detail: "Given to users who balance recovery, sleep, and stretching consistently." },
+    { name: "Cadence Keeper", detail: "Recognizes steady rhythm and running cadence over time." },
+    { name: "Night Owl Sleeper", detail: "Marks stable sleep balance even with late-night schedules." },
+  ],
+  ja: [
+    { name: "ラベンダーランナー", detail: "7日以上安定したランニング習慣を続けたユーザー向けのバッジです。" },
+    { name: "リカバリーマスター", detail: "回復、睡眠、ストレッチをバランスよく管理したユーザー向けです。" },
+    { name: "ケイデンスキーパー", detail: "安定したリズムとケイデンスを維持した記録を表します。" },
+    { name: "ナイトオウルスリーパー", detail: "遅い時間帯でも睡眠バランスを保った流れを示します。" },
+  ],
+  zh: [
+    { name: "薰衣草跑者", detail: "连续 7 天以上稳定保持跑步习惯时获得的徽章。" },
+    { name: "恢复大师", detail: "均衡管理恢复、睡眠和拉伸时获得的徽章。" },
+    { name: "步频守护者", detail: "长期保持稳定跑步节奏与步频时获得。" },
+    { name: "夜猫睡眠家", detail: "即使晚睡也能维持稳定睡眠平衡的表现。" },
+  ],
 };
 
 const seedChallenges: ChallengeEntry[] = [
@@ -137,10 +153,10 @@ function syncCompletedChallenges(challenges: ChallengeEntry[]) {
 }
 
 const leaderboard = [
-  { name: "민서", score: "124 pt", rank: 1 },
-  { name: "서연", score: "117 pt", rank: 2 },
-  { name: "지우", score: "104 pt", rank: 3 },
-  { name: "하나", score: "99 pt", rank: 4 },
+  { name: "민서", userId: "minseo", score: "124 pt", rank: 1 },
+  { name: "서연", userId: "seoyeon", score: "117 pt", rank: 2 },
+  { name: "지우", userId: "jiwoo", score: "104 pt", rank: 3 },
+  { name: "하나", userId: "hana", score: "99 pt", rank: 4 },
 ];
 
 const Game = () => {
@@ -149,6 +165,7 @@ const Game = () => {
   const [challenges, setChallenges] = useState<ChallengeEntry[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [expandedChallengeId, setExpandedChallengeId] = useState<string | null>(null);
+  const [expandedBadge, setExpandedBadge] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [details, setDetails] = useState("");
@@ -168,6 +185,10 @@ const Game = () => {
         setExpandedChallengeId(null);
         return true;
       }
+      if (expandedBadge) {
+        setExpandedBadge(null);
+        return true;
+      }
       return false;
     },
   });
@@ -179,11 +200,7 @@ const Game = () => {
 
   const badges = useMemo(() => getLocalizedBadges(), []);
   const myChallenges = useMemo(
-    () =>
-      challenges.filter(
-        (challenge) =>
-          challenge.joinedUserIds.includes(MY_USER_ID) || challenge.completedUserIds.includes(MY_USER_ID),
-      ),
+    () => challenges.filter((challenge) => challenge.joinedUserIds.includes(MY_USER_ID) || challenge.completedUserIds.includes(MY_USER_ID)),
     [challenges],
   );
 
@@ -194,9 +211,7 @@ const Game = () => {
   };
 
   const handleCreateChallenge = () => {
-    if (!title.trim() || !description.trim()) {
-      return;
-    }
+    if (!title.trim() || !description.trim()) return;
 
     const next: ChallengeEntry[] = [
       {
@@ -231,9 +246,7 @@ const Game = () => {
         challenge.id === challengeId
           ? {
               ...challenge,
-              joinedUserIds: challenge.joinedUserIds.includes(MY_USER_ID)
-                ? challenge.joinedUserIds
-                : [...challenge.joinedUserIds, MY_USER_ID],
+              joinedUserIds: challenge.joinedUserIds.includes(MY_USER_ID) ? challenge.joinedUserIds : [...challenge.joinedUserIds, MY_USER_ID],
               progress: Math.min(100, challenge.progress + 20),
             }
           : challenge,
@@ -264,17 +277,13 @@ const Game = () => {
               {challenge.title}
             </div>
             <div className="text-sm text-muted-foreground">{challenge.description}</div>
-            <div className="text-xs text-muted-foreground">
-              참여 인원 {challenge.memberIds.length > 0 ? challenge.memberIds.length : 1}명
-            </div>
+            <div className="text-xs text-muted-foreground">참여 인원 {challenge.memberIds.length > 0 ? challenge.memberIds.length : 1}명</div>
           </div>
           <div className="text-xs text-primary">{challenge.reward}</div>
         </div>
         <Progress value={challenge.progress} className="mt-3" />
         <div className="mt-2 flex items-center justify-between gap-3">
-          <div className="text-xs text-muted-foreground">
-            {challenge.progress}% 달성 {completed ? "· 완료됨" : "· 진행 중"}
-          </div>
+          <div className="text-xs text-muted-foreground">{challenge.progress}% 달성 {completed ? "완료" : "진행 중"}</div>
           {!joined && !completed ? (
             <Button
               size="sm"
@@ -328,13 +337,7 @@ const Game = () => {
                 <div className="text-sm font-medium">챌린지 아이콘</div>
                 <div className="grid grid-cols-5 gap-2">
                   {challengeIcons.map(({ key, label, Icon }) => (
-                    <Button
-                      key={key}
-                      type="button"
-                      variant={selectedIcon === key ? "default" : "outline"}
-                      className="flex h-auto flex-col gap-2 py-3"
-                      onClick={() => setSelectedIcon(key)}
-                    >
+                    <Button key={key} type="button" variant={selectedIcon === key ? "default" : "outline"} className="flex h-auto flex-col gap-2 py-3" onClick={() => setSelectedIcon(key)}>
                       <Icon className="h-4 w-4" />
                       <span className="text-xs">{label}</span>
                     </Button>
@@ -360,9 +363,7 @@ const Game = () => {
                   )}
                 </div>
               </div>
-              <Button onClick={handleCreateChallenge} className="w-full">
-                생성하기
-              </Button>
+              <Button onClick={handleCreateChallenge} className="w-full">생성하기</Button>
             </CardContent>
           </Card>
         ) : null}
@@ -396,14 +397,15 @@ const Game = () => {
                   <CardContent className="space-y-3">
                     {leaderboard.map((entry) => (
                       <button
-                        key={entry.name}
+                        key={entry.userId}
                         type="button"
                         onClick={() =>
-                          navigate(`/profile/${encodeURIComponent(entry.name)}`, {
+                          navigate(`/profile/${encodeURIComponent(entry.userId)}`, {
                             state: {
                               from: "/game",
                               profile: {
                                 name: entry.name,
+                                userId: entry.userId,
                                 score: entry.score,
                                 rank: entry.rank,
                                 subtitle: "주간 리더보드",
@@ -434,9 +436,17 @@ const Game = () => {
                   </CardHeader>
                   <CardContent className="grid grid-cols-2 gap-3">
                     {badges.map((badge) => (
-                      <div key={badge} className="rounded-xl border p-3 text-sm">
-                        {badge}
-                      </div>
+                      <button
+                        key={badge.name}
+                        type="button"
+                        onClick={() => setExpandedBadge((current) => (current === badge.name ? null : badge.name))}
+                        className="rounded-xl border p-3 text-left text-sm transition-colors hover:bg-muted/30"
+                      >
+                        <div>{badge.name}</div>
+                        {expandedBadge === badge.name ? (
+                          <div className="mt-2 text-xs leading-5 text-muted-foreground">{badge.detail}</div>
+                        ) : null}
+                      </button>
                     ))}
                   </CardContent>
                 </Card>
@@ -453,9 +463,7 @@ const Game = () => {
                 {myChallenges.length > 0 ? (
                   myChallenges.map(renderChallengeCard)
                 ) : (
-                  <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                    아직 참여하거나 완료한 챌린지가 없습니다.
-                  </div>
+                  <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">아직 참여하거나 완료한 챌린지가 없습니다.</div>
                 )}
               </CardContent>
             </Card>

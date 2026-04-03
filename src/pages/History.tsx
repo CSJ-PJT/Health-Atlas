@@ -26,6 +26,33 @@ const detailLineOptions = [
   { key: "cadence", name: "평균 케이던스", color: "#6366f1" },
   { key: "vo2max", name: "VO2 Max", color: "#14b8a6" },
   { key: "elevationGain", name: "총 상승", color: "#84cc16" },
+] as const;
+
+type ActivityFilter =
+  | "all"
+  | "all-running"
+  | "all-walking"
+  | "running"
+  | "walking"
+  | "trail-running"
+  | "ultra-running"
+  | "track-running"
+  | "treadmill-running"
+  | "power-walking"
+  | "hiking";
+
+const activityFilterOptions: Array<{ value: ActivityFilter; label: string }> = [
+  { value: "all", label: "모든 운동" },
+  { value: "all-running", label: "모든 러닝" },
+  { value: "all-walking", label: "모든 워킹" },
+  { value: "running", label: "러닝" },
+  { value: "walking", label: "워킹" },
+  { value: "trail-running", label: "트레일 러닝" },
+  { value: "ultra-running", label: "울트라 러닝" },
+  { value: "track-running", label: "트랙 러닝" },
+  { value: "treadmill-running", label: "트레드밀 러닝" },
+  { value: "power-walking", label: "파워 워킹" },
+  { value: "hiking", label: "하이킹" },
 ];
 
 const formatPace = (secondsPerKm?: number) => {
@@ -45,7 +72,24 @@ const formatDelta = (key: string, value: number) => {
   return `${prefix}${Number(value.toFixed(2))}`;
 };
 
-type ActivityFilter = "all" | "running" | "walking";
+function matchesActivityFilter(session: any, filter: ActivityFilter) {
+  const activityType = String(session?.activityType || "").toLowerCase();
+  const activityName = String(session?.activityName || "").toLowerCase();
+  const combined = `${activityType} ${activityName}`;
+
+  if (filter === "all") return true;
+  if (filter === "all-running") return combined.includes("run");
+  if (filter === "all-walking") return combined.includes("walk") || combined.includes("hike");
+  if (filter === "running") return combined.includes("run") && !combined.includes("trail") && !combined.includes("track") && !combined.includes("ultra");
+  if (filter === "walking") return combined.includes("walk") && !combined.includes("power");
+  if (filter === "trail-running") return combined.includes("trail");
+  if (filter === "ultra-running") return combined.includes("ultra");
+  if (filter === "track-running") return combined.includes("track");
+  if (filter === "treadmill-running") return combined.includes("treadmill");
+  if (filter === "power-walking") return combined.includes("power walk");
+  if (filter === "hiking") return combined.includes("hike");
+  return true;
+}
 
 const History = () => {
   useDeviceBackNavigation({ fallback: "/history", isRootPage: true });
@@ -63,10 +107,10 @@ const History = () => {
   const latestRecord = effectiveRecords[effectiveRecords.length - 1];
 
   const allSessions = useMemo(() => (latestRecord?.running_data?.sessions || []).filter(Boolean), [latestRecord]);
-  const filteredSessions = useMemo(() => {
-    if (activityFilter === "all") return allSessions;
-    return allSessions.filter((session: any) => session.activityType === activityFilter);
-  }, [activityFilter, allSessions]);
+  const filteredSessions = useMemo(
+    () => allSessions.filter((session: any) => matchesActivityFilter(session, activityFilter)),
+    [activityFilter, allSessions],
+  );
 
   useEffect(() => {
     if (!filteredSessions.find((session: any) => session.activityId === selectedSessionId)) {
@@ -145,20 +189,16 @@ const History = () => {
     ? [
         `${selectedSession.activityName}은 ${Math.round(selectedSession.durationSeconds / 60)}분 동안 ${(selectedSession.distanceMeters / 1000).toFixed(2)}km를 수행한 ${selectedSession.activityType} 세션입니다.`,
         `평균 심박수 ${selectedSession.averageHR}bpm, 최대 심박수 ${selectedSession.maxHR}bpm, 평균 케이던스 ${selectedSession.averageRunCadence}spm입니다.`,
-        `운동 부하 ${selectedSession.trainingLoad || 0}, 유산소 효과 ${selectedSession.trainingEffectAerobic || 0}, 무산소 효과 ${
-          selectedSession.trainingEffectAnaerobic || 0
-        } 기준으로 ${
+        `운동 부하 ${selectedSession.trainingLoad || 0}, 유산소 효과 ${selectedSession.trainingEffectAerobic || 0}, 무산소 효과 ${selectedSession.trainingEffectAnaerobic || 0} 기준으로 ${
           selectedSession.trainingEffectAerobic && selectedSession.trainingEffectAerobic > 3
             ? "강도가 충분한 편입니다."
-            : "회복 중심의 중간 강도 세션에 가깝습니다."
+            : "회복 중심 또는 중간 강도 세션에 가깝습니다."
         }`,
         buildAiRecommendation(effectiveRecords as any[], new Date()),
       ].join(" ")
     : "";
 
-  const sessionChartData = selectedSession
-    ? latestRecord?.running_data?.session_timelines?.[selectedSession.activityId] || []
-    : [];
+  const sessionChartData = selectedSession ? latestRecord?.running_data?.session_timelines?.[selectedSession.activityId] || [] : [];
   const laps = selectedSession ? latestRecord?.running_data?.session_laps?.[selectedSession.activityId] || [] : [];
 
   const predictionCards = predictionData.length
@@ -216,15 +256,17 @@ const History = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>오늘 기록</CardTitle>
-            <div className="w-48" data-no-swipe="true">
+            <div className="w-56" data-no-swipe="true">
               <Select value={activityFilter} onValueChange={(value: ActivityFilter) => setActivityFilter(value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="운동 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">모든 운동</SelectItem>
-                  <SelectItem value="running">러닝</SelectItem>
-                  <SelectItem value="walking">워킹</SelectItem>
+                  {activityFilterOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

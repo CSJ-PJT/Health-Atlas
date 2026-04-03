@@ -38,8 +38,8 @@ function buildVideoThumb(label: string) {
     <svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900">
       <defs>
         <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
-          <stop stop-color="#a885ff" offset="0%"/>
-          <stop stop-color="#f2e8ff" offset="100%"/>
+          <stop stop-color="#b69cff" offset="0%"/>
+          <stop stop-color="#efe6ff" offset="100%"/>
         </linearGradient>
       </defs>
       <rect width="900" height="900" rx="48" fill="url(#g)"/>
@@ -119,8 +119,8 @@ const Feed = () => {
   }, []);
 
   useEffect(() => {
-    setDetailPostId(null);
     setComposerOpen(false);
+    setDetailPostId(null);
     setReplyTarget(null);
   }, [location.pathname]);
 
@@ -134,19 +134,19 @@ const Feed = () => {
   }, [isBusy]);
 
   const posts = useMemo(() => getFeedPosts(), [tick]);
+  const detailPost = useMemo(() => posts.find((post) => post.id === detailPostId) ?? null, [detailPostId, posts]);
+  const comments = useMemo(() => (detailPost ? getFeedComments(detailPost.id) : []), [detailPost, tick]);
+
   const filteredPosts = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return posts;
     return posts.filter((post) => {
-      const joinedTags = Array.isArray((post as { tags?: string[] }).tags) ? (post as { tags?: string[] }).tags!.join(" ") : "";
+      const joinedTags = Array.isArray(post.tags) ? post.tags.join(" ") : "";
       return [post.authorName, post.authorId, post.content, joinedTags].some((value) =>
         value.toLowerCase().includes(keyword),
       );
     });
   }, [posts, search]);
-
-  const detailPost = useMemo(() => posts.find((post) => post.id === detailPostId) ?? null, [detailPostId, posts]);
-  const comments = useMemo(() => (detailPost ? getFeedComments(detailPost.id) : []), [detailPost, tick]);
 
   const resetComposer = () => {
     setCaption("");
@@ -163,7 +163,6 @@ const Feed = () => {
   const handleFiles = async (files: FileList | null) => {
     if (!files) return;
     setIsBusy(true);
-
     try {
       const nextMedia = await Promise.all(
         Array.from(files).map(async (file) => {
@@ -233,10 +232,22 @@ const Feed = () => {
     const post = posts.find((item) => item.id === postId);
     if (!post) return;
     setCaption(post.content);
-    setTags(Array.isArray((post as { tags?: string[] }).tags) ? (post as { tags?: string[] }).tags!.join(", ") : "");
+    setTags(Array.isArray(post.tags) ? post.tags.join(", ") : "");
     setMedia(post.media || []);
     setEditingPostId(post.id);
     setComposerOpen(true);
+  };
+
+  const handleDelete = (postId: string) => {
+    const success = deleteFeedPost(postId);
+    if (!success) {
+      toast({ title: "게시글 삭제 실패", variant: "destructive" });
+      return;
+    }
+    if (detailPostId === postId) {
+      setDetailPostId(null);
+    }
+    setTick((value) => value + 1);
   };
 
   const handleAddComment = () => {
@@ -244,11 +255,13 @@ const Feed = () => {
       toast({ title: "댓글 내용을 입력해 주세요.", variant: "destructive" });
       return;
     }
+
     const success = addFeedComment(detailPost.id, MY_USER_ID, MY_USER_NAME, commentDraft.trim(), replyTarget?.id || null);
     if (!success) {
       toast({ title: "댓글 저장 실패", description: "잠시 후 다시 시도해 주세요.", variant: "destructive" });
       return;
     }
+
     setCommentDraft("");
     setReplyTarget(null);
     setTick((value) => value + 1);
@@ -272,7 +285,7 @@ const Feed = () => {
       return <span key={`${part}-${index}`}>{part}</span>;
     });
 
-  const renderCommentTree = (parentId: string | null, depth = 0) =>
+  const renderCommentTree = (parentId: string | null, depth = 0): React.ReactNode =>
     comments
       .filter((comment) => comment.parentId === parentId)
       .map((comment) => (
@@ -319,7 +332,7 @@ const Feed = () => {
           <div className="flex w-full gap-2 lg:w-auto">
             <div className="relative flex-1 lg:w-80">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="피드를 검색해 보세요." className="pl-9" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="피드를 검색해 보세요" className="pl-9" />
             </div>
 
             <Dialog
@@ -342,7 +355,7 @@ const Feed = () => {
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  <Textarea value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="내용을 입력해 주세요." className="min-h-32" />
+                  <Textarea value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="내용을 입력해 주세요" className="min-h-32" />
                   <div className="relative">
                     <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
@@ -366,6 +379,7 @@ const Feed = () => {
                       <Upload className="h-4 w-4" />
                       사진 / 동영상 추가
                     </Button>
+
                     <div className="grid grid-cols-3 gap-3">
                       {media.map((item) => (
                         <div key={item.id} className="overflow-hidden rounded-xl border bg-muted/20">
@@ -397,15 +411,13 @@ const Feed = () => {
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>미디어 그리드</CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
               {filteredPosts.map((post) => {
                 const cover = post.media?.[0];
                 const commentCount = getFeedComments(post.id).length;
-                const tagsList = Array.isArray((post as { tags?: string[] }).tags) ? (post as { tags?: string[] }).tags! : [];
+                const tagsList = Array.isArray(post.tags) ? post.tags : [];
+
                 return (
                   <button
                     key={post.id}
@@ -431,9 +443,7 @@ const Feed = () => {
                         <div className="truncate text-sm font-semibold">{post.authorName}</div>
                         <div className="line-clamp-2 text-xs text-white/80">{post.content || "미디어 게시물"}</div>
                         {tagsList.length > 0 ? (
-                          <div className="mt-1 truncate text-[11px] text-white/70">
-                            {tagsList.map((tag) => `#${tag}`).join(" ")}
-                          </div>
+                          <div className="mt-1 truncate text-[11px] text-white/70">{tagsList.map((tag) => `#${tag}`).join(" ")}</div>
                         ) : null}
                       </div>
                     </div>
@@ -464,10 +474,7 @@ const Feed = () => {
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                const success = deleteFeedPost(post.id);
-                                if (success) {
-                                  setTick((value) => value + 1);
-                                }
+                                handleDelete(post.id);
                               }}
                               className="rounded p-1 hover:bg-muted"
                             >
@@ -503,9 +510,9 @@ const Feed = () => {
                   <div className="max-h-[72vh] overflow-y-auto pr-2">
                     <div className="space-y-3 pr-1">
                       <div className="rounded-xl border p-4 text-sm leading-6">{renderTaggedContent(detailPost.content)}</div>
-                      {Array.isArray((detailPost as { tags?: string[] }).tags) && (detailPost as { tags?: string[] }).tags!.length > 0 ? (
+                      {Array.isArray(detailPost.tags) && detailPost.tags.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
-                          {(detailPost as { tags?: string[] }).tags!.map((tag) => (
+                          {detailPost.tags.map((tag) => (
                             <span key={tag} className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                               #{tag}
                             </span>
@@ -552,7 +559,7 @@ const Feed = () => {
                         <Textarea
                           value={commentDraft}
                           onChange={(event) => setCommentDraft(event.target.value)}
-                          placeholder="댓글이나 @id 태그를 입력해 주세요."
+                          placeholder="댓글이나 @id 태그를 입력해 주세요"
                           className="min-h-24"
                         />
                         <Button onClick={handleAddComment} className="w-full">
@@ -570,9 +577,7 @@ const Feed = () => {
 
       {showSpinner ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-background/70 backdrop-blur-sm">
-          <div className="rounded-2xl border bg-background px-6 py-4 text-sm font-medium text-muted-foreground">
-            불러오는 중...
-          </div>
+          <div className="rounded-2xl border bg-background px-6 py-4 text-sm font-medium text-muted-foreground">불러오는 중...</div>
         </div>
       ) : null}
     </div>

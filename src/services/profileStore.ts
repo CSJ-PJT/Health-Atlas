@@ -22,21 +22,53 @@ function writeJson<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function buildInitials(name: string) {
+  return name.slice(0, 1).toUpperCase() || "U";
+}
+
+function buildPlaceholderAvatar(name: string, userId: string) {
+  const hue = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360;
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+      <rect width="256" height="256" rx="48" fill="hsl(${hue} 62% 88%)"/>
+      <circle cx="128" cy="98" r="40" fill="hsl(${hue} 46% 58%)"/>
+      <path d="M56 214c14-38 44-58 72-58s58 20 72 58" fill="hsl(${hue} 46% 58%)"/>
+      <text x="128" y="144" text-anchor="middle" fill="hsl(${hue} 44% 26%)" font-size="60" font-family="Arial" font-weight="700">${buildInitials(
+        name,
+      )}</text>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
 export function getAllProfileSettings() {
   return readJson<Record<string, UserProfileSettings>>(PROFILE_SETTINGS_KEY, {});
 }
 
-export function getProfileSettings(userId: string, nickname?: string, avatarUrl?: string): UserProfileSettings {
+export function getProfileSettings(
+  userId: string,
+  nickname?: string,
+  avatarUrl?: string,
+  options?: { isCurrentUser?: boolean },
+): UserProfileSettings {
   const all = getAllProfileSettings();
-  return (
-    all[userId] || {
-      userId,
-      nickname: nickname || localStorage.getItem("user_nickname") || "사용자",
-      avatarUrl: avatarUrl || localStorage.getItem("user_avatar") || "",
-      bio: "",
-      showSummary: true,
-    }
-  );
+  if (all[userId]) {
+    return all[userId];
+  }
+
+  const safeName =
+    nickname || (options?.isCurrentUser ? localStorage.getItem("user_nickname") || "사용자" : userId || "사용자");
+  const safeAvatar =
+    avatarUrl ||
+    (options?.isCurrentUser ? localStorage.getItem("user_avatar") || "" : buildPlaceholderAvatar(safeName, userId));
+
+  return {
+    userId,
+    nickname: safeName,
+    avatarUrl: safeAvatar,
+    bio: "",
+    showSummary: true,
+  };
 }
 
 export function saveProfileSettings(profile: UserProfileSettings) {

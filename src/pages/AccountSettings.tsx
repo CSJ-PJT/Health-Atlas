@@ -87,6 +87,26 @@ const permissionOptions = {
 
 type PermissionTab = keyof typeof permissionOptions;
 
+function generateTemporaryPassword() {
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const numbers = "23456789";
+  const symbols = "!@#$%^&*";
+  return `RH${letters[Math.floor(Math.random() * letters.length)]}${letters[Math.floor(Math.random() * letters.length)]}${numbers[Math.floor(Math.random() * numbers.length)]}${symbols[Math.floor(Math.random() * symbols.length)]}${Date.now().toString().slice(-4)}`;
+}
+
+async function hashPassword(password: string, salt: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(`${salt}:${password}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function createPasswordSalt() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const AccountSettings = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -105,11 +125,13 @@ const AccountSettings = () => {
   const [profileId, setProfileId] = useState<string | null>(localStorage.getItem("profile_id"));
   const [userId, setUserId] = useState(localStorage.getItem("user_id") || "");
   const [newUserId, setNewUserId] = useState("");
-  const [userIdChanged, setUserIdChanged] = useState(false);
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showUserIdEditor, setShowUserIdEditor] = useState(false);
   const [nickname, setNickname] = useState(localStorage.getItem("user_nickname") || "");
   const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem("user_avatar") || "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPasswordEditor, setShowPasswordEditor] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [permissionTab, setPermissionTab] = useState<PermissionTab>("health-connect");
   const [healthConnectPermissions, setHealthConnectPermissions] = useState(defaultHealthConnectPermissions);
@@ -117,9 +139,12 @@ const AccountSettings = () => {
   const [applePermissions, setApplePermissions] = useState(defaultApplePermissions);
   const [stravaPermissions, setStravaPermissions] = useState(defaultStravaPermissions);
 
+  const storedPassword = localStorage.getItem("user_password") || "";
+  const storedPasswordSalt = localStorage.getItem("user_password_salt") || "";
+  const hasPassword = Boolean(storedPassword);
+
   useEffect(() => {
     void loadProfileData();
-
     const storedHealthConnectPermissions = localStorage.getItem("health_connect_permissions");
     const storedGarminPermissions = localStorage.getItem("garmin_permissions");
     const storedApplePermissions = localStorage.getItem("apple_health_permissions");
@@ -130,6 +155,34 @@ const AccountSettings = () => {
     if (storedApplePermissions) setApplePermissions(JSON.parse(storedApplePermissions));
     if (storedStravaPermissions) setStravaPermissions(JSON.parse(storedStravaPermissions));
   }, []);
+
+  const ensureProfile = async (nextUserId: string, nextNickname: string) => {
+    if (profileId) return profileId;
+
+    const existing = await supabase.from("profiles").select("*").eq("user_id", nextUserId).maybeSingle();
+    if (existing.error) throw existing.error;
+
+    if (existing.data?.id) {
+      setProfileId(existing.data.id);
+      localStorage.setItem("profile_id", existing.data.id);
+      return existing.data.id;
+    }
+
+    const created = await supabase
+      .from("profiles")
+      .insert({
+        user_id: nextUserId,
+        nickname: nextNickname || localStorage.getItem("user_nickname") || "사용자",
+        user_id_changed: false,
+      })
+      .select()
+      .single();
+
+    if (created.error) throw created.error;
+    setProfileId(created.data.id);
+    localStorage.setItem("profile_id", created.data.id);
+    return created.data.id;
+  };
 
   const loadProfileData = async () => {
     const storedUserId = localStorage.getItem("user_id");
@@ -150,7 +203,6 @@ const AccountSettings = () => {
           setProfileId(byId.data.id);
           setUserId(byId.data.user_id);
           setNickname(byId.data.nickname || localStorage.getItem("user_nickname") || "");
-          setUserIdChanged(Boolean(byId.data.user_id_changed));
           localStorage.setItem("user_id", byId.data.user_id);
           if (byId.data.nickname) {
             localStorage.setItem("user_nickname", byId.data.nickname);
@@ -161,11 +213,9 @@ const AccountSettings = () => {
 
       const byUserId = await supabase.from("profiles").select("*").eq("user_id", storedUserId).maybeSingle();
       if (byUserId.error) throw byUserId.error;
-
       if (byUserId.data) {
         setProfileId(byUserId.data.id);
         setNickname(byUserId.data.nickname || localStorage.getItem("user_nickname") || "");
-        setUserIdChanged(Boolean(byUserId.data.user_id_changed));
         localStorage.setItem("profile_id", byUserId.data.id);
         if (byUserId.data.nickname) {
           localStorage.setItem("user_nickname", byUserId.data.nickname);
@@ -173,49 +223,43 @@ const AccountSettings = () => {
       }
     } catch (error) {
       console.error("Failed to load profile:", error);
-      setNickname(localStorage.getItem("user_nickname") || "");
     }
   };
 
   const handleUserIdChange = async () => {
-    if (userIdChanged) {
-      toast({ title: "사용자 ID는 한 번만 변경할 수 있습니다.", variant: "destructive" });
-      return;
-    }
-
     try {
       const validated = userIdSchema.parse(newUserId);
       setIsLoading(true);
 
-      const { data: existingUser, error: existingError } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .eq("user_id", validated)
-        .maybeSingle();
-
-      if (existingError) throw existingError;
-      if (existingUser) {
-        toast({ title: "이미 사용 중인 사용자 ID입니다.", variant: "destructive" });
-        return;
-      }
-
-      if (profileId) {
-        const { error } = await supabase
+      try {
+        const { data: existingUser, error: existingError } = await supabase
           .from("profiles")
-          .update({ user_id: validated, user_id_changed: true })
-          .eq("id", profileId);
+          .select("user_id")
+          .eq("user_id", validated)
+          .maybeSingle();
+
+        if (existingError) throw existingError;
+        if (existingUser) {
+          toast({ title: "이미 사용 중인 사용자 ID입니다.", variant: "destructive" });
+          return;
+        }
+
+        const ensuredProfileId = await ensureProfile(userId || validated, nickname || "사용자");
+        const { error } = await supabase.from("profiles").update({ user_id: validated, user_id_changed: true }).eq("id", ensuredProfileId);
         if (error) throw error;
+      } catch (databaseError) {
+        console.error("Falling back to local ID save:", databaseError);
       }
 
       localStorage.setItem("user_id", validated);
       setUserId(validated);
-      setUserIdChanged(true);
+      setShowUserIdEditor(false);
       setNewUserId("");
-      toast({ title: "사용자 ID를 변경했습니다." });
+      toast({ title: "사용자 ID를 저장했습니다." });
     } catch (error: any) {
       toast({
-        title: "사용자 ID 변경 실패",
-        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
+        title: "사용자 ID 저장 실패",
+        description: error?.errors?.[0]?.message || error?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
@@ -233,22 +277,52 @@ const AccountSettings = () => {
       return;
     }
 
+    if (hasPassword) {
+      const currentHash = await hashPassword(currentPassword, storedPasswordSalt);
+      if (currentHash !== storedPassword) {
+        toast({
+          title: "기존 비밀번호가 올바르지 않습니다.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     try {
       passwordSchema.parse(password);
       setIsLoading(true);
-      localStorage.setItem("user_password", btoa(password));
+      const salt = createPasswordSalt();
+      const hashed = await hashPassword(password, salt);
+      localStorage.setItem("user_password", hashed);
+      localStorage.setItem("user_password_salt", salt);
+      setCurrentPassword("");
       setPassword("");
       setConfirmPassword("");
+      setShowPasswordEditor(false);
       toast({ title: "비밀번호를 저장했습니다." });
     } catch (error: any) {
       toast({
         title: "비밀번호 저장 실패",
-        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
+        description: error?.errors?.[0]?.message || error?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handlePasswordReset = async (channel: "kakao" | "line") => {
+    const temporaryPassword = generateTemporaryPassword();
+    const salt = createPasswordSalt();
+    const hashed = await hashPassword(temporaryPassword, salt);
+    localStorage.setItem("user_password", hashed);
+    localStorage.setItem("user_password_salt", salt);
+    setShowPasswordEditor(true);
+    setCurrentPassword(temporaryPassword);
+    toast({
+      title: `${channel === "kakao" ? "카카오톡" : "LINE"}으로 임시 비밀번호를 보냈습니다.`,
+      description: `프로토타입 기준 임시 비밀번호: ${temporaryPassword}`,
+    });
   };
 
   const handleNicknameSave = async () => {
@@ -261,34 +335,7 @@ const AccountSettings = () => {
       }
 
       setIsLoading(true);
-
-      let ensuredProfileId = profileId;
-      if (!ensuredProfileId) {
-        const existing = await supabase.from("profiles").select("*").eq("user_id", storedUserId).maybeSingle();
-        if (existing.error) throw existing.error;
-
-        if (existing.data?.id) {
-          ensuredProfileId = existing.data.id;
-          setProfileId(existing.data.id);
-          localStorage.setItem("profile_id", existing.data.id);
-        } else {
-          const created = await supabase
-            .from("profiles")
-            .insert({
-              user_id: storedUserId,
-              nickname: validated,
-              user_id_changed: false,
-            })
-            .select()
-            .single();
-
-          if (created.error) throw created.error;
-          ensuredProfileId = created.data.id;
-          setProfileId(created.data.id);
-          localStorage.setItem("profile_id", created.data.id);
-        }
-      }
-
+      const ensuredProfileId = await ensureProfile(storedUserId, validated);
       const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", ensuredProfileId);
       if (error) throw error;
 
@@ -327,8 +374,13 @@ const AccountSettings = () => {
       <Header />
       <ScrollToTop />
 
-      <div className="mx-auto max-w-3xl space-y-4 px-3 py-4">
-        <h1 className="text-3xl font-bold">사용자 계정 설정</h1>
+      <div className="mx-auto max-w-3xl space-y-4 px-3 py-4 pb-24">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">사용자 계정 설정</h1>
+          <Button variant="outline" onClick={() => navigate(backTarget, { replace: true })}>
+            설정으로 돌아가기
+          </Button>
+        </div>
 
         <Card>
           <CardHeader>
@@ -357,12 +409,7 @@ const AccountSettings = () => {
             <div className="space-y-2">
               <Label htmlFor="nickname">닉네임</Label>
               <div className="flex gap-2">
-                <Input
-                  id="nickname"
-                  value={nickname}
-                  onChange={(event) => setNickname(event.target.value)}
-                  placeholder="닉네임 입력"
-                />
+                <Input id="nickname" value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="닉네임을 입력해 주세요" />
                 <Button onClick={() => void handleNicknameSave()} disabled={isLoading}>
                   저장
                 </Button>
@@ -379,19 +426,35 @@ const AccountSettings = () => {
             <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
               현재 ID: <span className="font-semibold">{userId || "-"}</span>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-user-id">새 사용자 ID</Label>
-              <Input
-                id="new-user-id"
-                value={newUserId}
-                onChange={(event) => setNewUserId(event.target.value)}
-                placeholder="영문, 숫자, 밑줄 사용"
-                disabled={userIdChanged || isLoading}
-              />
-            </div>
-            <Button onClick={() => void handleUserIdChange()} disabled={userIdChanged || isLoading}>
-              사용자 ID 저장
-            </Button>
+
+            {!userId || showUserIdEditor ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="new-user-id">새 사용자 ID</Label>
+                  <Input
+                    id="new-user-id"
+                    value={newUserId}
+                    onChange={(event) => setNewUserId(event.target.value)}
+                    placeholder="영문, 숫자, 밑줄 사용"
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => void handleUserIdChange()} disabled={isLoading}>
+                    사용자 ID 저장
+                  </Button>
+                  {userId ? (
+                    <Button variant="outline" onClick={() => setShowUserIdEditor(false)}>
+                      닫기
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <Button variant="outline" onClick={() => setShowUserIdEditor(true)}>
+                사용자 ID 변경
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -400,22 +463,64 @@ const AccountSettings = () => {
             <CardTitle>비밀번호</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="password">비밀번호</Label>
-              <Input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+            <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
+              상태: <span className="font-semibold">{hasPassword ? "저장됨" : "미설정"}</span>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">비밀번호 확인</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-              />
-            </div>
-            <Button onClick={() => void handlePasswordChange()} disabled={isLoading}>
-              비밀번호 저장
-            </Button>
+
+            {!hasPassword || showPasswordEditor ? (
+              <div className="space-y-3">
+                {hasPassword ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="current-password">기존 비밀번호</Label>
+                    <Input
+                      id="current-password"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                    />
+                  </div>
+                ) : null}
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">새 비밀번호</Label>
+                  <Input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                  <div className="text-xs text-muted-foreground">9자 이상, 영문 포함, 특수문자 포함</div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">새 비밀번호 확인</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => void handlePasswordChange()} disabled={isLoading}>
+                    비밀번호 저장
+                  </Button>
+                  {hasPassword ? (
+                    <Button variant="outline" onClick={() => setShowPasswordEditor(false)}>
+                      닫기
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => setShowPasswordEditor(true)}>
+                  비밀번호 변경
+                </Button>
+                <Button variant="outline" onClick={() => void handlePasswordReset("kakao")}>
+                  카카오톡으로 임시 비밀번호 받기
+                </Button>
+                <Button variant="outline" onClick={() => void handlePasswordReset("line")}>
+                  LINE으로 임시 비밀번호 받기
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -481,10 +586,6 @@ const AccountSettings = () => {
             </Tabs>
           </CardContent>
         </Card>
-
-        <Button variant="outline" onClick={() => navigate(backTarget, { replace: true })}>
-          설정으로 돌아가기
-        </Button>
       </div>
     </div>
   );
