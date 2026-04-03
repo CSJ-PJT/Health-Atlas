@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, RotateCw, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, CornerDownLeft, RotateCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
-export type PlayableGameId = "tap-sprint" | "breath-focus" | "pace-memory" | "tetris";
+export type PlayableGameId = "tap-sprint" | "reaction-grid" | "pace-memory" | "tetris";
 
 type Props = {
   gameId: PlayableGameId;
@@ -91,20 +91,21 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
   const [tapTimeLeft, setTapTimeLeft] = useState(10);
 
   const [breathStarted, setBreathStarted] = useState(false);
-  const [breathStep, setBreathStep] = useState(0);
   const [breathHits, setBreathHits] = useState(0);
+  const [reactionTarget, setReactionTarget] = useState<number | null>(null);
+  const [reactionTimeLeft, setReactionTimeLeft] = useState(12);
 
   const [memorySequence, setMemorySequence] = useState<number[]>([]);
   const [memoryInput, setMemoryInput] = useState<number[]>([]);
   const [memoryLevel, setMemoryLevel] = useState(3);
   const [memoryShowing, setMemoryShowing] = useState(false);
+  const [memoryTimeLeft, setMemoryTimeLeft] = useState(20);
 
   const [board, setBoard] = useState<TetrisCell[][]>(createBoard());
   const [piece, setPiece] = useState<Piece>(randomPiece());
   const [tetrisScore, setTetrisScore] = useState(0);
   const [tetrisRunning, setTetrisRunning] = useState(true);
 
-  const breathPattern = ["들이마시기", "내쉬기", "들이마시기", "내쉬기", "들이마시기", "내쉬기"];
   const memoryTimeout = useRef<number | null>(null);
 
   const displayBoard = useMemo(() => {
@@ -125,7 +126,38 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
   }, [gameId, onScore, tapCount, tapStarted, tapTimeLeft]);
 
   useEffect(() => {
+    if (gameId !== "reaction-grid" || !breathStarted || reactionTimeLeft <= 0) return;
+    const timer = window.setTimeout(() => {
+      setReactionTimeLeft((value) => value - 1);
+      setReactionTarget(Math.floor(Math.random() * 9));
+    }, 850);
+    return () => window.clearTimeout(timer);
+  }, [breathStarted, gameId, reactionTimeLeft]);
+
+  useEffect(() => {
+    if (gameId === "reaction-grid" && breathStarted && reactionTimeLeft === 0) {
+      setBreathStarted(false);
+      onScore(breathHits * 10);
+    }
+  }, [breathHits, breathStarted, gameId, onScore, reactionTimeLeft]);
+
+  useEffect(() => {
+    if (gameId !== "pace-memory" || memoryShowing || memorySequence.length === 0 || memoryTimeLeft <= 0) return;
+    const timer = window.setTimeout(() => setMemoryTimeLeft((value) => value - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [gameId, memorySequence.length, memoryShowing, memoryTimeLeft]);
+
+  useEffect(() => {
+    if (gameId === "pace-memory" && memoryTimeLeft === 0) {
+      onScore(Math.max(0, (memoryLevel - 3) * 15));
+      setMemorySequence([]);
+      setMemoryInput([]);
+    }
+  }, [gameId, memoryLevel, memoryTimeLeft, onScore]);
+
+  useEffect(() => {
     if (gameId !== "tetris" || !tetrisRunning) return;
+    const speed = Math.max(160, 650 - Math.floor(tetrisScore / 30) * 40);
     const timer = window.setInterval(() => {
       setPiece((current) => {
         const moved = { ...current, y: current.y + 1 };
@@ -148,9 +180,9 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
         }
         return nextPiece;
       });
-    }, 650);
+    }, speed);
     return () => window.clearInterval(timer);
-  }, [board, gameId, onScore, tetrisRunning]);
+  }, [board, gameId, onScore, tetrisRunning, tetrisScore]);
 
   useEffect(() => {
     return () => {
@@ -173,20 +205,16 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
 
   const startBreathFocus = () => {
     setBreathStarted(true);
-    setBreathStep(0);
     setBreathHits(0);
+    setReactionTimeLeft(12);
+    setReactionTarget(Math.floor(Math.random() * 9));
   };
 
   const handleBreathTap = () => {
     if (!breathStarted) return;
-    const nextStep = breathStep + 1;
     const nextHits = breathHits + 1;
-    setBreathStep(nextStep);
     setBreathHits(nextHits);
     onScore(nextHits * 10);
-    if (nextStep >= breathPattern.length) {
-      setBreathStarted(false);
-    }
   };
 
   const startMemoryGame = () => {
@@ -194,6 +222,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
     setMemorySequence(next);
     setMemoryInput([]);
     setMemoryShowing(true);
+    setMemoryTimeLeft(20);
     memoryTimeout.current = window.setTimeout(() => setMemoryShowing(false), 1800);
   };
 
@@ -235,8 +264,8 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
   const gameTitle =
     gameId === "tap-sprint"
       ? "탭 스프린트"
-      : gameId === "breath-focus"
-        ? "호흡 포커스"
+      : gameId === "reaction-grid"
+        ? "리액션 그리드"
         : gameId === "pace-memory"
           ? "페이스 메모리"
           : "테트리스";
@@ -273,15 +302,37 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
           </div>
         ) : null}
 
-        {gameId === "breath-focus" ? (
+        {gameId === "reaction-grid" ? (
           <div className="space-y-4">
-            <div className="rounded-2xl border p-6 text-center">
-              <div className="text-sm text-muted-foreground">현재 리듬</div>
-              <div className="mt-2 text-3xl font-bold">{breathStarted ? breathPattern[breathStep] : "준비"}</div>
+            <Progress value={(reactionTimeLeft / 12) * 100} />
+            <div className="grid grid-cols-3 gap-2">
+              {Array.from({ length: 9 }).map((_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => {
+                    if (!breathStarted || reactionTarget !== index) return;
+                    handleBreathTap();
+                    setReactionTarget(Math.floor(Math.random() * 9));
+                  }}
+                  className={`aspect-square rounded-2xl border transition-colors ${
+                    reactionTarget === index ? "bg-primary text-primary-foreground" : "bg-muted/30"
+                  }`}
+                />
+              ))}
             </div>
-            <div className="text-sm text-muted-foreground">표시에 맞춰 눌러서 호흡 리듬을 완성하세요.</div>
-            <Button className="w-full" onClick={breathStarted ? handleBreathTap : startBreathFocus}>
-              {breathStarted ? "리듬 맞추기" : "호흡 시작"}
+            <div className="grid grid-cols-2 gap-3 text-center">
+              <div className="rounded-xl border p-4">
+                <div className="text-xs text-muted-foreground">남은 시간</div>
+                <div className="text-2xl font-bold">{reactionTimeLeft}s</div>
+              </div>
+              <div className="rounded-xl border p-4">
+                <div className="text-xs text-muted-foreground">적중 수</div>
+                <div className="text-2xl font-bold">{breathHits}</div>
+              </div>
+            </div>
+            <Button className="w-full" onClick={startBreathFocus} disabled={breathStarted}>
+              {breathStarted ? "게임 진행 중" : "게임 시작"}
             </Button>
           </div>
         ) : null}
@@ -291,6 +342,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
             <div className="rounded-2xl border p-5 text-center">
               <div className="text-sm text-muted-foreground">레벨</div>
               <div className="text-2xl font-bold">{memoryLevel}</div>
+              <div className="mt-2 text-sm text-muted-foreground">남은 시간 {memoryTimeLeft}s</div>
               <div className="mt-3 text-lg font-semibold">
                 {memoryShowing ? memorySequence.join(" - ") : memorySequence.length > 0 ? "순서를 입력하세요" : "시작 버튼을 누르세요"}
               </div>
@@ -331,8 +383,24 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
               <Button variant="outline" onClick={() => movePiece(1, 0)}>
                 <ArrowRight className="h-4 w-4" />
               </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={() => movePiece(0, 1)}>
-                <ArrowDown className="h-4 w-4" />
+                <ArrowDown className="mr-2 h-4 w-4" />
+                아래로
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  let nextPiece = { ...piece };
+                  while (!collides(board, { ...nextPiece, y: nextPiece.y + 1 })) {
+                    nextPiece = { ...nextPiece, y: nextPiece.y + 1 };
+                  }
+                  setPiece(nextPiece);
+                }}
+              >
+                <CornerDownLeft className="mr-2 h-4 w-4" />
+                엔터
               </Button>
             </div>
             {!tetrisRunning ? (

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ArrowLeft, Award, BarChart3, HeartPulse, Save, Trophy, UserRound, X } from "lucide-react";
+import { ArrowLeft, Award, BarChart3, HeartPulse, Save, Trophy, UserRound } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
@@ -268,11 +268,8 @@ const Profile = () => {
 
       <Dialog open={photoOpen} onOpenChange={setPhotoOpen}>
         <DialogContent className="max-w-xl">
-          <DialogHeader className="flex flex-row items-center justify-between">
+          <DialogHeader>
             <DialogTitle>{profile.name}</DialogTitle>
-            <Button variant="ghost" size="icon" onClick={() => setPhotoOpen(false)}>
-              <X className="h-4 w-4" />
-            </Button>
           </DialogHeader>
           <div className="overflow-hidden rounded-2xl border bg-muted/20">
             {profile.avatarUrl ? (

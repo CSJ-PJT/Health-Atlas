@@ -503,8 +503,8 @@ const Admin = () => {
             <TabsTrigger value="providers">연동</TabsTrigger>
             <TabsTrigger value="theme">테마</TabsTrigger>
             <TabsTrigger value="records">기록</TabsTrigger>
-            <TabsTrigger value="display">표시 데이터</TabsTrigger>
             <TabsTrigger value="equipment">장비</TabsTrigger>
+            <TabsTrigger value="data">데이터</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general">
@@ -868,12 +868,12 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="display">
+          <TabsContent value="data">
             <div className="space-y-6">
               {(["home", "history", "comparison"] as const).map((section) => (
                 <Card key={section}>
                   <CardHeader>
-                    <CardTitle>{section === "home" ? "홈" : section === "history" ? "기록" : "비교"} 표시 설정</CardTitle>
+                    <CardTitle>{section === "home" ? "홈" : section === "history" ? "기록" : "비교"} 데이터 설정</CardTitle>
                     <CardDescription>표출 가능한 데이터를 사용자가 직접 선택합니다.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-3 md:grid-cols-2">

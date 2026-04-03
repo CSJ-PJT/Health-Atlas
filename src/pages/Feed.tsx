@@ -132,14 +132,29 @@ const Feed = () => {
     return () => window.clearTimeout(timer);
   }, [isBusy]);
 
-  const posts = useMemo(() => getFeedPosts(), [tick]);
-  const detailPost = useMemo(() => posts.find((post) => post.id === detailPostId) ?? null, [detailPostId, posts]);
-  const comments = useMemo(() => (detailPost ? getFeedComments(detailPost.id) : []), [detailPost, tick]);
+  const posts = useMemo(() => {
+    try {
+      return getFeedPosts();
+    } catch (error) {
+      console.error("Failed to load feed posts:", error);
+      return [];
+    }
+  }, [tick]);
+  const detailPost = useMemo(() => posts.find((post) => post?.id === detailPostId) ?? null, [detailPostId, posts]);
+  const comments = useMemo(() => {
+    try {
+      return detailPost ? getFeedComments(detailPost.id) : [];
+    } catch (error) {
+      console.error("Failed to load comments:", error);
+      return [];
+    }
+  }, [detailPost, tick]);
 
   const filteredPosts = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return posts;
     return posts.filter((post) => {
+      if (!post) return false;
       const joinedTags = Array.isArray(post.tags) ? post.tags.join(" ") : "";
       return [post.authorName, post.authorId, post.content, joinedTags].some((value) =>
         value.toLowerCase().includes(keyword),
@@ -418,6 +433,7 @@ const Feed = () => {
           <CardContent className="pt-6">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
               {visiblePosts.map((post) => {
+                if (!post) return null;
                 const cover = post.media?.[0];
                 const commentCount = getFeedComments(post.id).length;
                 const tagsList = Array.isArray(post.tags) ? post.tags : [];
