@@ -55,26 +55,28 @@ const activityFilterOptions: Array<{ value: ActivityFilter; label: string }> = [
   { value: "hiking", label: "하이킹" },
 ];
 
-const formatPace = (secondsPerKm?: number) => {
+function formatPace(secondsPerKm?: number) {
   if (!secondsPerKm) return "-";
   const minutes = Math.floor(secondsPerKm / 60);
   const seconds = Math.round(secondsPerKm % 60);
   return `${minutes}:${seconds.toString().padStart(2, "0")} /km`;
-};
+}
 
-const formatMinutes = (seconds: number) => `${Math.round(seconds / 60)}분`;
+function formatMinutes(seconds: number) {
+  return `${Math.round(seconds / 60)}분`;
+}
 
-const formatDelta = (key: string, value: number) => {
+function formatDelta(key: string, value: number) {
   const prefix = value > 0 ? "+" : "";
   if (key === "avgPace" || key === "bestPace") {
     return `${prefix}${Math.round(value * 60)}초`;
   }
   return `${prefix}${Number(value.toFixed(2))}`;
-};
+}
 
-function matchesActivityFilter(session: any, filter: ActivityFilter) {
-  const activityType = String(session?.activityType || "").toLowerCase();
-  const activityName = String(session?.activityName || "").toLowerCase();
+function matchesActivityFilter(session: Record<string, unknown>, filter: ActivityFilter) {
+  const activityType = String(session.activityType || "").toLowerCase();
+  const activityName = String(session.activityName || "").toLowerCase();
   const combined = `${activityType} ${activityName}`;
 
   if (filter === "all") return true;
@@ -105,10 +107,11 @@ const History = () => {
   const fallbackRecords = useMemo(() => getMockHealthHistory(providerId), [providerId]);
   const effectiveRecords = records.length > 0 ? records : fallbackRecords;
   const latestRecord = effectiveRecords[effectiveRecords.length - 1];
+  const latestSyncedAt = latestRecord?.synced_at ? new Date(latestRecord.synced_at).toLocaleString("ko-KR") : "-";
 
   const allSessions = useMemo(() => (latestRecord?.running_data?.sessions || []).filter(Boolean), [latestRecord]);
   const filteredSessions = useMemo(
-    () => allSessions.filter((session: any) => matchesActivityFilter(session, activityFilter)),
+    () => allSessions.filter((session: Record<string, unknown>) => matchesActivityFilter(session, activityFilter)),
     [activityFilter, allSessions],
   );
 
@@ -135,6 +138,13 @@ const History = () => {
       cancelled = true;
     };
   }, [effectiveRecords]);
+
+  const sourceCards = [
+    { label: "공급자", value: providerId },
+    { label: "기록 건수", value: `${effectiveRecords.length}건` },
+    { label: "최신 적재", value: latestSyncedAt },
+    { label: "데이터 원본", value: records.length > 0 ? "실데이터" : "가데이터" },
+  ];
 
   const summaryCards = useMemo(() => {
     const totals = filteredSessions.reduce(
@@ -174,7 +184,7 @@ const History = () => {
         { label: "총 하강", value: `${selectedSession.elevationLossMeters} m` },
         { label: "칼로리", value: `${selectedSession.calories} kcal` },
         { label: "온도", value: `${selectedSession.temperatureCelsius ?? "-"}°C` },
-        { label: "VO2 Max", value: selectedSession.vo2Max },
+        { label: "VO2 Max", value: selectedSession.vo2Max || "-" },
         { label: "기본 효과", value: selectedSession.trainingEffectLabel || "-" },
         { label: "유산소 효과", value: selectedSession.trainingEffectAerobic || "-" },
         { label: "무산소 효과", value: selectedSession.trainingEffectAnaerobic || "-" },
@@ -187,12 +197,12 @@ const History = () => {
 
   const aiSummary = selectedSession
     ? [
-        `${selectedSession.activityName}은 ${Math.round(selectedSession.durationSeconds / 60)}분 동안 ${(selectedSession.distanceMeters / 1000).toFixed(2)}km를 수행한 ${selectedSession.activityType} 세션입니다.`,
+        `${selectedSession.activityName} 세션은 ${Math.round(selectedSession.durationSeconds / 60)}분 동안 ${(selectedSession.distanceMeters / 1000).toFixed(2)}km를 수행했습니다.`,
         `평균 심박수 ${selectedSession.averageHR}bpm, 최대 심박수 ${selectedSession.maxHR}bpm, 평균 케이던스 ${selectedSession.averageRunCadence}spm입니다.`,
         `운동 부하 ${selectedSession.trainingLoad || 0}, 유산소 효과 ${selectedSession.trainingEffectAerobic || 0}, 무산소 효과 ${selectedSession.trainingEffectAnaerobic || 0} 기준으로 ${
           selectedSession.trainingEffectAerobic && selectedSession.trainingEffectAerobic > 3
-            ? "강도가 충분한 편입니다."
-            : "회복 중심 또는 중간 강도 세션에 가깝습니다."
+            ? "강도가 충분한 세션입니다."
+            : "회복 또는 중간 강도 세션에 가깝습니다."
         }`,
         buildAiRecommendation(effectiveRecords as any[], new Date()),
       ].join(" ")
@@ -207,24 +217,26 @@ const History = () => {
         const delta = buildForecastDeltas(effectiveRecords as any[], latestPoint);
         const deltaLabel = formatDelta(metric.key, Number((delta as any)[metric.key] || 0));
 
+        let value = `${latestPoint?.[metric.key]} (${deltaLabel})`;
+        if (metric.key === "avgPace" || metric.key === "bestPace") {
+          value = `${formatPace(Number(latestPoint?.[metric.key] || 0) * 60)} (${deltaLabel})`;
+        } else if (metric.key === "distanceKm") {
+          value = `${latestPoint?.[metric.key]} km (${deltaLabel})`;
+        } else if (metric.key === "durationMinutes") {
+          value = `${latestPoint?.[metric.key]} 분 (${deltaLabel})`;
+        } else if (metric.key.includes("Speed")) {
+          value = `${latestPoint?.[metric.key]} km/h (${deltaLabel})`;
+        } else if (metric.key.includes("HeartRate")) {
+          value = `${latestPoint?.[metric.key]} bpm (${deltaLabel})`;
+        } else if (metric.key === "cadence") {
+          value = `${latestPoint?.[metric.key]} spm (${deltaLabel})`;
+        } else if (metric.key === "elevationGain") {
+          value = `${latestPoint?.[metric.key]} m (${deltaLabel})`;
+        }
+
         return {
           label: `${metric.name} 예측`,
-          value:
-            metric.key === "avgPace" || metric.key === "bestPace"
-              ? `${formatPace(Number(latestPoint?.[metric.key] || 0) * 60)} (${deltaLabel})`
-              : metric.key === "distanceKm"
-                ? `${latestPoint?.[metric.key]} km (${deltaLabel})`
-                : metric.key === "durationMinutes"
-                  ? `${latestPoint?.[metric.key]} 분 (${deltaLabel})`
-                  : metric.key.includes("Speed")
-                    ? `${latestPoint?.[metric.key]} km/h (${deltaLabel})`
-                    : metric.key.includes("HeartRate")
-                      ? `${latestPoint?.[metric.key]} bpm (${deltaLabel})`
-                      : metric.key === "cadence"
-                        ? `${latestPoint?.[metric.key]} spm (${deltaLabel})`
-                        : metric.key === "elevationGain"
-                          ? `${latestPoint?.[metric.key]} m (${deltaLabel})`
-                          : `${latestPoint?.[metric.key]} (${deltaLabel})`,
+          value,
         };
       })
     : [];
@@ -252,6 +264,15 @@ const History = () => {
       <ScrollToTop />
       <div className="mx-auto max-w-6xl space-y-4 p-3">
         <h1 className="text-3xl font-bold">러닝 기록</h1>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>실데이터 상태</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MetricGrid items={sourceCards} columnsClassName="grid-cols-2 md:grid-cols-4" />
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -340,14 +361,14 @@ const History = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {laps.map((lap: any) => (
-                          <tr key={lap.lapNumber} className="border-t">
-                            <td className="px-3 py-2">{lap.lapNumber}</td>
-                            <td className="px-3 py-2">{lap.distanceKm} km</td>
-                            <td className="px-3 py-2">{lap.duration}</td>
-                            <td className="px-3 py-2">{lap.pace}</td>
-                            <td className="px-3 py-2">{lap.avgHeartRate} bpm</td>
-                            <td className="px-3 py-2">{lap.cadence} spm</td>
+                        {laps.map((lap: any, index: number) => (
+                          <tr key={`${lap.lap ?? index}`} className="border-t">
+                            <td className="px-3 py-2">{lap.lap ?? lap.lapNumber ?? index + 1}</td>
+                            <td className="px-3 py-2">{lap.distanceKm ?? "-"} km</td>
+                            <td className="px-3 py-2">{lap.duration ?? `${lap.durationMinutes ?? "-"}분`}</td>
+                            <td className="px-3 py-2">{lap.pace ?? "-"}</td>
+                            <td className="px-3 py-2">{lap.avgHeartRate ?? lap.averageHeartRate ?? "-"} bpm</td>
+                            <td className="px-3 py-2">{lap.cadence ?? "-"} spm</td>
                           </tr>
                         ))}
                       </tbody>
@@ -361,7 +382,7 @@ const History = () => {
                 </TabsContent>
               </Tabs>
             ) : (
-              <div className="text-sm text-muted-foreground">표시할 운동 데이터가 없습니다.</div>
+              <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">표시할 운동 세션이 없습니다.</div>
             )}
           </CardContent>
         </Card>

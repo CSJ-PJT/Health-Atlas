@@ -29,14 +29,40 @@ const metricOptions = [
   { key: "cadence", name: "평균 케이던스", color: "#6366f1" },
   { key: "vo2max", name: "VO2 Max", color: "#14b8a6" },
   { key: "elevationGain", name: "총 상승", color: "#84cc16" },
-];
+] as const;
 
-const toPaceLabel = (minutesValue: number) => {
+function toPaceLabel(minutesValue: number) {
   const totalSeconds = Math.round(minutesValue * 60);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")} /km`;
-};
+}
+
+function formatMetricValue(key: string, value: unknown) {
+  const numeric = Number(value || 0);
+  if (key === "avgPace" || key === "bestPace") {
+    return toPaceLabel(numeric);
+  }
+  if (key === "distanceKm") {
+    return `${numeric} km`;
+  }
+  if (key === "durationMinutes") {
+    return `${numeric} 분`;
+  }
+  if (key.includes("Speed")) {
+    return `${numeric} km/h`;
+  }
+  if (key.includes("HeartRate")) {
+    return `${numeric} bpm`;
+  }
+  if (key === "cadence") {
+    return `${numeric} spm`;
+  }
+  if (key === "elevationGain") {
+    return `${numeric} m`;
+  }
+  return String(value ?? "-");
+}
 
 const Comparison = () => {
   useDeviceBackNavigation({ fallback: "/comparison", isRootPage: true });
@@ -58,6 +84,7 @@ const Comparison = () => {
   const aggregateChartData = useMemo(() => aggregateRunningChartData(effectiveRecords, viewMode), [effectiveRecords, viewMode]);
   const chartData = isSingleDayRange ? dayTimeline : aggregateChartData;
   const latest = chartData[chartData.length - 1];
+  const latestSyncedAt = latestRecord?.synced_at ? new Date(latestRecord.synced_at).toLocaleString("ko-KR") : "-";
 
   const toggleMetric = (key: string) => {
     setVisibleKeys((previous) => (previous.includes(key) ? previous.filter((item) => item !== key) : [...previous, key]));
@@ -70,24 +97,16 @@ const Comparison = () => {
         .filter((metric) => isDisplayMetricEnabled("comparison", metric.key))
         .map((metric) => ({
           label: metric.name,
-          value:
-            metric.key === "avgPace" || metric.key === "bestPace"
-              ? toPaceLabel(Number((latest as any)[metric.key] || 0))
-              : metric.key === "distanceKm"
-                ? `${(latest as any)[metric.key]} km`
-                : metric.key === "durationMinutes"
-                  ? `${(latest as any)[metric.key]} 분`
-                  : metric.key.includes("Speed")
-                    ? `${(latest as any)[metric.key]} km/h`
-                    : metric.key.includes("HeartRate")
-                      ? `${(latest as any)[metric.key]} bpm`
-                      : metric.key === "cadence"
-                        ? `${(latest as any)[metric.key]} spm`
-                        : metric.key === "elevationGain"
-                          ? `${(latest as any)[metric.key]} m`
-                          : `${(latest as any)[metric.key]}`,
+          value: formatMetricValue(metric.key, (latest as Record<string, unknown>)[metric.key]),
         }))
     : [];
+
+  const sourceCards = [
+    { label: "공급자", value: providerId },
+    { label: "조회 건수", value: `${effectiveRecords.length}건` },
+    { label: "최신 적재", value: latestSyncedAt },
+    { label: "데이터 원본", value: records.length > 0 ? "실데이터" : "가데이터" },
+  ];
 
   if (isLoading) {
     return (
@@ -106,6 +125,15 @@ const Comparison = () => {
       <Header showNav={true} />
       <div className="mx-auto max-w-6xl space-y-4 p-3">
         <h1 className="text-3xl font-bold">러닝 비교</h1>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>실데이터 상태</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MetricGrid items={sourceCards} columnsClassName="grid-cols-2 md:grid-cols-4" />
+          </CardContent>
+        </Card>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
@@ -145,7 +173,7 @@ const Comparison = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>러닝 비교</CardTitle>
+            <CardTitle>비교 그래프</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <MetricLineChart data={chartData} xKey={isSingleDayRange ? "time" : "date"} lines={visibleLines} />
