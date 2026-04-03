@@ -1,7 +1,15 @@
+import { useEffect } from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import type { ThemeProviderProps } from "next-themes/dist/types";
 
 export const ThemeProvider = ({ children, ...props }: ThemeProviderProps) => {
+  useEffect(() => {
+    const background = localStorage.getItem("app_background_hsl");
+    if (background) {
+      document.documentElement.style.setProperty("--background", background);
+    }
+  }, []);
+
   return (
     <NextThemesProvider
       attribute="class"

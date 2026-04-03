@@ -11,6 +11,7 @@ type Props = {
   bestScore: number;
   onClose: () => void;
   onScore: (score: number) => void;
+  durationSeconds?: number;
 };
 
 type TetrisCell = string | null;
@@ -79,27 +80,41 @@ function clearLines(board: TetrisCell[][]) {
   const kept = board.filter((row) => row.some((cell) => !cell));
   const cleared = BOARD_HEIGHT - kept.length;
   const padding = Array.from({ length: cleared }, () => Array<TetrisCell>(BOARD_WIDTH).fill(null));
-  return {
-    board: [...padding, ...kept],
-    cleared,
-  };
+  return { board: [...padding, ...kept], cleared };
 }
 
-export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
+function getGameTitle(gameId: PlayableGameId) {
+  switch (gameId) {
+    case "tap-sprint":
+      return "탭 스프린트";
+    case "reaction-grid":
+      return "리액션 그리드";
+    case "pace-memory":
+      return "페이스 메모리";
+    case "tetris":
+      return "테트리스";
+  }
+}
+
+export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds }: Props) {
+  const tapDuration = durationSeconds || 10;
+  const reactionDuration = durationSeconds || 30;
+  const memoryDuration = durationSeconds || 20;
+
   const [tapCount, setTapCount] = useState(0);
   const [tapStarted, setTapStarted] = useState(false);
-  const [tapTimeLeft, setTapTimeLeft] = useState(10);
+  const [tapTimeLeft, setTapTimeLeft] = useState(tapDuration);
 
-  const [breathStarted, setBreathStarted] = useState(false);
-  const [breathHits, setBreathHits] = useState(0);
+  const [reactionStarted, setReactionStarted] = useState(false);
+  const [reactionHits, setReactionHits] = useState(0);
   const [reactionTarget, setReactionTarget] = useState<number | null>(null);
-  const [reactionTimeLeft, setReactionTimeLeft] = useState(12);
+  const [reactionTimeLeft, setReactionTimeLeft] = useState(reactionDuration);
 
   const [memorySequence, setMemorySequence] = useState<number[]>([]);
   const [memoryInput, setMemoryInput] = useState<number[]>([]);
   const [memoryLevel, setMemoryLevel] = useState(3);
   const [memoryShowing, setMemoryShowing] = useState(false);
-  const [memoryTimeLeft, setMemoryTimeLeft] = useState(20);
+  const [memoryTimeLeft, setMemoryTimeLeft] = useState(memoryDuration);
 
   const [board, setBoard] = useState<TetrisCell[][]>(createBoard());
   const [piece, setPiece] = useState<Piece>(randomPiece());
@@ -108,10 +123,19 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
 
   const memoryTimeout = useRef<number | null>(null);
 
-  const displayBoard = useMemo(() => {
-    if (gameId !== "tetris") return board;
-    return merge(board, piece);
-  }, [board, gameId, piece]);
+  useEffect(() => {
+    setTapTimeLeft(tapDuration);
+  }, [tapDuration]);
+
+  useEffect(() => {
+    setReactionTimeLeft(reactionDuration);
+  }, [reactionDuration]);
+
+  useEffect(() => {
+    setMemoryTimeLeft(memoryDuration);
+  }, [memoryDuration]);
+
+  const displayBoard = useMemo(() => (gameId === "tetris" ? merge(board, piece) : board), [board, gameId, piece]);
 
   useEffect(() => {
     if (gameId !== "tap-sprint" || !tapStarted || tapTimeLeft <= 0) return;
@@ -121,25 +145,26 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
 
   useEffect(() => {
     if (gameId === "tap-sprint" && tapStarted && tapTimeLeft === 0) {
+      setTapStarted(false);
       onScore(tapCount);
     }
   }, [gameId, onScore, tapCount, tapStarted, tapTimeLeft]);
 
   useEffect(() => {
-    if (gameId !== "reaction-grid" || !breathStarted || reactionTimeLeft <= 0) return;
+    if (gameId !== "reaction-grid" || !reactionStarted || reactionTimeLeft <= 0) return;
     const timer = window.setTimeout(() => {
       setReactionTimeLeft((value) => value - 1);
       setReactionTarget(Math.floor(Math.random() * 9));
-    }, 850);
+    }, 800);
     return () => window.clearTimeout(timer);
-  }, [breathStarted, gameId, reactionTimeLeft]);
+  }, [gameId, reactionStarted, reactionTimeLeft]);
 
   useEffect(() => {
-    if (gameId === "reaction-grid" && breathStarted && reactionTimeLeft === 0) {
-      setBreathStarted(false);
-      onScore(breathHits * 10);
+    if (gameId === "reaction-grid" && reactionStarted && reactionTimeLeft === 0) {
+      setReactionStarted(false);
+      onScore(reactionHits * 10);
     }
-  }, [breathHits, breathStarted, gameId, onScore, reactionTimeLeft]);
+  }, [gameId, onScore, reactionHits, reactionStarted, reactionTimeLeft]);
 
   useEffect(() => {
     if (gameId !== "pace-memory" || memoryShowing || memorySequence.length === 0 || memoryTimeLeft <= 0) return;
@@ -157,7 +182,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
 
   useEffect(() => {
     if (gameId !== "tetris" || !tetrisRunning) return;
-    const speed = Math.max(160, 650 - Math.floor(tetrisScore / 30) * 40);
+    const speed = Math.max(140, 650 - Math.floor(tetrisScore / 30) * 40);
     const timer = window.setInterval(() => {
       setPiece((current) => {
         const moved = { ...current, y: current.y + 1 };
@@ -194,7 +219,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
 
   const startTapSprint = () => {
     setTapCount(0);
-    setTapTimeLeft(10);
+    setTapTimeLeft(tapDuration);
     setTapStarted(true);
   };
 
@@ -203,17 +228,17 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
     setTapCount((value) => value + 1);
   };
 
-  const startBreathFocus = () => {
-    setBreathStarted(true);
-    setBreathHits(0);
-    setReactionTimeLeft(12);
+  const startReactionGrid = () => {
+    setReactionStarted(true);
+    setReactionHits(0);
+    setReactionTimeLeft(reactionDuration);
     setReactionTarget(Math.floor(Math.random() * 9));
   };
 
-  const handleBreathTap = () => {
-    if (!breathStarted) return;
-    const nextHits = breathHits + 1;
-    setBreathHits(nextHits);
+  const handleReactionTap = () => {
+    if (!reactionStarted) return;
+    const nextHits = reactionHits + 1;
+    setReactionHits(nextHits);
     onScore(nextHits * 10);
   };
 
@@ -222,7 +247,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
     setMemorySequence(next);
     setMemoryInput([]);
     setMemoryShowing(true);
-    setMemoryTimeLeft(20);
+    setMemoryTimeLeft(memoryDuration);
     memoryTimeout.current = window.setTimeout(() => setMemoryShowing(false), 1800);
   };
 
@@ -261,19 +286,10 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
     }
   };
 
-  const gameTitle =
-    gameId === "tap-sprint"
-      ? "탭 스프린트"
-      : gameId === "reaction-grid"
-        ? "리액션 그리드"
-        : gameId === "pace-memory"
-          ? "페이스 메모리"
-          : "테트리스";
-
   return (
     <Card className="border-primary/30 bg-background/95">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle>{gameTitle}</CardTitle>
+        <CardTitle>{getGameTitle(gameId)}</CardTitle>
         <Button size="icon" variant="ghost" onClick={onClose}>
           <X className="h-4 w-4" />
         </Button>
@@ -285,7 +301,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
 
         {gameId === "tap-sprint" ? (
           <div className="space-y-4">
-            <Progress value={(tapTimeLeft / 10) * 100} />
+            <Progress value={(tapTimeLeft / tapDuration) * 100} />
             <div className="grid grid-cols-2 gap-3 text-center">
               <div className="rounded-xl border p-4">
                 <div className="text-xs text-muted-foreground">남은 시간</div>
@@ -297,22 +313,22 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
               </div>
             </div>
             <Button className="w-full" onClick={tapStarted && tapTimeLeft > 0 ? handleTap : startTapSprint}>
-              {tapStarted && tapTimeLeft > 0 ? "탭!" : "게임 시작"}
+              {tapStarted && tapTimeLeft > 0 ? "탭하기" : "게임 시작"}
             </Button>
           </div>
         ) : null}
 
         {gameId === "reaction-grid" ? (
           <div className="space-y-4">
-            <Progress value={(reactionTimeLeft / 12) * 100} />
+            <Progress value={(reactionTimeLeft / reactionDuration) * 100} />
             <div className="grid grid-cols-3 gap-2">
               {Array.from({ length: 9 }).map((_, index) => (
                 <button
                   key={index}
                   type="button"
                   onClick={() => {
-                    if (!breathStarted || reactionTarget !== index) return;
-                    handleBreathTap();
+                    if (!reactionStarted || reactionTarget !== index) return;
+                    handleReactionTap();
                     setReactionTarget(Math.floor(Math.random() * 9));
                   }}
                   className={`aspect-square rounded-2xl border transition-colors ${
@@ -327,12 +343,12 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
                 <div className="text-2xl font-bold">{reactionTimeLeft}s</div>
               </div>
               <div className="rounded-xl border p-4">
-                <div className="text-xs text-muted-foreground">적중 수</div>
-                <div className="text-2xl font-bold">{breathHits}</div>
+                <div className="text-xs text-muted-foreground">정확도</div>
+                <div className="text-2xl font-bold">{reactionHits}</div>
               </div>
             </div>
-            <Button className="w-full" onClick={startBreathFocus} disabled={breathStarted}>
-              {breathStarted ? "게임 진행 중" : "게임 시작"}
+            <Button className="w-full" onClick={startReactionGrid} disabled={reactionStarted}>
+              {reactionStarted ? "게임 진행 중" : "게임 시작"}
             </Button>
           </div>
         ) : null}
@@ -344,7 +360,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
               <div className="text-2xl font-bold">{memoryLevel}</div>
               <div className="mt-2 text-sm text-muted-foreground">남은 시간 {memoryTimeLeft}s</div>
               <div className="mt-3 text-lg font-semibold">
-                {memoryShowing ? memorySequence.join(" - ") : memorySequence.length > 0 ? "순서를 입력하세요" : "시작 버튼을 누르세요"}
+                {memoryShowing ? memorySequence.join(" - ") : memorySequence.length > 0 ? "순서를 입력하세요" : "시작 버튼을 눌러 주세요"}
               </div>
             </div>
             <div className="grid grid-cols-4 gap-2">
@@ -355,7 +371,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
               ))}
             </div>
             <Button className="w-full" onClick={startMemoryGame}>
-              시퀀스 시작
+              패턴 시작
             </Button>
           </div>
         ) : null}
@@ -383,12 +399,6 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
               <Button variant="outline" onClick={() => movePiece(1, 0)}>
                 <ArrowRight className="h-4 w-4" />
               </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={() => movePiece(0, 1)}>
-                <ArrowDown className="mr-2 h-4 w-4" />
-                아래로
-              </Button>
               <Button
                 variant="outline"
                 onClick={() => {
@@ -399,17 +409,23 @@ export function GameArena({ gameId, bestScore, onClose, onScore }: Props) {
                   setPiece(nextPiece);
                 }}
               >
-                <CornerDownLeft className="mr-2 h-4 w-4" />
-                엔터
+                <CornerDownLeft className="h-4 w-4" />
               </Button>
             </div>
+            <Button variant="outline" onClick={() => movePiece(0, 1)} className="w-full">
+              <ArrowDown className="mr-2 h-4 w-4" />
+              아래로
+            </Button>
             {!tetrisRunning ? (
-              <Button className="w-full" onClick={() => {
-                setBoard(createBoard());
-                setPiece(randomPiece());
-                setTetrisScore(0);
-                setTetrisRunning(true);
-              }}>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setBoard(createBoard());
+                  setPiece(randomPiece());
+                  setTetrisScore(0);
+                  setTetrisRunning(true);
+                }}
+              >
                 다시 시작
               </Button>
             ) : (

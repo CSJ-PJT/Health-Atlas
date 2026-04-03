@@ -34,6 +34,7 @@ export interface FeedPost {
   createdAt: string;
   media: FeedMedia[];
   tags?: string[];
+  visibility?: "public" | "profile";
 }
 
 const SAMPLE_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
@@ -218,6 +219,7 @@ export function createFeedPost(authorId: string, authorName: string, content: st
       createdAt: new Date().toISOString(),
       media: sanitizeMediaForStorage(media),
       tags,
+      visibility: "public" as const,
     },
     ...getFeedPosts(),
   ];
@@ -239,6 +241,31 @@ export function createFeedPost(authorId: string, authorName: string, content: st
   );
 
   return savePosts(fallback);
+}
+
+export function createScopedFeedPost(
+  authorId: string,
+  authorName: string,
+  content: string,
+  media: FeedMedia[],
+  visibility: "public" | "profile",
+  tags: string[] = [],
+) {
+  const next = [
+    {
+      id: `feed-${Date.now()}`,
+      authorId,
+      authorName,
+      content,
+      createdAt: new Date().toISOString(),
+      media: sanitizeMediaForStorage(media),
+      tags,
+      visibility,
+    },
+    ...getFeedPosts(),
+  ];
+
+  return savePosts(next);
 }
 
 export function updateFeedPost(id: string, content: string, media?: FeedMedia[], tags?: string[]) {

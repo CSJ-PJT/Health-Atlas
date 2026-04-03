@@ -237,6 +237,8 @@ export type Database = {
           id: string
           nickname: string
           profile_id: string
+          show_badges: boolean
+          show_personal_feed: boolean
           show_summary: boolean
           updated_at: string
           user_id: string
@@ -248,6 +250,8 @@ export type Database = {
           id: string
           nickname: string
           profile_id: string
+          show_badges?: boolean
+          show_personal_feed?: boolean
           show_summary?: boolean
           updated_at?: string
           user_id: string
@@ -259,6 +263,8 @@ export type Database = {
           id?: string
           nickname?: string
           profile_id?: string
+          show_badges?: boolean
+          show_personal_feed?: boolean
           show_summary?: boolean
           updated_at?: string
           user_id?: string
@@ -448,6 +454,7 @@ export type Database = {
           profile_id: string
           tags: Json
           updated_at: string
+          visibility: string
         }
         Insert: {
           author_id: string
@@ -459,6 +466,7 @@ export type Database = {
           profile_id: string
           tags?: Json
           updated_at?: string
+          visibility?: string
         }
         Update: {
           author_id?: string
@@ -470,6 +478,7 @@ export type Database = {
           profile_id?: string
           tags?: Json
           updated_at?: string
+          visibility?: string
         }
         Relationships: [
           {

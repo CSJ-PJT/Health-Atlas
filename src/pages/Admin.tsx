@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Clock, KeyRound, Plus, RefreshCw, Settings2, Trash2, XCircle } from "lucide-react";
@@ -89,6 +89,20 @@ const themeOptions = [
   { value: "theme-plum", label: "Plum", colors: ["#7a4b9f", "#e4d2f6"] },
 ] as const;
 
+const backgroundOptions = [
+  { value: "286 36% 98%", label: "Soft Lavender" },
+  { value: "240 40% 98%", label: "Cool Iris" },
+  { value: "330 40% 98%", label: "Rose Mist" },
+  { value: "198 42% 98%", label: "Ocean Air" },
+  { value: "24 48% 98%", label: "Peach Light" },
+  { value: "244 24% 8%", label: "Midnight Ink" },
+] as const;
+
+function parseOfficialTimeFromText(raw: string) {
+  const match = raw.match(/\b(\d{1,2}:\d{2}:\d{2})\b/);
+  return match ? match[1] : "";
+}
+
 const displayOptions = {
   home: [
     { key: "steps", label: "걸음 목표" },
@@ -176,6 +190,8 @@ const Admin = () => {
   const [officialTime, setOfficialTime] = useState("");
   const [displayRecordType, setDisplayRecordTypeState] = useState<RecordType>("full");
   const [verifiedRecords, setVerifiedRecords] = useState(getVerifiedRecords());
+  const [backgroundTone, setBackgroundTone] = useState(localStorage.getItem("app_background_hsl") || "");
+  const recordFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const garminConfig = getGarminProviderConfig();
@@ -213,6 +229,7 @@ const Admin = () => {
     setEquipments(storedEquipments ? JSON.parse(storedEquipments) : []);
     setDisplayRecordTypeState(getDisplayedRecordType());
     setVerifiedRecords(getVerifiedRecords());
+    setBackgroundTone(localStorage.getItem("app_background_hsl") || "");
     if (savedSyncEnabled !== null) {
       setScheduledSyncEnabled(savedSyncEnabled === "true");
     }
@@ -349,6 +366,33 @@ const Admin = () => {
   const handleDisplayRecordChange = (type: RecordType) => {
     setDisplayRecordTypeState(type);
     setDisplayedRecordType(type);
+  };
+
+  const handleRecordFileUpload = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const detected = parseOfficialTimeFromText(text) || parseOfficialTimeFromText(file.name);
+      if (!detected) {
+        toast({ title: "기록 시간을 찾지 못했습니다.", description: "파일 안에 3:50:22 같은 형식이 필요합니다.", variant: "destructive" });
+        return;
+      }
+      setOfficialTime(detected);
+      if (!recordLabel.trim()) {
+        setRecordLabel(file.name.replace(/\.[^.]+$/, ""));
+      }
+      toast({ title: "기록 파일을 불러왔습니다." });
+    } catch (error) {
+      console.error("Failed to parse record file:", error);
+      toast({ title: "파일을 읽지 못했습니다.", variant: "destructive" });
+    }
+  };
+
+  const handleBackgroundToneChange = (value: string) => {
+    setBackgroundTone(value);
+    localStorage.setItem("app_background_hsl", value);
+    document.documentElement.style.setProperty("--background", value);
+    toast({ title: "배경 색상을 적용했습니다." });
   };
 
   const handleDeleteEquipment = (id: string) => {
@@ -507,6 +551,13 @@ const Admin = () => {
       <Header showNav={true} />
       <ScrollToTop />
       <div className="mx-auto max-w-5xl space-y-6 p-4">
+        <input
+          ref={recordFileInputRef}
+          type="file"
+          accept=".txt,.csv,.json,.log"
+          className="hidden"
+          onChange={(event) => void handleRecordFileUpload(event.target.files?.[0] || null)}
+        />
         <h1 className="text-3xl font-bold">설정</h1>
 
         <Tabs defaultValue="general" className="space-y-6">
@@ -544,6 +595,11 @@ const Admin = () => {
                   </div>
                   <Switch id="mock-mode" checked={mockHealthDataEnabled} onCheckedChange={handleMockModeChange} />
                 </div>
+
+                <Button onClick={() => navigate("/account-settings", { state: { from: "/admin" } })} className="w-full gap-2">
+                  <Settings2 className="h-4 w-4" />
+                  사용자 계정 설정
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -814,6 +870,9 @@ const Admin = () => {
                   </div>
                   <Input value={recordLabel} onChange={(event) => setRecordLabel(event.target.value)} placeholder="표시 이름" />
                   <Input value={officialTime} onChange={(event) => setOfficialTime(event.target.value)} placeholder="공인 기록 예: 3:50:22" />
+                  <Button variant="outline" onClick={() => recordFileInputRef.current?.click()} className="w-full">
+                    기록 파일 불러오기
+                  </Button>
                   <Button onClick={handleRecordSave} className="w-full">
                     기록 저장
                   </Button>
@@ -854,32 +913,54 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="theme">
-            <Card>
-              <CardHeader>
-                <CardTitle>테마 색상</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {themeOptions.map((option) => (
-                  <Button
-                    key={option.value}
-                    variant={theme === option.value ? "default" : "outline"}
-                    onClick={() => setTheme(option.value)}
-                    className="h-auto justify-start gap-3 px-4 py-4"
-                  >
-                    <div className="flex gap-1.5">
-                      {option.colors.map((color) => (
-                        <span
-                          key={`${option.value}-${color}`}
-                          className="h-4 w-4 rounded-full border border-black/10"
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
-                    <span>{option.label}</span>
-                  </Button>
-                ))}
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>테마 색상</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {themeOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      variant={theme === option.value ? "default" : "outline"}
+                      onClick={() => setTheme(option.value)}
+                      className="h-auto justify-start gap-3 px-4 py-4"
+                    >
+                      <div className="flex gap-1.5">
+                        {option.colors.map((color) => (
+                          <span
+                            key={`${option.value}-${color}`}
+                            className="h-4 w-4 rounded-full border border-black/10"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                      <span>{option.label}</span>
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>배경 색상</CardTitle>
+                  <CardDescription>홈과 전체 앱의 기본 배경 톤을 함께 조정합니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {backgroundOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      variant={backgroundTone === option.value ? "default" : "outline"}
+                      onClick={() => handleBackgroundToneChange(option.value)}
+                      className="h-auto justify-start gap-3 px-4 py-4"
+                    >
+                      <span className="h-5 w-5 rounded-full border border-black/10" style={{ backgroundColor: `hsl(${option.value})` }} />
+                      <span>{option.label}</span>
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="data">
@@ -968,12 +1049,6 @@ const Admin = () => {
           </TabsContent>
         </Tabs>
 
-        <div className="flex flex-col gap-4">
-          <Button onClick={() => navigate("/account-settings", { state: { from: "/admin" } })} className="w-full gap-2">
-            <Settings2 className="h-4 w-4" />
-            사용자 계정 설정
-          </Button>
-        </div>
       </div>
     </div>
   );

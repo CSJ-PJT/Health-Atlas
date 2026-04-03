@@ -68,6 +68,7 @@ async function replaceServerFeedPosts(posts: FeedPost[]) {
         content: post.content,
         media: post.media,
         tags: post.tags || [],
+        visibility: post.visibility || "public",
         created_at: post.createdAt,
         updated_at: new Date().toISOString(),
       })),
@@ -144,6 +145,7 @@ async function loadServerFeedPosts() {
       createdAt: row.created_at,
       media: Array.isArray(row.media) ? (row.media as FeedPost["media"]) : [],
       tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+      visibility: (row.visibility as "public" | "profile" | null) || "public",
     }),
   );
 }

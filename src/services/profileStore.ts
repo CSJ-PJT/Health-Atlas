@@ -8,6 +8,8 @@ export interface UserProfileSettings {
   avatarUrl: string;
   bio: string;
   showSummary: boolean;
+  showBadges: boolean;
+  showPersonalFeed: boolean;
 }
 
 const PROFILE_SETTINGS_KEY = "user_profile_settings_v1";
@@ -62,6 +64,8 @@ export function getProfileSettings(
     avatarUrl: safeAvatar,
     bio: "",
     showSummary: true,
+    showBadges: true,
+    showPersonalFeed: true,
   };
 }
 
@@ -110,6 +114,8 @@ async function saveServerProfileSettings(all: Record<string, UserProfileSettings
         avatar_url: row.avatarUrl,
         bio: row.bio,
         show_summary: row.showSummary,
+        show_badges: row.showBadges,
+        show_personal_feed: row.showPersonalFeed,
         updated_at: new Date().toISOString(),
       })),
     );
@@ -141,6 +147,8 @@ async function loadServerProfileSettings() {
       avatarUrl: row.avatar_url,
       bio: row.bio,
       showSummary: row.show_summary,
+      showBadges: row.show_badges ?? true,
+      showPersonalFeed: row.show_personal_feed ?? true,
     };
     return acc;
   }, {});

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Film, Heart, ImagePlus, MessageCircle, Pencil, Plus, Search, Tag, Trash2, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Film, Heart, ImagePlus, MessageCircle, Pencil, Plus, Search, Tag, Trash2, Upload, X } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { useToast } from "@/hooks/use-toast";
 import {
   addFeedComment,
-  createFeedPost,
+  createScopedFeedPost,
   deleteFeedPost,
   ensureFeedSeed,
   getFeedComments,
@@ -21,6 +21,7 @@ import {
   updateFeedPost,
   type FeedComment,
   type FeedMedia,
+  type FeedPost,
 } from "@/services/feedStore";
 
 const MY_USER_ID = localStorage.getItem("user_id") || "me";
@@ -69,30 +70,44 @@ function resizeImageFile(file: File) {
       image.onerror = () => reject(new Error("이미지를 불러올 수 없습니다."));
       image.src = String(reader.result || "");
     };
-    reader.onerror = () => reject(reader.error || new Error("파일을 읽을 수 없습니다."));
+    reader.onerror = () => reject(new Error("파일을 읽을 수 없습니다."));
     reader.readAsDataURL(file);
   });
 }
 
-const Feed = () => {
+function renderTaggedContent(content: string) {
+  return content.split(/(@[A-Za-z0-9_-]+|#[^\s#]+)/g).map((part, index) => {
+    if (part.startsWith("@") || part.startsWith("#")) {
+      return (
+        <span key={`${part}-${index}`} className="font-medium text-primary">
+          {part}
+        </span>
+      );
+    }
+    return <span key={`${part}-${index}`}>{part}</span>;
+  });
+}
+
+export default function Feed() {
   const location = useLocation();
   const { toast } = useToast();
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [detailPostId, setDetailPostId] = useState<string | null>(null);
-  const [caption, setCaption] = useState("");
-  const [tags, setTags] = useState("");
-  const [search, setSearch] = useState("");
-  const [editingPostId, setEditingPostId] = useState<string | null>(null);
-  const [replyTarget, setReplyTarget] = useState<FeedComment | null>(null);
-  const [commentDraft, setCommentDraft] = useState("");
-  const [showCommentComposer, setShowCommentComposer] = useState(false);
-  const [media, setMedia] = useState<FeedMedia[]>([]);
-  const [tick, setTick] = useState(0);
-  const [isBusy, setIsBusy] = useState(false);
-  const [showSpinner, setShowSpinner] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const [tick, setTick] = useState(0);
+  const [search, setSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [detailPostId, setDetailPostId] = useState<string | null>(null);
+  const [detailMediaIndex, setDetailMediaIndex] = useState(0);
+  const [caption, setCaption] = useState("");
+  const [tags, setTags] = useState("");
+  const [media, setMedia] = useState<FeedMedia[]>([]);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [replyTarget, setReplyTarget] = useState<FeedComment | null>(null);
+  const [showCommentComposer, setShowCommentComposer] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
+  const [showSpinner, setShowSpinner] = useState(false);
 
   useDeviceBackNavigation({
     fallback: "/",
@@ -114,7 +129,6 @@ const Feed = () => {
 
   useEffect(() => {
     ensureFeedSeed();
-    setTick((value) => value + 1);
     void (async () => {
       const changed = await hydrateFeedStoreFromServer();
       if (changed) {
@@ -139,37 +153,21 @@ const Feed = () => {
     return () => window.clearTimeout(timer);
   }, [isBusy]);
 
-  const posts = useMemo(() => {
-    try {
-      return getFeedPosts();
-    } catch (error) {
-      console.error("Failed to load feed posts:", error);
-      return [];
-    }
-  }, [tick]);
-  const detailPost = useMemo(() => posts.find((post) => post?.id === detailPostId) ?? null, [detailPostId, posts]);
-  const comments = useMemo(() => {
-    try {
-      return detailPost ? getFeedComments(detailPost.id) : [];
-    } catch (error) {
-      console.error("Failed to load comments:", error);
-      return [];
-    }
-  }, [detailPost, tick]);
-
+  const publicPosts = useMemo(
+    () => getFeedPosts().filter((post) => (post.visibility || "public") === "public"),
+    [tick],
+  );
   const filteredPosts = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    if (!keyword) return posts;
-    return posts.filter((post) => {
-      if (!post) return false;
-      const joinedTags = Array.isArray(post.tags) ? post.tags.join(" ") : "";
-      return [post.authorName, post.authorId, post.content, joinedTags].some((value) =>
-        value.toLowerCase().includes(keyword),
-      );
+    if (!keyword) return publicPosts;
+    return publicPosts.filter((post) => {
+      const tagsText = Array.isArray(post.tags) ? post.tags.join(" ") : "";
+      return [post.authorName, post.authorId, post.content, tagsText].some((value) => value.toLowerCase().includes(keyword));
     });
-  }, [posts, search]);
-
+  }, [publicPosts, search]);
   const visiblePosts = filteredPosts.slice(0, visibleCount);
+  const detailPost = useMemo(() => visiblePosts.concat(filteredPosts).find((post) => post.id === detailPostId) || null, [detailPostId, filteredPosts, visiblePosts]);
+  const comments = useMemo(() => (detailPost ? getFeedComments(detailPost.id) : []), [detailPost, tick]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -180,8 +178,7 @@ const Feed = () => {
     if (!node) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0];
-        if (entry?.isIntersecting) {
+        if (entries[0]?.isIntersecting) {
           setVisibleCount((current) => Math.min(current + PAGE_SIZE, filteredPosts.length));
         }
       },
@@ -196,11 +193,6 @@ const Feed = () => {
     setTags("");
     setMedia([]);
     setEditingPostId(null);
-  };
-
-  const handleOpenCreate = () => {
-    resetComposer();
-    setComposerOpen(true);
   };
 
   const handleFiles = async (files: FileList | null) => {
@@ -229,7 +221,6 @@ const Feed = () => {
       );
 
       setMedia((previous) => [...previous, ...nextMedia]);
-      toast({ title: "미디어를 추가했습니다." });
     } catch (error) {
       toast({
         title: "미디어 추가 실패",
@@ -254,26 +245,20 @@ const Feed = () => {
 
     const success = editingPostId
       ? updateFeedPost(editingPostId, caption.trim(), media, parsedTags)
-      : createFeedPost(MY_USER_ID, MY_USER_NAME, caption.trim(), media, parsedTags);
+      : createScopedFeedPost(MY_USER_ID, MY_USER_NAME, caption.trim(), media, "public", parsedTags);
 
     if (!success) {
-      toast({
-        title: "피드 업로드 실패",
-        description: "저장 공간 문제로 업로드하지 못했습니다. 미디어 수를 줄여 다시 시도해 주세요.",
-        variant: "destructive",
-      });
+      toast({ title: "피드 업로드 실패", variant: "destructive" });
       return;
     }
 
     setTick((value) => value + 1);
     setComposerOpen(false);
     resetComposer();
-    toast({ title: editingPostId ? "게시글을 수정했습니다." : "게시글을 업로드했습니다." });
+    toast({ title: editingPostId ? "게시글을 수정했습니다." : "게시글을 올렸습니다." });
   };
 
-  const handleEdit = (postId: string) => {
-    const post = posts.find((item) => item.id === postId);
-    if (!post) return;
+  const handleEdit = (post: FeedPost) => {
     setCaption(post.content);
     setTags(Array.isArray(post.tags) ? post.tags.join(", ") : "");
     setMedia(post.media || []);
@@ -287,10 +272,10 @@ const Feed = () => {
       toast({ title: "게시글 삭제 실패", variant: "destructive" });
       return;
     }
+    setTick((value) => value + 1);
     if (detailPostId === postId) {
       setDetailPostId(null);
     }
-    setTick((value) => value + 1);
   };
 
   const handleAddComment = () => {
@@ -298,37 +283,36 @@ const Feed = () => {
       toast({ title: "댓글 내용을 입력해 주세요.", variant: "destructive" });
       return;
     }
+
     const success = addFeedComment(detailPost.id, MY_USER_ID, MY_USER_NAME, commentDraft.trim(), replyTarget?.id || null);
     if (!success) {
-      toast({ title: "댓글 저장 실패", description: "잠시 후 다시 시도해 주세요.", variant: "destructive" });
+      toast({ title: "댓글 등록 실패", variant: "destructive" });
       return;
     }
+
     setCommentDraft("");
     setReplyTarget(null);
     setShowCommentComposer(false);
     setTick((value) => value + 1);
-    toast({ title: "댓글을 남겼습니다." });
   };
 
-  const handleReply = (comment: FeedComment) => {
-    setReplyTarget(comment);
-    setCommentDraft(`@${comment.authorId} `);
-    setShowCommentComposer(true);
-  };
-
-  const renderTaggedContent = (content: string) =>
-    content.split(/(@[A-Za-z0-9_-]+|#[^\s#]+)/g).map((part, index) => {
-      if (part.startsWith("@") || part.startsWith("#")) {
-        return (
-          <span key={`${part}-${index}`} className="font-medium text-primary">
-            {part}
-          </span>
-        );
+  const moveMedia = (index: number, direction: -1 | 1) => {
+    setMedia((current) => {
+      const target = index + direction;
+      if (target < 0 || target >= current.length) {
+        return current;
       }
-      return <span key={`${part}-${index}`}>{part}</span>;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
     });
+  };
 
-  const renderCommentTree = (parentId: string | null, depth = 0): ReactNode =>
+  const removeMedia = (id: string) => {
+    setMedia((current) => current.filter((item) => item.id !== id));
+  };
+
+  const renderCommentTree = (parentId: string | null, depth = 0): React.ReactNode =>
     comments
       .filter((comment) => comment.parentId === parentId)
       .map((comment) => (
@@ -356,7 +340,11 @@ const Feed = () => {
                 <Heart className={`h-3.5 w-3.5 ${comment.likedUserIds.includes(MY_USER_ID) ? "fill-current text-primary" : ""}`} />
                 좋아요 {comment.likedUserIds.length}
               </button>
-              <button type="button" className="flex items-center gap-1 font-medium text-primary" onClick={() => handleReply(comment)}>
+              <button type="button" className="flex items-center gap-1 font-medium text-primary" onClick={() => {
+                setReplyTarget(comment);
+                setCommentDraft(`@${comment.authorId} `);
+                setShowCommentComposer(true);
+              }}>
                 <MessageCircle className="h-3.5 w-3.5" />
                 답글
               </button>
@@ -368,7 +356,7 @@ const Feed = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header showNav={true} />
+      <Header showNav />
       <div className="mx-auto max-w-6xl space-y-4 p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <h1 className="text-3xl font-bold">피드</h1>
@@ -387,7 +375,7 @@ const Feed = () => {
               }}
             >
               <DialogTrigger asChild>
-                <Button onClick={handleOpenCreate} size="icon" className="bg-primary hover:bg-primary/90">
+                <Button onClick={() => setComposerOpen(true)} size="icon" className="bg-primary hover:bg-primary/90">
                   <Plus className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
@@ -407,28 +395,39 @@ const Feed = () => {
                       <Upload className="h-4 w-4" />
                       사진 / 동영상 추가
                     </Button>
-                    <div className="grid grid-cols-3 gap-3">
-                      {media.map((item) => (
-                        <div key={item.id} className="overflow-hidden rounded-xl border bg-muted/20">
-                          {item.type === "video" ? (
-                            <div className="relative aspect-square">
-                              <img src={item.thumbnailUrl} alt="video preview" className="h-full w-full object-cover" />
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/20 text-white">
-                                <Film className="h-5 w-5" />
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                      {media.map((item, index) => (
+                        <div key={item.id} className="space-y-2 rounded-xl border bg-muted/20 p-2">
+                          <div className="overflow-hidden rounded-lg">
+                            {item.type === "video" ? (
+                              <div className="relative aspect-square">
+                                <img src={item.thumbnailUrl} alt="video preview" className="h-full w-full object-cover" />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 text-white">
+                                  <Film className="h-5 w-5" />
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <img src={item.url} alt="preview" className="aspect-square w-full object-cover" />
-                          )}
+                            ) : (
+                              <img src={item.url} alt="preview" className="aspect-square w-full object-cover" />
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            <Button size="icon" variant="outline" onClick={() => moveMedia(index, -1)} disabled={index === 0}>
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="outline" onClick={() => removeMedia(item.id)}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="outline" onClick={() => moveMedia(index, 1)} disabled={index === media.length - 1}>
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setComposerOpen(false)}>
-                    취소
-                  </Button>
+                  <Button variant="outline" onClick={() => setComposerOpen(false)}>취소</Button>
                   <Button onClick={handleSave}>{editingPostId ? "저장" : "업로드"}</Button>
                 </DialogFooter>
               </DialogContent>
@@ -440,12 +439,10 @@ const Feed = () => {
           <CardContent className="pt-6">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
               {visiblePosts.map((post) => {
-                if (!post) return null;
                 const cover = post.media?.[0];
                 const commentCount = getFeedComments(post.id).length;
-                const tagsList = Array.isArray(post.tags) ? post.tags : [];
                 return (
-                  <button key={post.id} type="button" onClick={() => setDetailPostId(post.id)} className="group overflow-hidden rounded-2xl border bg-card text-left">
+                  <button key={post.id} type="button" onClick={() => { setDetailPostId(post.id); setDetailMediaIndex(0); }} className="group overflow-hidden rounded-2xl border bg-card text-left">
                     <div className="relative aspect-square bg-muted/40">
                       {cover?.type === "video" ? (
                         <>
@@ -462,7 +459,6 @@ const Feed = () => {
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white">
                         <div className="truncate text-sm font-semibold">{post.authorName}</div>
                         <div className="line-clamp-2 text-xs text-white/80">{post.content || "미디어 게시물"}</div>
-                        {tagsList.length > 0 ? <div className="mt-1 truncate text-[11px] text-white/70">{tagsList.map((tag) => `#${tag}`).join(" ")}</div> : null}
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-2 p-3">
@@ -481,7 +477,7 @@ const Feed = () => {
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                handleEdit(post.id);
+                                handleEdit(post);
                               }}
                               className="rounded p-1 hover:bg-muted"
                             >
@@ -509,38 +505,27 @@ const Feed = () => {
           </CardContent>
         </Card>
 
-        <Dialog
-          open={!!detailPost}
-          onOpenChange={(open) => {
-            if (!open) {
-              setDetailPostId(null);
-              setReplyTarget(null);
-              setShowCommentComposer(false);
-            }
-          }}
-        >
-          <DialogContent className="max-h-[92vh] max-w-4xl overflow-hidden">
+        <Dialog open={!!detailPost} onOpenChange={(open) => !open && setDetailPostId(null)}>
+          <DialogContent className="max-h-[92vh] max-w-5xl overflow-hidden">
             {detailPost ? (
-              <div className="grid h-full gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="grid h-full gap-6 lg:grid-cols-[1.05fr_0.95fr]">
                 <div className="min-h-0 space-y-4">
                   <DialogHeader>
                     <DialogTitle>{detailPost.authorName}</DialogTitle>
                   </DialogHeader>
-                  <div className="max-h-[72vh] overflow-y-auto pr-2">
-                    <div className="space-y-3 pr-1">
-                      <div className="rounded-xl border p-4 text-sm leading-6">{renderTaggedContent(detailPost.content)}</div>
-                      {Array.isArray(detailPost.tags) && detailPost.tags.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {detailPost.tags.map((tag) => (
-                            <span key={tag} className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        {detailPost.media.map((item) => (
-                          <div key={item.id} className="overflow-hidden rounded-2xl border bg-muted/20">
+                  <div className="space-y-3">
+                    {detailPost.content ? <div className="rounded-xl border p-4 text-sm leading-6">{renderTaggedContent(detailPost.content)}</div> : null}
+                    {Array.isArray(detailPost.tags) && detailPost.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {detailPost.tags.map((tag) => (
+                          <span key={tag} className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">#{tag}</span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="overflow-x-auto">
+                      <div className="flex snap-x snap-mandatory gap-3">
+                        {detailPost.media.map((item, index) => (
+                          <div key={item.id} className={`min-w-full snap-center overflow-hidden rounded-2xl border ${index === detailMediaIndex ? "" : ""}`}>
                             {item.type === "video" ? (
                               <video controls playsInline src={item.url} poster={item.thumbnailUrl} className="aspect-square w-full object-cover" />
                             ) : (
@@ -550,24 +535,28 @@ const Feed = () => {
                         ))}
                       </div>
                     </div>
+                    {detailPost.media.length > 1 ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <Button variant="outline" size="icon" onClick={() => setDetailMediaIndex((value) => Math.max(0, value - 1))} disabled={detailMediaIndex === 0}>
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <div className="text-xs text-muted-foreground">{detailMediaIndex + 1} / {detailPost.media.length}</div>
+                        <Button variant="outline" size="icon" onClick={() => setDetailMediaIndex((value) => Math.min(detailPost.media.length - 1, value + 1))} disabled={detailMediaIndex === detailPost.media.length - 1}>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
                 <div className="min-h-0">
                   <Card className="flex h-full flex-col">
-                    <CardHeader>
-                      <CardTitle>댓글</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
-                      <div className="min-h-0 flex-1 overflow-y-auto pr-2" style={{ touchAction: "pan-y" }}>
-                        <div className="space-y-3">
-                          {comments.length > 0 ? renderCommentTree(null) : <div className="text-sm text-muted-foreground">첫 댓글을 남겨 보세요.</div>}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2">
+                    <CardContent className="flex min-h-0 flex-1 flex-col gap-4 pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="text-lg font-semibold">댓글</div>
                         <Button
                           variant={showCommentComposer ? "default" : "outline"}
+                          size="sm"
                           className="gap-2"
                           onClick={() => {
                             setShowCommentComposer((current) => !current);
@@ -582,8 +571,14 @@ const Feed = () => {
                         </Button>
                       </div>
 
-                      {showCommentComposer ? (
+                      <div className="min-h-0 flex-1 overflow-y-auto pr-2">
                         <div className="space-y-3">
+                          {comments.length > 0 ? renderCommentTree(null) : <div className="text-sm text-muted-foreground">첫 댓글을 남겨 보세요.</div>}
+                        </div>
+                      </div>
+
+                      {showCommentComposer ? (
+                        <div className="space-y-3 border-t pt-3">
                           {replyTarget ? (
                             <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
                               <div className="font-medium">{replyTarget.authorName}님에게 답글 작성 중</div>
@@ -599,11 +594,8 @@ const Feed = () => {
                               </button>
                             </div>
                           ) : null}
-
                           <Textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글이나 @id 태그를 입력해 주세요" className="min-h-24" />
-                          <Button onClick={handleAddComment} className="w-full">
-                            댓글 등록
-                          </Button>
+                          <Button onClick={handleAddComment} className="w-full">댓글 등록</Button>
                         </div>
                       ) : null}
                     </CardContent>
@@ -622,6 +614,4 @@ const Feed = () => {
       ) : null}
     </div>
   );
-};
-
-export default Feed;
+}
