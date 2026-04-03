@@ -9,11 +9,26 @@ type BackNavigationOptions = {
   onBackWithinPage?: () => boolean | void;
 };
 
+type CapacitorAppPlugin = {
+  addListener?: (eventName: string, listener: () => void) => Promise<{ remove: () => void }> | { remove: () => void };
+  exitApp?: () => void;
+};
+
+type CapacitorWindow = Window & {
+  Capacitor?: {
+    isNativePlatform?: () => boolean;
+    Plugins?: {
+      App?: CapacitorAppPlugin;
+    };
+  };
+};
+
 function isOptions(value: string | BackNavigationOptions): value is BackNavigationOptions {
   return typeof value === "object";
 }
 
 let lastBackAttemptAt = 0;
+let lastBackHandledAt = 0;
 
 export function useDeviceBackNavigation(input: string | BackNavigationOptions = "/") {
   const navigate = useNavigate();
@@ -40,6 +55,8 @@ export function useDeviceBackNavigation(input: string | BackNavigationOptions = 
     };
 
     const tryExitApp = () => {
+      const appPlugin = (window as CapacitorWindow).Capacitor?.Plugins?.App;
+      appPlugin?.exitApp?.();
       const navigatorWithApp = navigator as Navigator & {
         app?: { exitApp?: () => void };
       };
@@ -49,13 +66,18 @@ export function useDeviceBackNavigation(input: string | BackNavigationOptions = 
     };
 
     const handleBackAttempt = () => {
+      const now = Date.now();
+      if (now - lastBackHandledAt < 250) {
+        return;
+      }
+      lastBackHandledAt = now;
+
       if (onBackWithinPageRef.current?.()) {
         pushGuardState();
         return;
       }
 
       if (options.isRootPage) {
-        const now = Date.now();
         if (now - lastBackAttemptAt < 2000) {
           tryExitApp();
         } else {
@@ -85,9 +107,25 @@ export function useDeviceBackNavigation(input: string | BackNavigationOptions = 
 
     window.addEventListener("popstate", handlePopState);
     document.addEventListener("backbutton", handleNativeBack, false);
+
+    let removeNativeListener: (() => void) | undefined;
+    const appPlugin = (window as CapacitorWindow).Capacitor?.Plugins?.App;
+    const listenerResult = appPlugin?.addListener?.("backButton", () => {
+      handleBackAttempt();
+    });
+
+    Promise.resolve(listenerResult)
+      .then((listener) => {
+        removeNativeListener = listener?.remove;
+      })
+      .catch(() => {
+        removeNativeListener = undefined;
+      });
+
     return () => {
       window.removeEventListener("popstate", handlePopState);
       document.removeEventListener("backbutton", handleNativeBack, false);
+      removeNativeListener?.();
     };
   }, [location.pathname, location.state, navigate, options.exitMessage, options.fallback, options.isRootPage]);
 }

@@ -374,15 +374,15 @@ const Feed = () => {
         </Card>
 
         <Dialog open={!!detailPost} onOpenChange={(open) => !open && setDetailPostId(null)}>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden">
             {detailPost ? (
               <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                <div className="space-y-4">
+                <div className="min-h-0 space-y-4">
                   <DialogHeader>
                     <DialogTitle>{detailPost.authorName}</DialogTitle>
                   </DialogHeader>
-                  <ScrollArea className="max-h-[70vh]">
-                    <div className="space-y-3 pr-4">
+                  <div className="max-h-[70vh] overflow-y-auto pr-2">
+                    <div className="space-y-3 pr-2">
                       <div className="rounded-xl border p-4 text-sm leading-6">{renderTaggedContent(detailPost.content)}</div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {detailPost.media.map((item) => (
@@ -396,10 +396,10 @@ const Feed = () => {
                         ))}
                       </div>
                     </div>
-                  </ScrollArea>
+                  </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="min-h-0 space-y-4">
                   <Card>
                     <CardHeader>
                       <CardTitle>댓글</CardTitle>
