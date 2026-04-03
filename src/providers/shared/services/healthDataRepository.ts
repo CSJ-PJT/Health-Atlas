@@ -158,6 +158,39 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
       }>)
     : [];
 
+  const garminActivityMetrics = Array.isArray(normalized.source_metrics?.garminActivities)
+    ? (normalized.source_metrics?.garminActivities as Array<{
+        id: string;
+        averageRunCadence?: number;
+        maxRunCadence?: number;
+        vo2Max?: number;
+        trainingEffectLabel?: string;
+        trainingEffectAerobic?: number;
+        trainingEffectAnaerobic?: number;
+        trainingLoad?: number;
+        estimatedSweatLossMl?: number;
+        averageStrideLengthMeters?: number;
+        temperatureCelsius?: number | null;
+        steps?: number;
+        routePoints?: Array<{ latitude: number; longitude: number }>;
+        laps?: Array<{
+          lapNumber?: number;
+          distanceMeters?: number;
+          durationSeconds?: number;
+          averageHeartRate?: number;
+          cadence?: number;
+          paceSecondsPerKilometer?: number;
+        }>;
+        timeline?: Array<{
+          timeOffsetSeconds?: number;
+          distanceMeters?: number;
+          heartRate?: number;
+          paceSecondsPerKilometer?: number;
+          speedMetersPerSecond?: number;
+        }>;
+      }>)
+    : [];
+
   const runningExercises = normalized.exercise_data.filter((exercise) => {
     const combined = `${exercise.type} ${exercise.exerciseType || ""}`.toLowerCase();
     return combined.includes("run") || combined.includes("running");
@@ -166,6 +199,7 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
   const sessions = runningExercises.map((exercise, index) => {
     const activityId = `${providerId}-session-${Date.now()}-${index}`;
     const stravaMetric = stravaActivityMetrics[index];
+    const garminMetric = garminActivityMetrics[index];
     const durationSeconds = Math.round((exercise.duration || 0) * 60);
     const distanceKm = Number(exercise.distance || 0);
     const averageSpeed = Number(exercise.averageSpeed || 0);
@@ -186,25 +220,30 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
       maxSpeedMetersPerSecond: maxSpeed > 0 ? Number((maxSpeed / 3.6).toFixed(3)) : 0,
       averageHR: exercise.averageHeartRate || normalized.heart_rate || 0,
       maxHR: exercise.maxHeartRate || exercise.averageHeartRate || normalized.heart_rate || 0,
-      averageRunCadence: Math.round(Number(stravaMetric?.averageCadence || 0)),
-      maxRunCadence: Math.round(Number(stravaMetric?.averageCadence || 0)),
+      averageRunCadence: Math.round(Number(garminMetric?.averageRunCadence || stravaMetric?.averageCadence || 0)),
+      maxRunCadence: Math.round(Number(garminMetric?.maxRunCadence || stravaMetric?.averageCadence || 0)),
       elevationGainMeters: exercise.elevationGainMeters || 0,
       elevationLossMeters: exercise.elevationLossMeters || 0,
-      vo2Max: Array.isArray(normalized.vo2max) ? Number((normalized.vo2max[0] as { value?: number } | undefined)?.value || 0) : 0,
+      vo2Max:
+        Number(garminMetric?.vo2Max || 0) ||
+        (Array.isArray(normalized.vo2max) ? Number((normalized.vo2max[0] as { value?: number } | undefined)?.value || 0) : 0),
       calories: exercise.calories || 0,
-      temperatureCelsius: stravaMetric?.averageTemp ?? null,
-      trainingEffectLabel: "Measured",
-      trainingEffectAerobic: 0,
-      trainingEffectAnaerobic: 0,
-      trainingLoad: Number(stravaMetric?.sufferScore || 0),
-      estimatedSweatLossMl: 0,
-      averageStrideLengthMeters: 0,
-      steps: durationSeconds > 0 ? normalized.steps_data.count : 0,
+      temperatureCelsius: garminMetric?.temperatureCelsius ?? stravaMetric?.averageTemp ?? null,
+      trainingEffectLabel: garminMetric?.trainingEffectLabel || "Measured",
+      trainingEffectAerobic: Number(garminMetric?.trainingEffectAerobic || 0),
+      trainingEffectAnaerobic: Number(garminMetric?.trainingEffectAnaerobic || 0),
+      trainingLoad: Number(garminMetric?.trainingLoad || stravaMetric?.sufferScore || 0),
+      estimatedSweatLossMl: Number(garminMetric?.estimatedSweatLossMl || 0),
+      averageStrideLengthMeters: Number(garminMetric?.averageStrideLengthMeters || 0),
+      steps: Number(garminMetric?.steps || (durationSeconds > 0 ? normalized.steps_data.count : 0)),
       startTime: exercise.startTime || null,
       endTime: exercise.endTime || null,
       lapDistanceKm,
       sourceTimeline: stravaMetric?.streamSet || null,
       sourceSplits: stravaMetric?.splitsMetric || [],
+      garminTimeline: garminMetric?.timeline || [],
+      garminLaps: garminMetric?.laps || [],
+      routePoints: garminMetric?.routePoints || [],
     };
   });
 
@@ -258,7 +297,21 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
   const session_timelines = Object.fromEntries(
     sessions.map((session) => [
       session.activityId,
-      session.sourceTimeline?.time?.data?.length
+      session.garminTimeline.length > 0
+        ? session.garminTimeline.map((point, index) => ({
+            label: `${index + 1}`,
+            minute: Math.round(Number(point.timeOffsetSeconds || 0) / 60),
+            time: `${Math.floor(Number(point.timeOffsetSeconds || 0) / 60)}:${String(Math.round(Number(point.timeOffsetSeconds || 0) % 60)).padStart(2, "0")}`,
+            distanceKm: Number(((point.distanceMeters || 0) / 1000).toFixed(2)),
+            heartRate: Number(point.heartRate || session.averageHR),
+            pace:
+              point.paceSecondsPerKilometer && point.paceSecondsPerKilometer > 0
+                ? Number((point.paceSecondsPerKilometer / 60).toFixed(2))
+                : point.speedMetersPerSecond && point.speedMetersPerSecond > 0
+                  ? Number((1000 / point.speedMetersPerSecond / 60).toFixed(2))
+                  : session.averagePaceSecondsPerKilometer / 60,
+          }))
+        : session.sourceTimeline?.time?.data?.length
         ? session.sourceTimeline.time.data.map((time, index) => {
             const distanceMeters = Number(session.sourceTimeline?.distance?.data?.[index] || 0);
             const velocity = Number(session.sourceTimeline?.velocity_smooth?.data?.[index] || 0);
@@ -295,7 +348,16 @@ function buildRunningData(normalized: NormalizedHealthData, providerId: Provider
   const session_laps = Object.fromEntries(
     sessions.map((session) => [
       session.activityId,
-      session.sourceSplits.length > 0
+      session.garminLaps.length > 0
+        ? session.garminLaps.map((split, index) => ({
+            lap: split.lapNumber || index + 1,
+            distanceKm: Number((((split.distanceMeters || 0) as number) / 1000 || 1).toFixed(2)),
+            durationMinutes: Number((((split.durationSeconds || 0) as number) / 60).toFixed(2)),
+            averageHeartRate: Number(split.averageHeartRate || session.averageHR),
+            cadence: Number(split.cadence || session.averageRunCadence || 0),
+            pace: split.paceSecondsPerKilometer ? Number((split.paceSecondsPerKilometer / 60).toFixed(2)) : Number((summaryShape.avgPace || 0).toFixed(2)),
+          }))
+        : session.sourceSplits.length > 0
         ? session.sourceSplits.map((split, index) => ({
             lap: split.split || index + 1,
             distanceKm: Number((((split.distance || 0) as number) / 1000 || 1).toFixed(2)),

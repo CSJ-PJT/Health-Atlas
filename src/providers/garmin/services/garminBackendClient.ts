@@ -33,6 +33,21 @@ async function fetchJson<T>(config: GarminProviderConfig, path: string, date: st
   return response.json() as Promise<T>;
 }
 
+async function fetchActivityDetails(config: GarminProviderConfig, date: string, activityIds: string[]) {
+  const details = await Promise.all(
+    activityIds.map(async (activityId) => {
+      try {
+        const detail = await fetchJson<Record<string, unknown>>(config, `/garmin/activities/${activityId}`, date);
+        return { activityId, detail };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return details.filter(Boolean) as Array<{ activityId: string; detail: Record<string, unknown> }>;
+}
+
 export async function fetchGarminDailyPayload(config: GarminProviderConfig, date: string): Promise<GarminDailyPayload> {
   const [summary, activities, sleep, nutrition, hydration] = await Promise.all([
     fetchJson(config, "/garmin/daily-summary", date),
@@ -42,9 +57,17 @@ export async function fetchGarminDailyPayload(config: GarminProviderConfig, date
     fetchJson(config, "/garmin/hydration", date),
   ]);
 
+  const normalizedActivities = Array.isArray(activities) ? activities : [];
+  const activityIds = normalizedActivities.map((activity) => activity?.id).filter((value): value is string => typeof value === "string" && value.length > 0);
+  const details = activityIds.length > 0 ? await fetchActivityDetails(config, date, activityIds) : [];
+  const detailedActivities = normalizedActivities.map((activity) => {
+    const detail = details.find((item) => item.activityId === activity.id)?.detail;
+    return detail ? { ...activity, ...detail } : activity;
+  });
+
   return {
     summary,
-    activities: Array.isArray(activities) ? activities : [],
+    activities: detailedActivities,
     sleep: Array.isArray(sleep) ? sleep : [],
     nutrition: Array.isArray(nutrition) ? nutrition : [],
     hydration: Array.isArray(hydration) ? hydration : [],

@@ -28,6 +28,14 @@ export function mapGarminPayloadToNormalizedHealthData(payload: GarminDailyPaylo
           startTime: activity.startTime,
           endTime: activity.endTime,
           averageHeartRate: activity.averageHeartRate,
+          maxHeartRate: activity.maxHeartRate,
+          averageSpeed: activity.averageSpeedMetersPerSecond
+            ? Number((activity.averageSpeedMetersPerSecond * 3.6).toFixed(1))
+            : undefined,
+          maxSpeed: activity.maxSpeedMetersPerSecond ? Number((activity.maxSpeedMetersPerSecond * 3.6).toFixed(1)) : undefined,
+          averagePaceSecondsPerKilometer: activity.averagePaceSecondsPerKilometer,
+          elevationGainMeters: activity.elevationGainMeters,
+          elevationLossMeters: activity.elevationLossMeters,
         }))
       : [{
           type: "Garmin Activity",
@@ -67,6 +75,25 @@ export function mapGarminPayloadToNormalizedHealthData(payload: GarminDailyPaylo
       hydrationMl: summary.hydrationMl || 0,
       activeCalories: summary.activeCalories || 0,
       restingCalories: summary.restingCalories || 0,
+      garminActivities: activities.map((activity) => ({
+        id: activity.id || "",
+        type: activity.type || "",
+        name: activity.name || "",
+        averageRunCadence: activity.averageRunCadence || 0,
+        maxRunCadence: activity.maxRunCadence || 0,
+        vo2Max: activity.vo2Max || 0,
+        trainingEffectLabel: activity.trainingEffectLabel || "",
+        trainingEffectAerobic: activity.trainingEffectAerobic || 0,
+        trainingEffectAnaerobic: activity.trainingEffectAnaerobic || 0,
+        trainingLoad: activity.trainingLoad || 0,
+        estimatedSweatLossMl: activity.estimatedSweatLossMl || 0,
+        averageStrideLengthMeters: activity.averageStrideLengthMeters || 0,
+        temperatureCelsius: activity.temperatureCelsius ?? null,
+        steps: activity.steps || 0,
+        routePoints: activity.routePoints || [],
+        laps: activity.laps || [],
+        timeline: activity.timeline || [],
+      })),
     },
   };
 }

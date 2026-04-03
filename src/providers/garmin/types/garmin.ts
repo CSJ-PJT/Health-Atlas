@@ -29,6 +29,49 @@ export interface GarminActivity {
   distanceMeters?: number;
   calories?: number;
   averageHeartRate?: number;
+  maxHeartRate?: number;
+  averageSpeedMetersPerSecond?: number;
+  maxSpeedMetersPerSecond?: number;
+  averagePaceSecondsPerKilometer?: number;
+  bestPaceSecondsPerKilometer?: number;
+  averageRunCadence?: number;
+  maxRunCadence?: number;
+  elevationGainMeters?: number;
+  elevationLossMeters?: number;
+  vo2Max?: number;
+  trainingEffectLabel?: string;
+  trainingEffectAerobic?: number;
+  trainingEffectAnaerobic?: number;
+  trainingLoad?: number;
+  estimatedSweatLossMl?: number;
+  averageStrideLengthMeters?: number;
+  steps?: number;
+  temperatureCelsius?: number;
+  laps?: GarminActivityLap[];
+  timeline?: GarminActivityTimelinePoint[];
+  routePoints?: GarminRoutePoint[];
+}
+
+export interface GarminActivityLap {
+  lapNumber?: number;
+  distanceMeters?: number;
+  durationSeconds?: number;
+  averageHeartRate?: number;
+  cadence?: number;
+  paceSecondsPerKilometer?: number;
+}
+
+export interface GarminActivityTimelinePoint {
+  timeOffsetSeconds?: number;
+  distanceMeters?: number;
+  heartRate?: number;
+  paceSecondsPerKilometer?: number;
+  speedMetersPerSecond?: number;
+}
+
+export interface GarminRoutePoint {
+  latitude: number;
+  longitude: number;
 }
 
 export interface GarminSleepSession {
