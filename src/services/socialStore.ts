@@ -1,5 +1,12 @@
 import type { DeviceContact } from "@/lib/deviceContacts";
-import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
+import {
+  getStoredChatMessages,
+  getStoredChatRooms,
+  getStoredFriends,
+  saveStoredChatMessages,
+  saveStoredChatRooms,
+  saveStoredFriends,
+} from "@/services/repositories/socialRepository";
 
 export interface FriendEntry {
   id: string;
@@ -25,16 +32,8 @@ export interface ChatRoom {
   createdAt: string;
 }
 
-const FRIENDS_KEY = "social_friends";
-const CHAT_ROOMS_KEY = "social_chat_rooms";
-const CHAT_MESSAGES_KEY = "social_chat_messages";
-
-function writeJson<T>(key: string, value: T) {
-  writeScopedJson(key, value);
-}
-
 export function getFriends() {
-  return readScopedJson<FriendEntry[]>(FRIENDS_KEY, []);
+  return getStoredFriends();
 }
 
 export function saveFriend(contact: DeviceContact) {
@@ -53,13 +52,13 @@ export function saveFriend(contact: DeviceContact) {
     ...current,
   ];
 
-  writeJson(FRIENDS_KEY, next);
+  saveStoredFriends(next);
   return next;
 }
 
 export function renameFriend(friendId: string, name: string) {
   const next = getFriends().map((friend) => (friend.id === friendId ? { ...friend, name } : friend));
-  writeJson(FRIENDS_KEY, next);
+  saveStoredFriends(next);
   const updated = next.find((friend) => friend.id === friendId);
   if (updated) {
     renameChatRoom(friendId, name);
@@ -69,30 +68,30 @@ export function renameFriend(friendId: string, name: string) {
 
 export function removeFriend(friendId: string) {
   const next = getFriends().filter((friend) => friend.id !== friendId);
-  writeJson(FRIENDS_KEY, next);
+  saveStoredFriends(next);
   return next;
 }
 
 export function getChatRooms() {
-  return readScopedJson<ChatRoom[]>(CHAT_ROOMS_KEY, []);
+  return getStoredChatRooms();
 }
 
 export function renameChatRoom(roomId: string, name: string) {
   const next = getChatRooms().map((room) => (room.id === roomId ? { ...room, name } : room));
-  writeJson(CHAT_ROOMS_KEY, next);
+  saveStoredChatRooms(next);
   return next;
 }
 
 export function deleteChatRoom(roomId: string) {
   const nextRooms = getChatRooms().filter((room) => room.id !== roomId);
   const nextMessages = getChatMessages().filter((message) => message.roomId !== roomId);
-  writeJson(CHAT_ROOMS_KEY, nextRooms);
-  writeJson(CHAT_MESSAGES_KEY, nextMessages);
+  saveStoredChatRooms(nextRooms);
+  saveStoredChatMessages(nextMessages);
   return nextRooms;
 }
 
 export function getChatMessages() {
-  return readScopedJson<ChatMessage[]>(CHAT_MESSAGES_KEY, []);
+  return getStoredChatMessages();
 }
 
 export function getRoomMessages(roomId: string) {
@@ -119,7 +118,7 @@ export function upsertDirectRoom(friend: FriendEntry) {
     createdAt: new Date().toISOString(),
   };
 
-  writeJson(CHAT_ROOMS_KEY, [room, ...currentRooms]);
+  saveStoredChatRooms([room, ...currentRooms]);
   return room;
 }
 
@@ -133,7 +132,7 @@ export function createGroupRoom(name: string, memberIds: string[]) {
     createdAt: new Date().toISOString(),
   };
 
-  writeJson(CHAT_ROOMS_KEY, [room, ...currentRooms]);
+  saveStoredChatRooms([room, ...currentRooms]);
   return room;
 }
 
@@ -145,7 +144,7 @@ export function saveChatMessage(message: Omit<ChatMessage, "id" | "createdAt">) 
     createdAt: new Date().toISOString(),
   };
 
-  writeJson(CHAT_MESSAGES_KEY, [...currentMessages, nextMessage]);
+  saveStoredChatMessages([...currentMessages, nextMessage]);
   return nextMessage;
 }
 
@@ -217,7 +216,7 @@ export function ensureSocialSeed() {
     },
   ];
 
-  writeJson(FRIENDS_KEY, seedFriends);
-  writeJson(CHAT_ROOMS_KEY, [directRoom, groupRoom, recoveryRoom]);
-  writeJson(CHAT_MESSAGES_KEY, seedMessages);
+  saveStoredFriends(seedFriends);
+  saveStoredChatRooms([directRoom, groupRoom, recoveryRoom]);
+  saveStoredChatMessages(seedMessages);
 }

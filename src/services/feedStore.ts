@@ -1,4 +1,9 @@
-import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
+import {
+  getStoredFeedComments,
+  getStoredFeedPosts,
+  saveStoredFeedComments,
+  saveStoredFeedPosts,
+} from "@/services/repositories/feedRepository";
 
 export type FeedMediaType = "image" | "video";
 
@@ -30,13 +35,20 @@ export interface FeedPost {
   tags?: string[];
 }
 
-const POSTS_KEY = "social_feed_posts_v5";
-const COMMENTS_KEY = "social_feed_comments_v3";
 const SAMPLE_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 
-function writeJson<T>(key: string, value: T) {
+function savePosts(posts: FeedPost[]) {
   try {
-    writeScopedJson(key, value);
+    saveStoredFeedPosts(posts);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function saveComments(comments: FeedComment[]) {
+  try {
+    saveStoredFeedComments(comments);
     return true;
   } catch {
     return false;
@@ -115,13 +127,13 @@ function normalizeComment(comment: Omit<FeedComment, "likedUserIds"> & { likedUs
 }
 
 export function getFeedPosts() {
-  return readScopedJson<FeedPost[]>(POSTS_KEY, []).sort(
+  return getStoredFeedPosts().sort(
     (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );
 }
 
 export function getFeedComments(postId?: string) {
-  const comments = readScopedJson<Array<Omit<FeedComment, "likedUserIds"> & { likedUserIds?: string[] }>>(COMMENTS_KEY, [])
+  const comments = getStoredFeedComments()
     .map(normalizeComment)
     .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime());
   return postId ? comments.filter((comment) => comment.postId === postId) : comments;
@@ -161,7 +173,7 @@ export function ensureFeedSeed() {
     tags: ["러닝", "회복", "기록"].slice(0, (index % 3) + 1),
   }));
 
-  writeJson(POSTS_KEY, seeded);
+  savePosts(seeded);
   seedComments(seeded);
 }
 
@@ -192,7 +204,7 @@ function seedComments(posts: FeedPost[]) {
     ];
   });
 
-  writeJson(COMMENTS_KEY, seededComments);
+  saveComments(seededComments);
 }
 
 export function createFeedPost(authorId: string, authorName: string, content: string, media: FeedMedia[], tags: string[] = []) {
@@ -209,7 +221,7 @@ export function createFeedPost(authorId: string, authorName: string, content: st
     ...getFeedPosts(),
   ];
 
-  if (writeJson(POSTS_KEY, next)) {
+  if (savePosts(next)) {
     return true;
   }
 
@@ -225,7 +237,7 @@ export function createFeedPost(authorId: string, authorName: string, content: st
       : post,
   );
 
-  return writeJson(POSTS_KEY, fallback);
+  return savePosts(fallback);
 }
 
 export function updateFeedPost(id: string, content: string, media?: FeedMedia[], tags?: string[]) {
@@ -240,7 +252,7 @@ export function updateFeedPost(id: string, content: string, media?: FeedMedia[],
       : post,
   );
 
-  if (writeJson(POSTS_KEY, next)) {
+  if (savePosts(next)) {
     return true;
   }
 
@@ -256,18 +268,12 @@ export function updateFeedPost(id: string, content: string, media?: FeedMedia[],
       : post,
   );
 
-  return writeJson(POSTS_KEY, fallback);
+  return savePosts(fallback);
 }
 
 export function deleteFeedPost(id: string) {
-  const postsOk = writeJson(
-    POSTS_KEY,
-    getFeedPosts().filter((post) => post.id !== id),
-  );
-  const commentsOk = writeJson(
-    COMMENTS_KEY,
-    getFeedComments().filter((comment) => comment.postId !== id),
-  );
+  const postsOk = savePosts(getFeedPosts().filter((post) => post.id !== id));
+  const commentsOk = saveComments(getFeedComments().filter((comment) => comment.postId !== id));
   return postsOk && commentsOk;
 }
 
@@ -291,7 +297,7 @@ export function addFeedComment(
       createdAt: new Date().toISOString(),
     },
   ];
-  return writeJson(COMMENTS_KEY, next);
+  return saveComments(next);
 }
 
 export function toggleFeedCommentLike(commentId: string, userId: string) {
@@ -310,5 +316,5 @@ export function toggleFeedCommentLike(commentId: string, userId: string) {
     };
   });
 
-  return writeJson(COMMENTS_KEY, next);
+  return saveComments(next);
 }

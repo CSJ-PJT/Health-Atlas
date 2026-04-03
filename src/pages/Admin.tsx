@@ -48,6 +48,7 @@ import {
   type RecordType,
 } from "@/services/verifiedRecordStore";
 import { awardBadge } from "@/services/achievementStore";
+import { deleteScopedUserData, downloadUserDataExport } from "@/services/privacy/userDataControl";
 import { startKakaoLogin } from "@/services/auth/kakaoAuth";
 import { startLineLogin } from "@/services/auth/lineAuth";
 import {
@@ -889,6 +890,27 @@ const Admin = () => {
                   </CardContent>
                 </Card>
               ))}
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>데이터 권리</CardTitle>
+                  <CardDescription>내 데이터 내보내기와 로컬 데이터 삭제를 지원합니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3 md:grid-cols-2">
+                  <Button variant="outline" onClick={downloadUserDataExport}>
+                    데이터 내보내기
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      deleteScopedUserData();
+                      toast({ title: "로컬 사용자 데이터를 삭제했습니다." });
+                    }}
+                  >
+                    로컬 데이터 삭제
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
