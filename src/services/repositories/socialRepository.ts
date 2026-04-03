@@ -20,6 +20,22 @@ export function saveStoredFriends(friends: FriendEntry[]) {
   void replaceServerFriends(friends);
 }
 
+export function upsertStoredFriend(friend: FriendEntry) {
+  const next = [friend, ...getStoredFriends().filter((item) => item.id !== friend.id)].sort(
+    (left, right) => new Date(right.addedAt).getTime() - new Date(left.addedAt).getTime(),
+  );
+  writeScopedJson(FRIENDS_KEY, next);
+  void upsertServerFriend(friend);
+  return next;
+}
+
+export function deleteStoredFriend(friendId: string) {
+  const next = getStoredFriends().filter((friend) => friend.id !== friendId);
+  writeScopedJson(FRIENDS_KEY, next);
+  void deleteServerFriend(friendId);
+  return next;
+}
+
 export function getStoredChatRooms() {
   return readScopedJson<ChatRoom[]>(CHAT_ROOMS_KEY, []);
 }
@@ -29,6 +45,25 @@ export function saveStoredChatRooms(rooms: ChatRoom[]) {
   void replaceServerChatRooms(rooms);
 }
 
+export function upsertStoredChatRoom(room: ChatRoom) {
+  const next = [room, ...getStoredChatRooms().filter((item) => item.id !== room.id)].sort(
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+  writeScopedJson(CHAT_ROOMS_KEY, next);
+  void upsertServerChatRoom(room);
+  return next;
+}
+
+export function deleteStoredChatRoom(roomId: string) {
+  const nextRooms = getStoredChatRooms().filter((room) => room.id !== roomId);
+  const nextMessages = getStoredChatMessages().filter((message) => message.roomId !== roomId);
+  writeScopedJson(CHAT_ROOMS_KEY, nextRooms);
+  writeScopedJson(CHAT_MESSAGES_KEY, nextMessages);
+  void deleteServerChatRoom(roomId);
+  void deleteServerChatMessagesByRoom(roomId);
+  return { rooms: nextRooms, messages: nextMessages };
+}
+
 export function getStoredChatMessages() {
   return readScopedJson<ChatMessage[]>(CHAT_MESSAGES_KEY, []);
 }
@@ -36,6 +71,22 @@ export function getStoredChatMessages() {
 export function saveStoredChatMessages(messages: ChatMessage[]) {
   writeScopedJson(CHAT_MESSAGES_KEY, messages);
   void replaceServerChatMessages(messages);
+}
+
+export function upsertStoredChatMessage(message: ChatMessage) {
+  const next = [...getStoredChatMessages().filter((item) => item.id !== message.id), message].sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+  );
+  writeScopedJson(CHAT_MESSAGES_KEY, next);
+  void upsertServerChatMessage(message);
+  return next;
+}
+
+export function deleteStoredChatMessage(messageId: string) {
+  const next = getStoredChatMessages().filter((message) => message.id !== messageId);
+  writeScopedJson(CHAT_MESSAGES_KEY, next);
+  void deleteServerChatMessage(messageId);
+  return next;
 }
 
 export async function hydrateSocialRepositoryFromServer() {
@@ -94,6 +145,31 @@ async function replaceServerFriends(friends: FriendEntry[]) {
   return true;
 }
 
+async function upsertServerFriend(friend: FriendEntry) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+  const { error } = await supabase.from("social_friends").upsert({
+    id: friend.id,
+    profile_id: profileId,
+    name: friend.name,
+    phone: friend.phone,
+    added_at: friend.addedAt,
+    updated_at: new Date().toISOString(),
+  });
+  return !error;
+}
+
+async function deleteServerFriend(friendId: string) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+  const { error } = await supabase.from("social_friends").delete().eq("id", friendId).eq("profile_id", profileId);
+  return !error;
+}
+
 async function replaceServerChatRooms(rooms: ChatRoom[]) {
   const profileId = getProfileId();
   if (!profileId) {
@@ -128,6 +204,32 @@ async function replaceServerChatRooms(rooms: ChatRoom[]) {
   return true;
 }
 
+async function upsertServerChatRoom(room: ChatRoom) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+  const { error } = await supabase.from("social_chat_rooms").upsert({
+    id: room.id,
+    profile_id: profileId,
+    name: room.name,
+    type: room.type,
+    member_ids: room.memberIds,
+    created_at: room.createdAt,
+    updated_at: new Date().toISOString(),
+  });
+  return !error;
+}
+
+async function deleteServerChatRoom(roomId: string) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+  const { error } = await supabase.from("social_chat_rooms").delete().eq("id", roomId).eq("profile_id", profileId);
+  return !error;
+}
+
 async function replaceServerChatMessages(messages: ChatMessage[]) {
   const profileId = getProfileId();
   if (!profileId) {
@@ -160,6 +262,41 @@ async function replaceServerChatMessages(messages: ChatMessage[]) {
   }
 
   return true;
+}
+
+async function upsertServerChatMessage(message: ChatMessage) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+  const { error } = await supabase.from("social_chat_messages").upsert({
+    id: message.id,
+    profile_id: profileId,
+    room_id: message.roomId,
+    sender_id: message.senderId,
+    sender_name: message.senderName,
+    content: message.content,
+    created_at: message.createdAt,
+  });
+  return !error;
+}
+
+async function deleteServerChatMessage(messageId: string) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+  const { error } = await supabase.from("social_chat_messages").delete().eq("id", messageId).eq("profile_id", profileId);
+  return !error;
+}
+
+async function deleteServerChatMessagesByRoom(roomId: string) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+  const { error } = await supabase.from("social_chat_messages").delete().eq("room_id", roomId).eq("profile_id", profileId);
+  return !error;
 }
 
 async function loadServerFriends() {

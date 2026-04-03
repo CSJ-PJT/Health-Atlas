@@ -1,5 +1,7 @@
 import type { DeviceContact } from "@/lib/deviceContacts";
 import {
+  deleteStoredChatRoom,
+  deleteStoredFriend,
   getStoredChatMessages,
   getStoredChatRooms,
   getStoredFriends,
@@ -7,6 +9,9 @@ import {
   saveStoredChatMessages,
   saveStoredChatRooms,
   saveStoredFriends,
+  upsertStoredChatMessage,
+  upsertStoredChatRoom,
+  upsertStoredFriend,
 } from "@/services/repositories/socialRepository";
 
 export interface FriendEntry {
@@ -43,34 +48,25 @@ export function saveFriend(contact: DeviceContact) {
     return current;
   }
 
-  const next = [
-    {
-      id: contact.id || `${Date.now()}`,
-      name: contact.name,
-      phone: contact.phone,
-      addedAt: new Date().toISOString(),
-    },
-    ...current,
-  ];
-
-  saveStoredFriends(next);
-  return next;
+  return upsertStoredFriend({
+    id: contact.id || `${Date.now()}`,
+    name: contact.name,
+    phone: contact.phone,
+    addedAt: new Date().toISOString(),
+  });
 }
 
 export function renameFriend(friendId: string, name: string) {
-  const next = getFriends().map((friend) => (friend.id === friendId ? { ...friend, name } : friend));
-  saveStoredFriends(next);
-  const updated = next.find((friend) => friend.id === friendId);
+  const updated = getFriends().find((friend) => friend.id === friendId);
   if (updated) {
+    upsertStoredFriend({ ...updated, name });
     renameChatRoom(friendId, name);
   }
-  return next;
+  return getFriends();
 }
 
 export function removeFriend(friendId: string) {
-  const next = getFriends().filter((friend) => friend.id !== friendId);
-  saveStoredFriends(next);
-  return next;
+  return deleteStoredFriend(friendId);
 }
 
 export function getChatRooms() {
@@ -78,17 +74,16 @@ export function getChatRooms() {
 }
 
 export function renameChatRoom(roomId: string, name: string) {
-  const next = getChatRooms().map((room) => (room.id === roomId ? { ...room, name } : room));
-  saveStoredChatRooms(next);
-  return next;
+  const room = getChatRooms().find((item) => item.id === roomId);
+  if (!room) {
+    return getChatRooms();
+  }
+  upsertStoredChatRoom({ ...room, name });
+  return getChatRooms();
 }
 
 export function deleteChatRoom(roomId: string) {
-  const nextRooms = getChatRooms().filter((room) => room.id !== roomId);
-  const nextMessages = getChatMessages().filter((message) => message.roomId !== roomId);
-  saveStoredChatRooms(nextRooms);
-  saveStoredChatMessages(nextMessages);
-  return nextRooms;
+  return deleteStoredChatRoom(roomId).rooms;
 }
 
 export function getChatMessages() {
@@ -119,7 +114,7 @@ export function upsertDirectRoom(friend: FriendEntry) {
     createdAt: new Date().toISOString(),
   };
 
-  saveStoredChatRooms([room, ...currentRooms]);
+  upsertStoredChatRoom(room);
   return room;
 }
 
@@ -133,19 +128,18 @@ export function createGroupRoom(name: string, memberIds: string[]) {
     createdAt: new Date().toISOString(),
   };
 
-  saveStoredChatRooms([room, ...currentRooms]);
+  upsertStoredChatRoom(room);
   return room;
 }
 
 export function saveChatMessage(message: Omit<ChatMessage, "id" | "createdAt">) {
-  const currentMessages = getChatMessages();
   const nextMessage: ChatMessage = {
     ...message,
     id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: new Date().toISOString(),
   };
 
-  saveStoredChatMessages([...currentMessages, nextMessage]);
+  upsertStoredChatMessage(nextMessage);
   return nextMessage;
 }
 

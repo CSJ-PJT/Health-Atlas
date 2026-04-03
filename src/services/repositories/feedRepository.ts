@@ -28,6 +28,55 @@ export function saveStoredFeedComments(comments: FeedComment[]) {
   void replaceServerFeedComments(comments);
 }
 
+export function upsertStoredFeedPost(post: FeedPost) {
+  const current = getStoredFeedPosts();
+  const next = [post, ...current.filter((item) => item.id !== post.id)].sort(
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+  writeScopedJson(POSTS_KEY, next);
+  void upsertServerFeedPost(post);
+  return next;
+}
+
+export function deleteStoredFeedPost(postId: string) {
+  const nextPosts = getStoredFeedPosts().filter((post) => post.id !== postId);
+  const nextComments = getStoredFeedComments().filter((comment) => comment.postId !== postId);
+  writeScopedJson(POSTS_KEY, nextPosts);
+  writeScopedJson(COMMENTS_KEY, nextComments);
+  void deleteServerFeedPost(postId);
+  void deleteServerFeedCommentsByPost(postId);
+  return { posts: nextPosts, comments: nextComments };
+}
+
+export function upsertStoredFeedComment(comment: FeedComment) {
+  const current = getStoredFeedComments();
+  const next = [...current.filter((item) => item.id !== comment.id), comment].sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+  );
+  writeScopedJson(COMMENTS_KEY, next);
+  void upsertServerFeedComment(comment);
+  return next;
+}
+
+export function deleteStoredFeedComment(commentId: string) {
+  const current = getStoredFeedComments();
+  const allIds = new Set([commentId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    current.forEach((comment) => {
+      if (comment.parentId && allIds.has(comment.parentId) && !allIds.has(comment.id)) {
+        allIds.add(comment.id);
+        changed = true;
+      }
+    });
+  }
+  const next = current.filter((comment) => !allIds.has(comment.id));
+  writeScopedJson(COMMENTS_KEY, next);
+  void Promise.all(Array.from(allIds).map((id) => deleteServerFeedComment(id)));
+  return next;
+}
+
 export async function hydrateFeedRepositoryFromServer() {
   const [posts, comments] = await Promise.all([loadServerFeedPosts(), loadServerFeedComments()]);
 
@@ -83,6 +132,37 @@ async function replaceServerFeedPosts(posts: FeedPost[]) {
   return true;
 }
 
+async function upsertServerFeedPost(post: FeedPost) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+
+  const { error } = await supabase.from("social_feed_posts").upsert({
+    id: post.id,
+    profile_id: profileId,
+    author_id: post.authorId,
+    author_name: post.authorName,
+    content: post.content,
+    media: post.media,
+    tags: post.tags || [],
+    visibility: post.visibility || "public",
+    created_at: post.createdAt,
+    updated_at: new Date().toISOString(),
+  });
+
+  return !error;
+}
+
+async function deleteServerFeedPost(postId: string) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+  const { error } = await supabase.from("social_feed_posts").delete().eq("id", postId).eq("profile_id", profileId);
+  return !error;
+}
+
 async function replaceServerFeedComments(comments: FeedComment[]) {
   const profileId = getProfileId();
   if (!profileId) {
@@ -118,6 +198,46 @@ async function replaceServerFeedComments(comments: FeedComment[]) {
   }
 
   return true;
+}
+
+async function upsertServerFeedComment(comment: FeedComment) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+
+  const { error } = await supabase.from("social_feed_comments").upsert({
+    id: comment.id,
+    profile_id: profileId,
+    post_id: comment.postId,
+    author_id: comment.authorId,
+    author_name: comment.authorName,
+    parent_id: comment.parentId,
+    content: comment.content,
+    liked_user_ids: comment.likedUserIds,
+    created_at: comment.createdAt,
+    updated_at: new Date().toISOString(),
+  });
+
+  return !error;
+}
+
+async function deleteServerFeedComment(commentId: string) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+  const { error } = await supabase.from("social_feed_comments").delete().eq("id", commentId).eq("profile_id", profileId);
+  return !error;
+}
+
+async function deleteServerFeedCommentsByPost(postId: string) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+  const { error } = await supabase.from("social_feed_comments").delete().eq("post_id", postId).eq("profile_id", profileId);
+  return !error;
 }
 
 async function loadServerFeedPosts() {

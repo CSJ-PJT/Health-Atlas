@@ -1,9 +1,13 @@
 import {
+  deleteStoredFeedComment,
+  deleteStoredFeedPost,
   getStoredFeedComments,
   getStoredFeedPosts,
   hydrateFeedRepositoryFromServer,
   saveStoredFeedComments,
   saveStoredFeedPosts,
+  upsertStoredFeedComment,
+  upsertStoredFeedPost,
 } from "@/services/repositories/feedRepository";
 
 export type FeedMediaType = "image" | "video";
@@ -210,37 +214,23 @@ function seedComments(posts: FeedPost[]) {
 }
 
 export function createFeedPost(authorId: string, authorName: string, content: string, media: FeedMedia[], tags: string[] = []) {
-  const next = [
-    {
-      id: `feed-${Date.now()}`,
-      authorId,
-      authorName,
-      content,
-      createdAt: new Date().toISOString(),
-      media: sanitizeMediaForStorage(media),
-      tags,
-      visibility: "public" as const,
-    },
-    ...getFeedPosts(),
-  ];
+  const post: FeedPost = {
+    id: `feed-${Date.now()}`,
+    authorId,
+    authorName,
+    content,
+    createdAt: new Date().toISOString(),
+    media: sanitizeMediaForStorage(media),
+    tags,
+    visibility: "public",
+  };
 
-  if (savePosts(next)) {
+  if (upsertStoredFeedPost(post)) {
     return true;
   }
 
-  const fallback = next.map((post, index) =>
-    index === 0
-      ? {
-          ...post,
-          media: post.media.slice(0, 1).map((item) => ({
-            ...item,
-            url: item.thumbnailUrl || item.url,
-          })),
-        }
-      : post,
-  );
-
-  return savePosts(fallback);
+  const fallback = { ...post, media: post.media.slice(0, 1).map((item) => ({ ...item, url: item.thumbnailUrl || item.url })) };
+  return Boolean(upsertStoredFeedPost(fallback));
 }
 
 export function createScopedFeedPost(
@@ -251,58 +241,51 @@ export function createScopedFeedPost(
   visibility: "public" | "profile",
   tags: string[] = [],
 ) {
-  const next = [
-    {
-      id: `feed-${Date.now()}`,
-      authorId,
-      authorName,
-      content,
-      createdAt: new Date().toISOString(),
-      media: sanitizeMediaForStorage(media),
-      tags,
-      visibility,
-    },
-    ...getFeedPosts(),
-  ];
+  const post: FeedPost = {
+    id: `feed-${Date.now()}`,
+    authorId,
+    authorName,
+    content,
+    createdAt: new Date().toISOString(),
+    media: sanitizeMediaForStorage(media),
+    tags,
+    visibility,
+  };
 
-  return savePosts(next);
+  return Boolean(upsertStoredFeedPost(post));
 }
 
 export function updateFeedPost(id: string, content: string, media?: FeedMedia[], tags?: string[]) {
-  const next = getFeedPosts().map((post) =>
-    post.id === id
-      ? {
-          ...post,
-          content,
-          media: sanitizeMediaForStorage(media ?? post.media),
-          tags: tags ?? post.tags ?? [],
-        }
-      : post,
-  );
+  const target = getFeedPosts().find((post) => post.id === id);
+  if (!target) {
+    return false;
+  }
 
-  if (savePosts(next)) {
+  const nextPost: FeedPost = {
+    ...target,
+    content,
+    media: sanitizeMediaForStorage(media ?? target.media),
+    tags: tags ?? target.tags ?? [],
+  };
+
+  if (upsertStoredFeedPost(nextPost)) {
     return true;
   }
 
-  const fallback = next.map((post) =>
-    post.id === id
-      ? {
-          ...post,
-          media: (media ?? post.media).slice(0, 1).map((item) => ({
-            ...item,
-            url: item.thumbnailUrl || item.url,
-          })),
-        }
-      : post,
-  );
+  const fallback = {
+    ...nextPost,
+    media: nextPost.media.slice(0, 1).map((item) => ({
+      ...item,
+      url: item.thumbnailUrl || item.url,
+    })),
+  };
 
-  return savePosts(fallback);
+  return Boolean(upsertStoredFeedPost(fallback));
 }
 
 export function deleteFeedPost(id: string) {
-  const postsOk = savePosts(getFeedPosts().filter((post) => post.id !== id));
-  const commentsOk = saveComments(getFeedComments().filter((comment) => comment.postId !== id));
-  return postsOk && commentsOk;
+  const result = deleteStoredFeedPost(id);
+  return result.posts.length >= 0 && result.comments.length >= 0;
 }
 
 export function addFeedComment(
@@ -312,39 +295,38 @@ export function addFeedComment(
   content: string,
   parentId: string | null = null,
 ) {
-  const next = [
-    ...getFeedComments(),
-    {
-      id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      postId,
-      authorId,
-      authorName,
-      parentId,
-      content,
-      likedUserIds: [],
-      createdAt: new Date().toISOString(),
-    },
-  ];
-  return saveComments(next);
+  const comment: FeedComment = {
+    id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    postId,
+    authorId,
+    authorName,
+    parentId,
+    content,
+    likedUserIds: [],
+    createdAt: new Date().toISOString(),
+  };
+  return Boolean(upsertStoredFeedComment(comment));
 }
 
 export function toggleFeedCommentLike(commentId: string, userId: string) {
-  const next = getFeedComments().map((comment) => {
-    if (comment.id !== commentId) {
-      return comment;
-    }
+  const target = getFeedComments().find((comment) => comment.id === commentId);
+  if (!target) {
+    return false;
+  }
+  const likedUserIds = target.likedUserIds.includes(userId)
+    ? target.likedUserIds.filter((item) => item !== userId)
+    : [...target.likedUserIds, userId];
 
-    const likedUserIds = comment.likedUserIds.includes(userId)
-      ? comment.likedUserIds.filter((item) => item !== userId)
-      : [...comment.likedUserIds, userId];
-
-    return {
-      ...comment,
+  return Boolean(
+    upsertStoredFeedComment({
+      ...target,
       likedUserIds,
-    };
-  });
+    }),
+  );
+}
 
-  return saveComments(next);
+export function deleteFeedComment(commentId: string) {
+  return deleteStoredFeedComment(commentId).length >= 0;
 }
 
 export async function hydrateFeedStoreFromServer() {
