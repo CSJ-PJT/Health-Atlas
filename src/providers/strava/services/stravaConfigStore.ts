@@ -5,6 +5,7 @@ const STRAVA_CLIENT_ID_KEY = "strava_client_id";
 const STRAVA_CLIENT_SECRET_KEY = "strava_client_secret";
 const STRAVA_REFRESH_TOKEN_KEY = "strava_refresh_token";
 const STRAVA_ATHLETE_ID_KEY = "strava_athlete_id";
+const STRAVA_AUTH_EXPIRES_AT_KEY = "strava_auth_expires_at";
 
 export function getStravaProviderConfig(): StravaProviderConfig {
   return {
@@ -25,4 +26,12 @@ export function setStravaProviderConfig(config: StravaProviderConfig) {
 export function hasStravaProviderConfig() {
   const config = getStravaProviderConfig();
   return Boolean(config.clientId && config.clientSecret && config.refreshToken && config.athleteId);
+}
+
+export function setStravaAuthExpiresAt(expiresAt: number | string) {
+  localStorage.setItem(STRAVA_AUTH_EXPIRES_AT_KEY, String(expiresAt));
+}
+
+export function getStravaAuthExpiresAt() {
+  return localStorage.getItem(STRAVA_AUTH_EXPIRES_AT_KEY);
 }

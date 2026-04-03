@@ -7,6 +7,9 @@ export interface ProviderConnectionStatus {
   available: boolean;
   requiresPermission?: boolean;
   lastSyncAt?: string | null;
+  message?: string;
+  issues?: string[];
+  authExpiresAt?: string | null;
 }
 
 export interface NormalizedHealthData {

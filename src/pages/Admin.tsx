@@ -180,6 +180,9 @@ const Admin = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [remainingTokens, setRemainingTokens] = useState(0);
   const [providerLastSync, setProviderLastSync] = useState("");
+  const [providerMessage, setProviderMessage] = useState("");
+  const [providerIssues, setProviderIssues] = useState<string[]>([]);
+  const [providerAuthExpiresAt, setProviderAuthExpiresAt] = useState("");
   const [gptLastSync, setGptLastSync] = useState("");
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
@@ -277,6 +280,9 @@ const Admin = () => {
     try {
       const status = await provider.getConnectionStatus();
       setProviderStatus(status.connected ? "connected" : "disconnected");
+      setProviderMessage(status.message || "");
+      setProviderIssues(status.issues || []);
+      setProviderAuthExpiresAt(status.authExpiresAt ? new Date(status.authExpiresAt).toLocaleString("ko-KR") : "");
       if (status.lastSyncAt) {
         setProviderLastSync(new Date(status.lastSyncAt).toLocaleString("ko-KR"));
       } else {
@@ -286,6 +292,9 @@ const Admin = () => {
     } catch (error) {
       console.error("Failed to refresh provider state:", error);
       setProviderStatus("disconnected");
+      setProviderMessage("연결 상태를 확인하지 못했습니다.");
+      setProviderIssues([error instanceof Error ? error.message : "알 수 없는 provider 상태 확인 오류"]);
+      setProviderAuthExpiresAt("");
     }
 
     const gptEnabled = localStorage.getItem("openai_enabled") === "true" || hasPendingOpenAiCredentials();
@@ -647,6 +656,15 @@ const Admin = () => {
                     <div className="text-sm text-muted-foreground">
                       최근 동기화: {providerLastSync || "없음"}
                     </div>
+                    {providerAuthExpiresAt ? <div className="text-sm text-muted-foreground">인증 만료: {providerAuthExpiresAt}</div> : null}
+                    {providerMessage ? <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">{providerMessage}</div> : null}
+                    {providerIssues.length > 0 ? (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+                        {providerIssues.map((issue, index) => (
+                          <div key={`${issue}-${index}`}>{issue}</div>
+                        ))}
+                      </div>
+                    ) : null}
                     <Button variant="outline" onClick={() => void refreshConnectionState()} className="w-full gap-2">
                       <RefreshCw className="h-4 w-4" />
                       상태 새로고침

@@ -6,6 +6,7 @@ import type {
   StravaProviderConfig,
   StravaTokenResponse,
 } from "@/providers/strava/types/strava";
+import { setStravaAuthExpiresAt } from "@/providers/strava/services/stravaConfigStore";
 import { setSecret } from "@/services/security/secretStorage";
 
 async function refreshStravaAccessToken(config: StravaProviderConfig) {
@@ -47,7 +48,9 @@ async function fetchStravaJson<T>(accessToken: string, path: string, query?: Rec
 
 export async function fetchStravaDailyPayload(config: StravaProviderConfig, date: string): Promise<StravaDailyPayload> {
   const token = await refreshStravaAccessToken(config);
+  setSecret("strava_access_token", token.access_token);
   setSecret("strava_refresh_token", token.refresh_token);
+  setStravaAuthExpiresAt(token.expires_at);
 
   const start = new Date(`${date}T00:00:00Z`);
   const end = new Date(`${date}T23:59:59Z`);

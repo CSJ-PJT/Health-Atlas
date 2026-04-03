@@ -25,6 +25,8 @@ export const garminProvider: HealthProvider = {
         available: true,
         requiresPermission: false,
         lastSyncAt: localStorage.getItem("garmin_last_sync"),
+        message: "Garmin mock 데이터 연결됨",
+        issues: [],
       };
     }
 
@@ -35,6 +37,8 @@ export const garminProvider: HealthProvider = {
         available: false,
         requiresPermission: false,
         lastSyncAt: null,
+        message: "Garmin API 설정이 필요합니다.",
+        issues: ["api_base_url, access_token, user_id 설정이 필요합니다."],
       };
     }
 
@@ -45,13 +49,17 @@ export const garminProvider: HealthProvider = {
         available: true,
         requiresPermission: false,
         lastSyncAt: localStorage.getItem("garmin_last_sync"),
+        message: "Garmin 백엔드 응답 정상",
+        issues: [],
       };
-    } catch {
+    } catch (error) {
       return {
         connected: false,
         available: true,
         requiresPermission: false,
         lastSyncAt: localStorage.getItem("garmin_last_sync"),
+        message: "Garmin 백엔드 통신 실패",
+        issues: [error instanceof Error ? error.message : "알 수 없는 Garmin 오류"],
       };
     }
   },

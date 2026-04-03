@@ -24,11 +24,21 @@ export const appleHealthProvider: HealthProvider = {
   },
   async getConnectionStatus() {
     const available = await this.isAvailable();
+    const config = getAppleHealthProviderConfig();
+    const issues: string[] = [];
+    if (!config.appId || !config.teamId || !config.redirectUri) {
+      issues.push("Apple Health App ID, Team ID, Redirect URI가 필요합니다.");
+    }
+    if (available && !hasAppleHealthBridgeConfig() && !isMockHealthDataEnabled()) {
+      issues.push("backend bridge URL 또는 access token이 없어 실데이터를 읽을 수 없습니다.");
+    }
     return {
       connected: available,
       available,
       requiresPermission: !available,
       lastSyncAt: localStorage.getItem("apple_health_last_sync"),
+      message: available ? "Apple Health 연결 준비됨" : "Apple Health 설정이 필요합니다.",
+      issues,
     };
   },
   async connect() {
