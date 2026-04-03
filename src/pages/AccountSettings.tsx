@@ -116,18 +116,10 @@ const AccountSettings = () => {
     const storedApplePermissions = localStorage.getItem("apple_health_permissions");
     const storedStravaPermissions = localStorage.getItem("strava_permissions");
 
-    if (storedHealthConnectPermissions) {
-      setHealthConnectPermissions(JSON.parse(storedHealthConnectPermissions));
-    }
-    if (storedGarminPermissions) {
-      setGarminPermissions(JSON.parse(storedGarminPermissions));
-    }
-    if (storedApplePermissions) {
-      setApplePermissions(JSON.parse(storedApplePermissions));
-    }
-    if (storedStravaPermissions) {
-      setStravaPermissions(JSON.parse(storedStravaPermissions));
-    }
+    if (storedHealthConnectPermissions) setHealthConnectPermissions(JSON.parse(storedHealthConnectPermissions));
+    if (storedGarminPermissions) setGarminPermissions(JSON.parse(storedGarminPermissions));
+    if (storedApplePermissions) setApplePermissions(JSON.parse(storedApplePermissions));
+    if (storedStravaPermissions) setStravaPermissions(JSON.parse(storedStravaPermissions));
   }, []);
 
   const loadProfileData = async () => {
@@ -139,21 +131,22 @@ const AccountSettings = () => {
       }
 
       const { data, error } = await supabase.from("profiles").select("*").eq("user_id", storedUserId).maybeSingle();
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       if (data) {
         setProfileId(data.id);
         setUserId(data.user_id);
-        setNickname(data.nickname || "");
-        setUserIdChanged(data.user_id_changed);
+        setNickname(data.nickname || localStorage.getItem("user_nickname") || "");
+        setUserIdChanged(Boolean(data.user_id_changed));
+      } else {
+        setUserId(storedUserId);
+        setNickname(localStorage.getItem("user_nickname") || "");
       }
     } catch (error) {
       console.error("Failed to load profile:", error);
       toast({
         title: "프로필을 불러오지 못했습니다",
-        description: "잠시 후 다시 시도해 주세요.",
+        description: "잠시 후 다시 시도해 주세요",
         variant: "destructive",
       });
     }
@@ -163,7 +156,6 @@ const AccountSettings = () => {
     if (userIdChanged) {
       toast({
         title: "사용자 ID는 한 번만 변경할 수 있습니다",
-        description: "현재 계정은 이미 사용자 ID를 변경했습니다.",
         variant: "destructive",
       });
       return;
@@ -177,15 +169,15 @@ const AccountSettings = () => {
       if (existingUser) {
         toast({
           title: "이미 사용 중인 ID입니다",
-          description: "다른 ID를 입력해 주세요.",
+          description: "다른 ID를 입력해 주세요",
           variant: "destructive",
         });
         return;
       }
 
-      const { error } = await supabase.from("profiles").update({ user_id: validated, user_id_changed: true }).eq("id", profileId);
-      if (error) {
-        throw error;
+      if (profileId) {
+        const { error } = await supabase.from("profiles").update({ user_id: validated, user_id_changed: true }).eq("id", profileId);
+        if (error) throw error;
       }
 
       localStorage.setItem("user_id", validated);
@@ -194,12 +186,11 @@ const AccountSettings = () => {
       setNewUserId("");
       toast({
         title: "사용자 ID를 변경했습니다",
-        description: "이제 이 ID로 친구 추가가 가능합니다.",
       });
     } catch (error: any) {
       toast({
         title: "사용자 ID 변경 실패",
-        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
+        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요",
         variant: "destructive",
       });
     } finally {
@@ -211,7 +202,7 @@ const AccountSettings = () => {
     if (password !== confirmPassword) {
       toast({
         title: "비밀번호가 일치하지 않습니다",
-        description: "두 입력값을 다시 확인해 주세요.",
+        description: "입력값을 다시 확인해 주세요",
         variant: "destructive",
       });
       return;
@@ -229,7 +220,7 @@ const AccountSettings = () => {
     } catch (error: any) {
       toast({
         title: "비밀번호 저장 실패",
-        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
+        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요",
         variant: "destructive",
       });
     } finally {
@@ -240,11 +231,32 @@ const AccountSettings = () => {
   const handleNicknameSave = async () => {
     try {
       const validated = nicknameSchema.parse(nickname);
+      const storedUserId = localStorage.getItem("user_id");
       setIsLoading(true);
 
-      const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", profileId);
-      if (error) {
-        throw error;
+      if (profileId) {
+        const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", profileId);
+        if (error) throw error;
+      } else if (storedUserId) {
+        const existing = await supabase.from("profiles").select("id").eq("user_id", storedUserId).maybeSingle();
+        if (existing.data?.id) {
+          setProfileId(existing.data.id);
+          const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", existing.data.id);
+          if (error) throw error;
+        } else {
+          const created = await supabase
+            .from("profiles")
+            .insert({
+              user_id: storedUserId,
+              nickname: validated,
+              user_id_changed: false,
+            })
+            .select()
+            .single();
+
+          if (created.error) throw created.error;
+          setProfileId(created.data.id);
+        }
       }
 
       localStorage.setItem("user_nickname", validated);
@@ -254,7 +266,7 @@ const AccountSettings = () => {
     } catch (error: any) {
       toast({
         title: "닉네임 저장 실패",
-        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요.",
+        description: error?.errors?.[0]?.message || "잠시 후 다시 시도해 주세요",
         variant: "destructive",
       });
     } finally {
@@ -267,9 +279,7 @@ const AccountSettings = () => {
   };
 
   const handleAvatarFile = (file: File | null) => {
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -305,7 +315,7 @@ const AccountSettings = () => {
                 id="new-user-id"
                 value={newUserId}
                 onChange={(event) => setNewUserId(event.target.value)}
-                placeholder="영문, 숫자, 언더바 사용"
+                placeholder="영문, 숫자, 밑줄 사용"
                 disabled={userIdChanged || isLoading}
               />
             </div>
@@ -371,7 +381,7 @@ const AccountSettings = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs value={permissionTab} onValueChange={(value) => setPermissionTab(value as PermissionTab)}>
-              <TabsList className="grid w-full grid-cols-2 gap-2 md:grid-cols-4">
+              <TabsList className="grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-4">
                 <TabsTrigger value="health-connect">Health Connect</TabsTrigger>
                 <TabsTrigger value="garmin">Garmin</TabsTrigger>
                 <TabsTrigger value="apple-health">Apple Health</TabsTrigger>
@@ -381,7 +391,7 @@ const AccountSettings = () => {
 
             {permissionTab === "health-connect" &&
               permissionOptions["health-connect"].map((permission) => (
-                <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
+                <div key={permission.key} className="flex items-center justify-between gap-4 rounded-lg border p-3">
                   <div className="text-sm">{permission.label}</div>
                   <Switch
                     checked={healthConnectPermissions[permission.key as keyof typeof healthConnectPermissions]}
@@ -396,7 +406,7 @@ const AccountSettings = () => {
 
             {permissionTab === "garmin" &&
               permissionOptions.garmin.map((permission) => (
-                <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
+                <div key={permission.key} className="flex items-center justify-between gap-4 rounded-lg border p-3">
                   <div className="text-sm">{permission.label}</div>
                   <Switch
                     checked={garminPermissions[permission.key as keyof typeof garminPermissions]}
@@ -411,7 +421,7 @@ const AccountSettings = () => {
 
             {permissionTab === "apple-health" &&
               permissionOptions["apple-health"].map((permission) => (
-                <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
+                <div key={permission.key} className="flex items-center justify-between gap-4 rounded-lg border p-3">
                   <div className="text-sm">{permission.label}</div>
                   <Switch
                     checked={applePermissions[permission.key as keyof typeof applePermissions]}
@@ -426,7 +436,7 @@ const AccountSettings = () => {
 
             {permissionTab === "strava" &&
               permissionOptions.strava.map((permission) => (
-                <div key={permission.key} className="flex items-center justify-between rounded-lg border p-3">
+                <div key={permission.key} className="flex items-center justify-between gap-4 rounded-lg border p-3">
                   <div className="text-sm">{permission.label}</div>
                   <Switch
                     checked={stravaPermissions[permission.key as keyof typeof stravaPermissions]}

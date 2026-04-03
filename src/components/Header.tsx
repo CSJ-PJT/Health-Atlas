@@ -41,11 +41,16 @@ export const Header = ({ showNav = false }: HeaderProps) => {
             </Link>
 
             <div className="flex shrink-0 items-center gap-2">
+              <div className="flex flex-col items-center">
+                <Avatar className="h-7 w-7 border border-primary/20">
+                  <AvatarImage src={avatarUrl} alt={nickname || "profile"} />
+                  <AvatarFallback>{(nickname || "U").slice(0, 1)}</AvatarFallback>
+                </Avatar>
+                <span className="mt-1 max-w-[64px] truncate text-[10px] text-muted-foreground">
+                  {nickname}
+                </span>
+              </div>
               <AdviceDrawer />
-              <Avatar className="h-8 w-8 border border-primary/20">
-                <AvatarImage src={avatarUrl} alt={nickname || "profile"} />
-                <AvatarFallback>{(nickname || "U").slice(0, 1)}</AvatarFallback>
-              </Avatar>
             </div>
           </div>
         </div>

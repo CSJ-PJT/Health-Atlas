@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Film, Heart, ImagePlus, MessageCircle, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +34,7 @@ const MY_USER_ID = localStorage.getItem("user_id") || "me";
 const MY_USER_NAME = localStorage.getItem("user_nickname") || "사용자";
 
 const Feed = () => {
+  const location = useLocation();
   const [composerOpen, setComposerOpen] = useState(false);
   const [detailPostId, setDetailPostId] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -67,6 +69,12 @@ const Feed = () => {
     ensureFeedSeed();
     setTick((value) => value + 1);
   }, []);
+
+  useEffect(() => {
+    setDetailPostId(null);
+    setComposerOpen(false);
+    setReplyTarget(null);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!isBusy) {
