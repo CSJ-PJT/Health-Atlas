@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import { readScopedJson, readScopedValue, writeScopedJson, writeScopedValue } from "@/services/persistence/scopedStorage";
 import { loadServerSnapshot, saveServerSnapshot } from "@/services/repositories/serverSnapshotRepository";
 
@@ -15,6 +16,10 @@ export interface VerifiedRecord {
 const RECORDS_KEY = "verified_records_v1";
 const DISPLAY_KEY = "profile_display_record_type_v1";
 
+function getProfileId() {
+  return localStorage.getItem("profile_id");
+}
+
 export function getVerifiedRecords() {
   return readScopedJson<VerifiedRecord[]>(RECORDS_KEY, []);
 }
@@ -30,7 +35,7 @@ export function saveVerifiedRecord(record: Omit<VerifiedRecord, "id" | "uploaded
     ...records,
   ];
   writeScopedJson(RECORDS_KEY, next);
-  void saveServerSnapshot("verified_records", next);
+  void saveServerVerifiedRecords(next);
   return next;
 }
 
@@ -40,7 +45,7 @@ export function getDisplayedRecordType(): RecordType {
 
 export function setDisplayedRecordType(type: RecordType) {
   writeScopedValue(DISPLAY_KEY, type);
-  void saveServerSnapshot("display_record_type", type);
+  void saveServerDisplayRecordType(type);
 }
 
 export function findDisplayedRecord() {
@@ -63,22 +68,128 @@ export function buildRecordTag(record: VerifiedRecord | null) {
 }
 
 export async function hydrateVerifiedRecordsFromServer() {
-  const [records, displayType] = await Promise.all([
-    loadServerSnapshot<VerifiedRecord[]>("verified_records"),
-    loadServerSnapshot<RecordType>("display_record_type"),
-  ]);
+  const [records, displayType] = await Promise.all([loadServerVerifiedRecords(), loadServerDisplayRecordType()]);
 
   let changed = false;
 
   if (Array.isArray(records)) {
     writeScopedJson(RECORDS_KEY, records);
     changed = true;
+  } else {
+    const snapshotRecords = await loadServerSnapshot<VerifiedRecord[]>("verified_records");
+    if (Array.isArray(snapshotRecords)) {
+      writeScopedJson(RECORDS_KEY, snapshotRecords);
+      changed = true;
+    }
   }
 
   if (displayType === "10k" || displayType === "half" || displayType === "full") {
     writeScopedValue(DISPLAY_KEY, displayType);
     changed = true;
+  } else {
+    const snapshotDisplay = await loadServerSnapshot<RecordType>("display_record_type");
+    if (snapshotDisplay === "10k" || snapshotDisplay === "half" || snapshotDisplay === "full") {
+      writeScopedValue(DISPLAY_KEY, snapshotDisplay);
+      changed = true;
+    }
   }
 
   return changed;
+}
+
+async function saveServerVerifiedRecords(records: VerifiedRecord[]) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+
+  const { error: deleteError } = await supabase.from("user_verified_records").delete().eq("profile_id", profileId);
+  if (deleteError) {
+    void saveServerSnapshot("verified_records", records);
+    return false;
+  }
+
+  if (records.length > 0) {
+    const { error: insertError } = await supabase.from("user_verified_records").insert(
+      records.map((record) => ({
+        id: record.id,
+        profile_id: profileId,
+        record_type: record.type,
+        label: record.label,
+        official_time: record.officialTime,
+        certified: record.certified,
+        uploaded_at: record.uploadedAt,
+        updated_at: new Date().toISOString(),
+      })),
+    );
+
+    if (insertError) {
+      void saveServerSnapshot("verified_records", records);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function saveServerDisplayRecordType(type: RecordType) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+
+  const { error } = await supabase.from("user_profile_preferences").upsert({
+    profile_id: profileId,
+    display_record_type: type,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    void saveServerSnapshot("display_record_type", type);
+    return false;
+  }
+
+  return true;
+}
+
+async function loadServerVerifiedRecords() {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return null;
+  }
+
+  const { data, error } = await supabase.from("user_verified_records").select("*").eq("profile_id", profileId).order("uploaded_at", { ascending: false });
+  if (error) {
+    return null;
+  }
+
+  return (data || []).map(
+    (row): VerifiedRecord => ({
+      id: row.id,
+      type: row.record_type as RecordType,
+      label: row.label,
+      officialTime: row.official_time,
+      certified: row.certified,
+      uploadedAt: row.uploaded_at,
+    }),
+  );
+}
+
+async function loadServerDisplayRecordType() {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("user_profile_preferences")
+    .select("display_record_type")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  if (error || !data?.display_record_type) {
+    return null;
+  }
+
+  return data.display_record_type as RecordType;
 }

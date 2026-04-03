@@ -162,6 +162,158 @@ export type Database = {
         }
         Relationships: []
       }
+      user_earned_badges: {
+        Row: {
+          badge_id: string
+          description: string
+          earned_at: string
+          icon: string
+          id: string
+          name: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          badge_id: string
+          description: string
+          earned_at?: string
+          icon: string
+          id: string
+          name: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          badge_id?: string
+          description?: string
+          earned_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_earned_badges_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_profile_preferences: {
+        Row: {
+          display_record_type: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          display_record_type?: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          display_record_type?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profile_preferences_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_profile_settings: {
+        Row: {
+          avatar_url: string
+          bio: string
+          created_at: string
+          id: string
+          nickname: string
+          profile_id: string
+          show_summary: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string
+          bio?: string
+          created_at?: string
+          id: string
+          nickname: string
+          profile_id: string
+          show_summary?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string
+          bio?: string
+          created_at?: string
+          id?: string
+          nickname?: string
+          profile_id?: string
+          show_summary?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profile_settings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_verified_records: {
+        Row: {
+          certified: boolean
+          id: string
+          label: string
+          official_time: string
+          profile_id: string
+          record_type: string
+          updated_at: string
+          uploaded_at: string
+        }
+        Insert: {
+          certified?: boolean
+          id: string
+          label: string
+          official_time: string
+          profile_id: string
+          record_type: string
+          updated_at?: string
+          uploaded_at?: string
+        }
+        Update: {
+          certified?: boolean
+          id?: string
+          label?: string
+          official_time?: string
+          profile_id?: string
+          record_type?: string
+          updated_at?: string
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_verified_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       social_chat_messages: {
         Row: {
           content: string

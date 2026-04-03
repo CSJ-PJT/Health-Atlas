@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
 import { loadServerSnapshot, saveServerSnapshot } from "@/services/repositories/serverSnapshotRepository";
 
@@ -10,6 +11,10 @@ export interface UserProfileSettings {
 }
 
 const PROFILE_SETTINGS_KEY = "user_profile_settings_v1";
+
+function getProfileId() {
+  return localStorage.getItem("profile_id");
+}
 
 function buildInitials(name: string) {
   return name.slice(0, 1).toUpperCase() || "U";
@@ -64,14 +69,79 @@ export function saveProfileSettings(profile: UserProfileSettings) {
   const all = getAllProfileSettings();
   all[profile.userId] = profile;
   writeScopedJson(PROFILE_SETTINGS_KEY, all);
-  void saveServerSnapshot("profile_settings", all);
+  void saveServerProfileSettings(all);
 }
 
 export async function hydrateProfileSettingsFromServer() {
+  const settings = await loadServerProfileSettings();
+  if (settings) {
+    writeScopedJson(PROFILE_SETTINGS_KEY, settings);
+    return true;
+  }
+
   const all = await loadServerSnapshot<Record<string, UserProfileSettings>>("profile_settings");
   if (!all) {
     return false;
   }
   writeScopedJson(PROFILE_SETTINGS_KEY, all);
   return true;
+}
+
+async function saveServerProfileSettings(all: Record<string, UserProfileSettings>) {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return false;
+  }
+
+  const rows = Object.values(all);
+  const { error: deleteError } = await supabase.from("user_profile_settings").delete().eq("profile_id", profileId);
+  if (deleteError) {
+    void saveServerSnapshot("profile_settings", all);
+    return false;
+  }
+
+  if (rows.length > 0) {
+    const { error: insertError } = await supabase.from("user_profile_settings").insert(
+      rows.map((row) => ({
+        id: `${profileId}:${row.userId}`,
+        profile_id: profileId,
+        user_id: row.userId,
+        nickname: row.nickname,
+        avatar_url: row.avatarUrl,
+        bio: row.bio,
+        show_summary: row.showSummary,
+        updated_at: new Date().toISOString(),
+      })),
+    );
+
+    if (insertError) {
+      void saveServerSnapshot("profile_settings", all);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function loadServerProfileSettings() {
+  const profileId = getProfileId();
+  if (!profileId) {
+    return null;
+  }
+
+  const { data, error } = await supabase.from("user_profile_settings").select("*").eq("profile_id", profileId);
+  if (error) {
+    return null;
+  }
+
+  return (data || []).reduce<Record<string, UserProfileSettings>>((acc, row) => {
+    acc[row.user_id] = {
+      userId: row.user_id,
+      nickname: row.nickname,
+      avatarUrl: row.avatar_url,
+      bio: row.bio,
+      showSummary: row.show_summary,
+    };
+    return acc;
+  }, {});
 }
