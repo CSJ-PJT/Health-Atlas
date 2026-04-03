@@ -1,4 +1,5 @@
 import type { AppleHealthDailyPayload, AppleHealthProviderConfig } from "@/providers/apple/types/apple";
+import { asArray, asObject } from "@/providers/shared/services/providerPayloadGuards";
 
 function buildUrl(baseUrl: string, path: string, date: string) {
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
@@ -66,18 +67,19 @@ export async function fetchAppleHealthDailyPayload(
   ]);
 
   const normalizedWorkouts = Array.isArray(workouts) ? workouts : [];
-  const workoutIds = normalizedWorkouts.map((workout) => workout?.id).filter((value): value is string => typeof value === "string" && value.length > 0);
+  const safeWorkouts = asArray<Record<string, unknown>>(normalizedWorkouts).map((workout) => asObject(workout));
+  const workoutIds = safeWorkouts.map((workout) => workout?.id).filter((value): value is string => typeof value === "string" && value.length > 0);
   const details = workoutIds.length > 0 ? await fetchWorkoutDetails(config, date, workoutIds) : [];
-  const detailedWorkouts = normalizedWorkouts.map((workout) => {
+  const detailedWorkouts = safeWorkouts.map((workout) => {
     const detail = details.find((item) => item.workoutId === workout.id)?.detail;
     return detail ? { ...workout, ...detail } : workout;
   });
 
   return {
-    summary,
+    summary: asObject(summary),
     workouts: detailedWorkouts,
-    sleep: Array.isArray(sleep) ? sleep : [],
-    nutrition: Array.isArray(nutrition) ? nutrition : [],
-    hydration: Array.isArray(hydration) ? hydration : [],
+    sleep: asArray<Record<string, unknown>>(sleep).map((item) => asObject(item)),
+    nutrition: asArray<Record<string, unknown>>(nutrition).map((item) => asObject(item)),
+    hydration: asArray<Record<string, unknown>>(hydration).map((item) => asObject(item)),
   };
 }

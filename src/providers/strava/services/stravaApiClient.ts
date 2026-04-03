@@ -8,6 +8,7 @@ import type {
   StravaTokenResponse,
 } from "@/providers/strava/types/strava";
 import { setStravaAuthExpiresAt } from "@/providers/strava/services/stravaConfigStore";
+import { asArray } from "@/providers/shared/services/providerPayloadGuards";
 import { setSecret } from "@/services/security/secretStorage";
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 12000) {
@@ -91,7 +92,7 @@ export async function fetchStravaDailyPayload(config: StravaProviderConfig, date
   ]);
 
   const detailedActivities = await Promise.all(
-    (activities || []).map(async (activity) => {
+    asArray<StravaActivity>(activities).map(async (activity) => {
       try {
         const [detail, streams] = await Promise.all([
           fetchDetailedActivity(token.access_token, activity.id),

@@ -587,29 +587,47 @@ function Admin() {
       const provider = getProviderInstance(providerId);
       const dateStrings = getRecentDateStrings(days);
       let savedCount = 0;
+      let skippedCount = 0;
+      const failures: string[] = [];
 
       for (const date of dateStrings) {
-        const healthData =
-          typeof provider.getDataForDate === "function"
-            ? await provider.getDataForDate(date)
-            : date === getDateStringWithOffset(0)
-              ? await provider.getTodayData()
-              : null;
+        try {
+          const healthData =
+            typeof provider.getDataForDate === "function"
+              ? await provider.getDataForDate(date)
+              : date === getDateStringWithOffset(0)
+                ? await provider.getTodayData()
+                : null;
 
-        if (!healthData) {
-          continue;
+          if (!healthData) {
+            skippedCount += 1;
+            continue;
+          }
+
+          await saveHealthSnapshot(healthData, provider.id, `${date}T12:00:00.000Z`);
+          savedCount += 1;
+        } catch (error) {
+          skippedCount += 1;
+          failures.push(`${date}: ${error instanceof Error ? error.message : "unknown error"}`);
         }
-
-        await saveHealthSnapshot(healthData, provider.id, `${date}T12:00:00.000Z`);
-        savedCount += 1;
       }
 
-      await createTransferLog("provider_backfill", "success", `${provider.displayName} 최근 ${days}일 적재 완료 (${savedCount}건)`);
+      await createTransferLog(
+        "provider_backfill",
+        failures.length > 0 ? "error" : "success",
+        `${provider.displayName} 최근 ${days}일 적재 완료 (성공 ${savedCount}건, 건너뜀 ${skippedCount}건)`,
+      );
       invalidateHealthData();
       toast({
         title: `${provider.displayName} 최근 ${days}일 적재 완료`,
-        description: `${savedCount}일치 데이터를 health_data에 저장했습니다.`,
+        description:
+          failures.length > 0
+            ? `${savedCount}건 저장, ${skippedCount}건 건너뜀`
+            : `${savedCount}일치 데이터를 health_data에 저장했습니다.`,
       });
+      if (failures.length > 0) {
+        console.warn("Provider backfill skipped dates:", failures);
+      }
       await refreshConnectionState();
       await fetchLogs();
     } catch (error) {

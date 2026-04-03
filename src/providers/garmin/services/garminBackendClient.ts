@@ -1,4 +1,5 @@
 import type { GarminDailyPayload, GarminProviderConfig } from "@/providers/garmin/types/garmin";
+import { asArray, asObject } from "@/providers/shared/services/providerPayloadGuards";
 
 function buildUrl(baseUrl: string, path: string, date: string, userId: string) {
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
@@ -57,7 +58,7 @@ export async function fetchGarminDailyPayload(config: GarminProviderConfig, date
     fetchJson(config, "/garmin/hydration", date),
   ]);
 
-  const normalizedActivities = Array.isArray(activities) ? activities : [];
+  const normalizedActivities = asArray<Record<string, unknown>>(activities).map((activity) => asObject(activity));
   const activityIds = normalizedActivities.map((activity) => activity?.id).filter((value): value is string => typeof value === "string" && value.length > 0);
   const details = activityIds.length > 0 ? await fetchActivityDetails(config, date, activityIds) : [];
   const detailedActivities = normalizedActivities.map((activity) => {
@@ -66,10 +67,10 @@ export async function fetchGarminDailyPayload(config: GarminProviderConfig, date
   });
 
   return {
-    summary,
+    summary: asObject(summary),
     activities: detailedActivities,
-    sleep: Array.isArray(sleep) ? sleep : [],
-    nutrition: Array.isArray(nutrition) ? nutrition : [],
-    hydration: Array.isArray(hydration) ? hydration : [],
+    sleep: asArray<Record<string, unknown>>(sleep).map((item) => asObject(item)),
+    nutrition: asArray<Record<string, unknown>>(nutrition).map((item) => asObject(item)),
+    hydration: asArray<Record<string, unknown>>(hydration).map((item) => asObject(item)),
   };
 }
