@@ -406,7 +406,7 @@ const Admin = () => {
         <Tabs defaultValue="general" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="general">일반</TabsTrigger>
-            <TabsTrigger value="providers">연동 설정</TabsTrigger>
+            <TabsTrigger value="providers">연동</TabsTrigger>
             <TabsTrigger value="theme">테마</TabsTrigger>
             <TabsTrigger value="display">표시 데이터</TabsTrigger>
           </TabsList>

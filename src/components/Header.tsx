@@ -41,7 +41,6 @@ export const Header = ({ showNav = false }: HeaderProps) => {
             </Link>
 
             <div className="flex shrink-0 items-center gap-2">
-              <p className="max-w-[96px] truncate text-xs text-muted-foreground">{nickname}</p>
               <AdviceDrawer />
               <Avatar className="h-8 w-8 border border-primary/20">
                 <AvatarImage src={avatarUrl} alt={nickname || "profile"} />

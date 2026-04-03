@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 type BackNavigationOptions = {
   fallback?: string;
@@ -11,6 +12,8 @@ type BackNavigationOptions = {
 function isOptions(value: string | BackNavigationOptions): value is BackNavigationOptions {
   return typeof value === "object";
 }
+
+let lastBackAttemptAt = 0;
 
 export function useDeviceBackNavigation(input: string | BackNavigationOptions = "/") {
   const navigate = useNavigate();
@@ -52,10 +55,12 @@ export function useDeviceBackNavigation(input: string | BackNavigationOptions = 
       }
 
       if (options.isRootPage) {
-        const shouldExit = window.confirm(options.exitMessage || "어플을 종료할까요?");
-        if (shouldExit) {
+        const now = Date.now();
+        if (now - lastBackAttemptAt < 2000) {
           tryExitApp();
         } else {
+          lastBackAttemptAt = now;
+          toast(options.exitMessage || "종료하시려면 다시 누르시기 바랍니다");
           pushGuardState();
         }
         return;

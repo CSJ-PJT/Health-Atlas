@@ -38,6 +38,32 @@ type ActionTarget =
 type ListTab = "friends" | "rooms";
 type ComposePanel = "none" | "friend" | "room";
 
+function buildAutoReply(content: string, room: ChatRoom, friends: FriendEntry[]) {
+  const normalized = content.toLowerCase();
+
+  if (normalized.includes("안녕") || normalized.includes("hello")) {
+    return "안녕하세요. 오늘 컨디션은 어때요?";
+  }
+  if (normalized.includes("러닝") || normalized.includes("달리")) {
+    return "러닝 이야기 좋네요. 오늘은 페이스보다 회복 상태도 같이 체크해보세요.";
+  }
+  if (normalized.includes("수면") || normalized.includes("잠")) {
+    return "수면 흐름이 중요하죠. 어제 수면 시간과 오늘 컨디션을 같이 보면 더 정확해요.";
+  }
+  if (normalized.includes("심박")) {
+    return "심박수는 강도 판단에 좋아요. 평소보다 높았다면 회복도 같이 챙겨보세요.";
+  }
+  if (normalized.includes("배고") || normalized.includes("식단") || normalized.includes("칼로리")) {
+    return "영양 이야기도 좋네요. 운동 강도에 맞게 수분과 탄수화물도 같이 챙겨보세요.";
+  }
+  if (room.type === "group") {
+    return "좋아요. 그룹 기준으로 보면 오늘 기록과 회복 흐름을 같이 비교해보는 게 좋겠습니다.";
+  }
+
+  const directFriend = friends.find((friend) => room.memberIds.includes(friend.id));
+  return `${directFriend?.name || room.name} 기준으로 보면 오늘 흐름은 나쁘지 않아 보여요. 다음 기록도 공유해 주세요.`;
+}
+
 const Chat = () => {
   const { toast } = useToast();
   const longPressTimer = useRef<number | null>(null);
@@ -248,14 +274,30 @@ const Chat = () => {
       return;
     }
 
+    const message = draft.trim();
     saveChatMessage({
       roomId: activeRoom.id,
       senderId: MY_USER_ID,
       senderName: MY_USER_NAME,
-      content: draft.trim(),
+      content: message,
     });
     setDraft("");
     refreshSocialState();
+
+    const senderFriend = friends.find((friend) => activeRoom.memberIds.includes(friend.id));
+    const responderId = activeRoom.type === "group" ? activeRoom.memberIds[0] || "group-bot" : senderFriend?.id || "chat-bot";
+    const responderName = activeRoom.type === "group" ? activeRoom.name : senderFriend?.name || activeRoom.name;
+    const reply = buildAutoReply(message, activeRoom, friends);
+
+    window.setTimeout(() => {
+      saveChatMessage({
+        roomId: activeRoom.id,
+        senderId: responderId,
+        senderName: responderName,
+        content: reply,
+      });
+      refreshSocialState();
+    }, 700);
   };
 
   const handleRename = () => {
@@ -679,7 +721,7 @@ const Chat = () => {
                     const mine = message.senderId === MY_USER_ID;
                     return (
                       <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm ${mine ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
+                        <div className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm ${mine ? "bg-primary text-primary-foreground" : "border bg-card"}`}>
                           {!mine ? <div className="mb-1 text-[11px] text-muted-foreground">{message.senderName}</div> : null}
                           <div>{message.content}</div>
                           <div className={`mt-1 text-[10px] ${mine ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
