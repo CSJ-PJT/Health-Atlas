@@ -162,6 +162,208 @@ export type Database = {
         }
         Relationships: []
       }
+      social_chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          profile_id: string
+          room_id: string
+          sender_id: string
+          sender_name: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id: string
+          profile_id: string
+          room_id: string
+          sender_id: string
+          sender_name: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+          room_id?: string
+          sender_id?: string
+          sender_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_chat_messages_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_chat_rooms: {
+        Row: {
+          created_at: string
+          id: string
+          member_ids: Json
+          name: string
+          profile_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          member_ids?: Json
+          name: string
+          profile_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_ids?: Json
+          name?: string
+          profile_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_chat_rooms_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_feed_comments: {
+        Row: {
+          author_id: string
+          author_name: string
+          content: string
+          created_at: string
+          id: string
+          liked_user_ids: Json
+          parent_id: string | null
+          post_id: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          author_name: string
+          content: string
+          created_at?: string
+          id: string
+          liked_user_ids?: Json
+          parent_id?: string | null
+          post_id: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          author_name?: string
+          content?: string
+          created_at?: string
+          id?: string
+          liked_user_ids?: Json
+          parent_id?: string | null
+          post_id?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_feed_comments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_feed_posts: {
+        Row: {
+          author_id: string
+          author_name: string
+          content: string
+          created_at: string
+          id: string
+          media: Json
+          profile_id: string
+          tags: Json
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          author_name: string
+          content?: string
+          created_at?: string
+          id: string
+          media?: Json
+          profile_id: string
+          tags?: Json
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          author_name?: string
+          content?: string
+          created_at?: string
+          id?: string
+          media?: Json
+          profile_id?: string
+          tags?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_feed_posts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_friends: {
+        Row: {
+          added_at: string
+          id: string
+          name: string
+          phone: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          added_at?: string
+          id: string
+          name: string
+          phone?: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          name?: string
+          phone?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_friends_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transfer_logs: {
         Row: {
           created_at: string | null
