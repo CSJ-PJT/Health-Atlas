@@ -5,6 +5,7 @@ import { MetricLineChart } from "@/components/charts/MetricLineChart";
 import { MetricGrid } from "@/components/health/MetricGrid";
 import { RouteMapCard } from "@/components/health/RouteMapCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -47,6 +48,7 @@ const formatDelta = (key: string, value: number) => {
 type ActivityFilter = "all" | "running" | "walking";
 
 const History = () => {
+  useDeviceBackNavigation({ fallback: "/history", isRootPage: true });
   const providerId = getStoredProviderId();
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);

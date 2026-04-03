@@ -6,6 +6,7 @@ import { ScrollToTop } from "@/components/ScrollToTop";
 import { MetricDonutChart } from "@/components/charts/MetricDonutChart";
 import { MetricGrid } from "@/components/health/MetricGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { useTodayHealth } from "@/hooks/useHealthData";
 import type { CheckPermissionsResult, HealthSummary } from "@/lib/healthConnect";
@@ -37,6 +38,7 @@ const formatStoredSync = () => {
 };
 
 const Index = () => {
+  useDeviceBackNavigation({ fallback: "/", isRootPage: true });
   const activeProviderId = getStoredProviderId();
   const providerMeta = getProviderMeta(activeProviderId);
   const activeProvider = getActiveProvider();

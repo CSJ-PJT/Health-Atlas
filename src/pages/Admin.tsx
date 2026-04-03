@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { useInvalidateHealthData } from "@/hooks/useHealthData";
 import { supabase } from "@/integrations/supabase/client";
@@ -107,6 +108,7 @@ const Admin = () => {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const invalidateHealthData = useInvalidateHealthData();
+  useDeviceBackNavigation({ fallback: "/admin", isRootPage: true });
   const [activeProvider, setActiveProvider] = useState<ProviderId>("samsung");
   const [mockHealthDataEnabled, setMockHealthDataState] = useState(true);
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(getDisplaySettings());

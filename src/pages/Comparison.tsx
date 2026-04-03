@@ -7,6 +7,7 @@ import { MetricGrid } from "@/components/health/MetricGrid";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useHealthStats } from "@/hooks/useHealthData";
@@ -38,6 +39,7 @@ const toPaceLabel = (minutesValue: number) => {
 };
 
 const Comparison = () => {
+  useDeviceBackNavigation({ fallback: "/comparison", isRootPage: true });
   const providerId = getStoredProviderId();
   const initialRange = buildRangeFromMode("day");
   const [viewMode, setViewMode] = useState<HealthViewMode>("day");

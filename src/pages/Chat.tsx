@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ChevronsUpDown, ContactRound, MessageSquarePlus, Pencil, Send, Trash2, UserPlus, Users } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ArrowLeft, ChevronsUpDown, ContactRound, MessageCircleMore, Pencil, Plus, Send, Trash2, Users } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,7 +39,6 @@ type ListTab = "friends" | "rooms";
 type ComposePanel = "none" | "friend" | "room";
 
 const Chat = () => {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const longPressTimer = useRef<number | null>(null);
   const [friends, setFriends] = useState<FriendEntry[]>([]);
@@ -59,7 +57,31 @@ const Chat = () => {
   const [actionTarget, setActionTarget] = useState<ActionTarget>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  useDeviceBackNavigation("/");
+  useDeviceBackNavigation({
+    fallback: "/",
+    isRootPage: true,
+    onBackWithinPage: () => {
+      if (actionTarget) {
+        setActionTarget(null);
+        return true;
+      }
+      if (composePanel === "friend") {
+        setComposePanel("none");
+        setListTab("friends");
+        return true;
+      }
+      if (composePanel === "room") {
+        setComposePanel("none");
+        setListTab("rooms");
+        return true;
+      }
+      if (!showLists) {
+        setShowLists(true);
+        return true;
+      }
+      return false;
+    },
+  });
 
   const refreshSocialState = () => {
     const nextFriends = getFriends();
@@ -101,7 +123,7 @@ const Chat = () => {
 
   const getRoomPreview = (room: ChatRoom) => {
     const roomMessages = getRoomMessages(room.id);
-    return roomMessages[roomMessages.length - 1]?.content || "새 대화를 시작해보세요.";
+    return roomMessages[roomMessages.length - 1]?.content || "대화를 시작해보세요.";
   };
 
   const handleLoadContacts = async () => {
@@ -137,7 +159,7 @@ const Chat = () => {
     refreshSocialState();
     toast({
       title: "친구를 추가했습니다",
-      description: `${contact.name}을(를) 친구 목록에 넣었습니다.`,
+      description: `${contact.name}님을 친구 목록에 넣었습니다.`,
     });
   };
 
@@ -152,6 +174,8 @@ const Chat = () => {
     });
     setManualName("");
     setManualPhone("");
+    setComposePanel("none");
+    setListTab("friends");
   };
 
   const handleUserIdAdd = async () => {
@@ -175,6 +199,8 @@ const Chat = () => {
       phone: `id:${data.user_id}`,
     });
     setUserIdQuery("");
+    setComposePanel("none");
+    setListTab("friends");
   };
 
   const handleCreateDirectRoom = (friendId: string) => {
@@ -273,6 +299,13 @@ const Chat = () => {
     setActionTarget(null);
   };
 
+  const renderAddBadge = (Icon: typeof ContactRound) => (
+    <span className="relative">
+      <Icon className="h-4 w-4" />
+      <Plus className="absolute -right-1.5 -top-1.5 h-3.5 w-3.5 rounded-full bg-background text-primary" />
+    </span>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <Header showNav={true} />
@@ -280,9 +313,24 @@ const Chat = () => {
       <div className="mx-auto max-w-6xl space-y-4 p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => navigate(-1)} aria-label="뒤로가기">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+            {composePanel !== "none" ? (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  if (composePanel === "friend") {
+                    setComposePanel("none");
+                    setListTab("friends");
+                    return;
+                  }
+                  setComposePanel("none");
+                  setListTab("rooms");
+                }}
+                aria-label="뒤로가기"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            ) : null}
             <h1 className="text-3xl font-bold">채팅</h1>
           </div>
 
@@ -291,7 +339,7 @@ const Chat = () => {
               variant={showLists ? "default" : "outline"}
               size="icon"
               onClick={() => setShowLists((value) => !value)}
-              aria-label="목록 패널 표시 전환"
+              aria-label="목록 열고 닫기"
             >
               <ChevronsUpDown className="h-4 w-4" />
             </Button>
@@ -299,25 +347,25 @@ const Chat = () => {
               variant={composePanel === "friend" ? "default" : "outline"}
               size="icon"
               onClick={() => {
-                setComposePanel((current) => (current === "friend" ? "none" : "friend"));
+                setComposePanel("friend");
                 setShowLists(true);
                 setListTab("friends");
               }}
               aria-label="친구 추가"
             >
-              <UserPlus className="h-4 w-4" />
+              {renderAddBadge(ContactRound)}
             </Button>
             <Button
               variant={composePanel === "room" ? "default" : "outline"}
               size="icon"
               onClick={() => {
-                setComposePanel((current) => (current === "room" ? "none" : "room"));
+                setComposePanel("room");
                 setShowLists(true);
                 setListTab("rooms");
               }}
-              aria-label="대화 추가"
+              aria-label="채팅 추가"
             >
-              <MessageSquarePlus className="h-4 w-4" />
+              {renderAddBadge(MessageCircleMore)}
             </Button>
           </div>
         </div>
@@ -345,21 +393,49 @@ const Chat = () => {
                         <ContactRound className="h-4 w-4" />
                         연락처 불러오기
                       </Button>
-                      <div className="max-h-72 space-y-3 overflow-y-auto">
-                        {contacts.length === 0 ? (
-                          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">불러온 연락처가 없습니다.</div>
-                        ) : (
-                          contacts.slice(0, 15).map((contact) => (
-                            <div key={`${contact.id}-${contact.phone}`} className="flex items-center justify-between rounded-xl border p-3">
-                              <div className="min-w-0">
-                                <div className="font-medium">{contact.name}</div>
-                                <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
-                              </div>
-                              <Button size="sm" onClick={() => handleAddFriend(contact)}>
-                                추가
-                              </Button>
+                      <div className="space-y-3">
+                        {(shouldScrollFriendsList || contacts.length > 5) ? (
+                          <ScrollArea className="h-72 pr-3">
+                            <div className="space-y-3">
+                              {contacts.length === 0 ? (
+                                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                                  불러온 연락처가 없습니다.
+                                </div>
+                              ) : (
+                                contacts.map((contact) => (
+                                  <div key={`${contact.id}-${contact.phone}`} className="flex items-center justify-between rounded-xl border p-3">
+                                    <div className="min-w-0">
+                                      <div className="font-medium">{contact.name}</div>
+                                      <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
+                                    </div>
+                                    <Button size="sm" onClick={() => handleAddFriend(contact)}>
+                                      추가
+                                    </Button>
+                                  </div>
+                                ))
+                              )}
                             </div>
-                          ))
+                          </ScrollArea>
+                        ) : (
+                          <div className="space-y-3">
+                            {contacts.length === 0 ? (
+                              <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                                불러온 연락처가 없습니다.
+                              </div>
+                            ) : (
+                              contacts.map((contact) => (
+                                <div key={`${contact.id}-${contact.phone}`} className="flex items-center justify-between rounded-xl border p-3">
+                                  <div className="min-w-0">
+                                    <div className="font-medium">{contact.name}</div>
+                                    <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
+                                  </div>
+                                  <Button size="sm" onClick={() => handleAddFriend(contact)}>
+                                    추가
+                                  </Button>
+                                </div>
+                              ))
+                            )}
+                          </div>
                         )}
                       </div>
                     </CardContent>
@@ -374,7 +450,7 @@ const Chat = () => {
                         <Input value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="이름" />
                         <Input value={manualPhone} onChange={(event) => setManualPhone(event.target.value)} placeholder="전화번호" />
                         <Button onClick={handleManualAdd} className="w-full">
-                          직접 추가
+                          친구 추가
                         </Button>
                       </CardContent>
                     </Card>
@@ -402,16 +478,18 @@ const Chat = () => {
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {friends.length === 0 ? (
-                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">먼저 친구를 추가해 주세요.</div>
+                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                          먼저 친구를 추가해 주세요.
+                        </div>
                       ) : (
-                        friends.slice(0, 15).map((friend) => (
+                        friends.map((friend) => (
                           <div key={friend.id} className="flex items-center justify-between rounded-xl border p-3">
                             <div className="min-w-0">
                               <div className="font-medium">{friend.name}</div>
                               <div className="truncate text-xs text-muted-foreground">{friend.phone}</div>
                             </div>
                             <Button size="sm" onClick={() => handleCreateDirectRoom(friend.id)}>
-                              대화 시작
+                              시작
                             </Button>
                           </div>
                         ))
@@ -421,178 +499,214 @@ const Chat = () => {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-base">그룹 대화 만들기</CardTitle>
+                      <CardTitle className="text-base">그룹 채팅 만들기</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-4">
                       <Input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="그룹 이름" />
-                      <ScrollArea className="h-44 rounded-xl border p-3">
-                        <div className="space-y-3">
-                          {friends.map((friend) => (
-                            <label key={friend.id} className="flex items-center gap-3 rounded-lg border p-3">
+                      <div className="space-y-2">
+                        {friends.length === 0 ? (
+                          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                            그룹에 초대할 친구가 없습니다.
+                          </div>
+                        ) : (
+                          friends.map((friend) => (
+                            <label key={friend.id} className="flex items-center gap-3 rounded-xl border p-3">
                               <Checkbox checked={selectedMembers.includes(friend.id)} onCheckedChange={() => handleToggleMember(friend.id)} />
                               <div className="min-w-0">
                                 <div className="font-medium">{friend.name}</div>
                                 <div className="truncate text-xs text-muted-foreground">{friend.phone}</div>
                               </div>
                             </label>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                      <Button onClick={handleCreateGroup} className="w-full">
-                        그룹 만들기
+                          ))
+                        )}
+                      </div>
+                      <Button onClick={handleCreateGroup} className="w-full gap-2">
+                        <Users className="h-4 w-4" />
+                        그룹 채팅 생성
                       </Button>
                     </CardContent>
                   </Card>
                 </div>
               ) : null}
 
-              {listTab === "friends" ? (
-                <div className="space-y-3">
-                  <div className="text-sm font-medium">친구목록</div>
-                  <ScrollArea className={shouldScrollFriendsList ? "h-80 rounded-xl border p-1" : ""}>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {friends.slice(0, 15).map((friend) => (
+              {composePanel === "none" ? (
+                listTab === "friends" ? (
+                  shouldScrollFriendsList ? (
+                    <ScrollArea className="h-80 pr-3">
+                      <div className="space-y-3">
+                        {friends.map((friend) => (
+                          <button
+                            key={friend.id}
+                            type="button"
+                            onClick={() => handleCreateDirectRoom(friend.id)}
+                            onMouseDown={() => startLongPress(friend, "friend")}
+                            onMouseUp={clearLongPress}
+                            onMouseLeave={clearLongPress}
+                            onTouchStart={() => startLongPress(friend, "friend")}
+                            onTouchEnd={clearLongPress}
+                            className="flex w-full items-center justify-between rounded-2xl border p-4 text-left"
+                          >
+                            <div className="min-w-0">
+                              <div className="font-semibold">{friend.name}</div>
+                              <div className="truncate text-xs text-muted-foreground">{friend.phone}</div>
+                            </div>
+                            <div className="text-xs text-muted-foreground">대화 시작</div>
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="space-y-3">
+                      {friends.map((friend) => (
                         <button
                           key={friend.id}
                           type="button"
-                          onPointerDown={() => startLongPress(friend, "friend")}
-                          onPointerUp={clearLongPress}
-                          onPointerLeave={clearLongPress}
-                          onContextMenu={(event) => {
-                            event.preventDefault();
-                            setActionTarget({ kind: "friend", item: friend });
-                            setRenameValue(friend.name);
-                          }}
-                          className="rounded-xl border p-3 text-left transition-colors hover:bg-muted/40"
+                          onClick={() => handleCreateDirectRoom(friend.id)}
+                          onMouseDown={() => startLongPress(friend, "friend")}
+                          onMouseUp={clearLongPress}
+                          onMouseLeave={clearLongPress}
+                          onTouchStart={() => startLongPress(friend, "friend")}
+                          onTouchEnd={clearLongPress}
+                          className="flex w-full items-center justify-between rounded-2xl border p-4 text-left"
                         >
-                          <div className="font-medium">{friend.name}</div>
-                          <div className="text-xs text-muted-foreground">{friend.phone}</div>
+                          <div className="min-w-0">
+                            <div className="font-semibold">{friend.name}</div>
+                            <div className="truncate text-xs text-muted-foreground">{friend.phone}</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground">대화 시작</div>
                         </button>
                       ))}
                     </div>
-                  </ScrollArea>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="text-sm font-medium">대화목록</div>
-                  <ScrollArea className={shouldScrollRoomsList ? "h-80 rounded-xl border p-1" : ""}>
+                  )
+                ) : shouldScrollRoomsList ? (
+                  <ScrollArea className="h-80 pr-3">
                     <div className="space-y-3">
-                      {rooms.slice(0, 15).map((room) => (
+                      {rooms.map((room) => (
                         <button
                           key={room.id}
                           type="button"
                           onClick={() => setActiveRoomId(room.id)}
-                          onPointerDown={() => startLongPress(room, "room")}
-                          onPointerUp={clearLongPress}
-                          onPointerLeave={clearLongPress}
-                          onContextMenu={(event) => {
-                            event.preventDefault();
-                            setActionTarget({ kind: "room", item: room });
-                            setRenameValue(room.name);
-                          }}
+                          onMouseDown={() => startLongPress(room, "room")}
+                          onMouseUp={clearLongPress}
+                          onMouseLeave={clearLongPress}
+                          onTouchStart={() => startLongPress(room, "room")}
+                          onTouchEnd={clearLongPress}
                           className={`w-full rounded-2xl border p-4 text-left transition-colors ${
-                            activeRoomId === room.id ? "border-primary bg-primary/10" : "hover:bg-muted/40"
+                            activeRoomId === room.id ? "border-primary bg-primary/5" : ""
                           }`}
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 font-semibold">
-                              {room.type === "group" ? <Users className="h-4 w-4 text-primary" /> : <MessageSquarePlus className="h-4 w-4 text-primary" />}
-                              {room.name}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-semibold">{room.name}</div>
+                              <div className="mt-1 truncate text-xs text-muted-foreground">{getRoomPreview(room)}</div>
                             </div>
-                            <div className="text-xs text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
+                            <div className="text-[11px] text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
                           </div>
-                          <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{getRoomPreview(room)}</div>
                         </button>
                       ))}
                     </div>
                   </ScrollArea>
-                </div>
-              )}
+                ) : (
+                  <div className="space-y-3">
+                    {rooms.map((room) => (
+                      <button
+                        key={room.id}
+                        type="button"
+                        onClick={() => setActiveRoomId(room.id)}
+                        onMouseDown={() => startLongPress(room, "room")}
+                        onMouseUp={clearLongPress}
+                        onMouseLeave={clearLongPress}
+                        onTouchStart={() => startLongPress(room, "room")}
+                        onTouchEnd={clearLongPress}
+                        className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                          activeRoomId === room.id ? "border-primary bg-primary/5" : ""
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-semibold">{room.name}</div>
+                            <div className="mt-1 truncate text-xs text-muted-foreground">{getRoomPreview(room)}</div>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">{room.type === "group" ? "그룹" : "1:1"}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {actionTarget ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{actionTarget.kind === "friend" ? "친구 관리" : "대화 관리"}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} placeholder="이름 변경" />
+              <div className="flex flex-wrap gap-2">
+                {actionTarget.kind === "friend" ? (
+                  <Button variant="outline" onClick={handleStartChatFromFriend} className="gap-2">
+                    <MessageCircleMore className="h-4 w-4" />
+                    새 대화
+                  </Button>
+                ) : null}
+                <Button variant="outline" onClick={handleRename} className="gap-2">
+                  <Pencil className="h-4 w-4" />
+                  이름 변경
+                </Button>
+                <Button variant="destructive" onClick={handleDelete} className="gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  삭제
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : null}
 
         <Card>
           <CardHeader>
-            <CardTitle>{activeRoom?.name || "대화목록에서 채팅방을 선택해 주세요"}</CardTitle>
+            <CardTitle>{activeRoom ? activeRoom.name : "채팅방을 선택해 주세요"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {activeRoom ? (
-              <>
-                <ScrollArea className="h-[52vh] rounded-2xl border bg-muted/10 p-4">
-                  <div className="space-y-3">
-                    {messages.map((message) => {
-                      const mine = message.senderId === MY_USER_ID;
-                      return (
-                        <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                          <div className={`max-w-[82%] rounded-2xl px-4 py-3 ${mine ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
-                            <div className="text-xs opacity-80">{message.senderName}</div>
-                            <div className="mt-1 whitespace-pre-wrap text-sm">{message.content}</div>
-                            <div className="mt-1 text-[10px] opacity-70">
-                              {new Date(message.createdAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
-                            </div>
+            <ScrollArea className="h-[44vh] rounded-2xl border bg-muted/10 p-3">
+              <div className="space-y-3 pr-2">
+                {messages.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">아직 대화가 없습니다.</div>
+                ) : (
+                  messages.map((message) => {
+                    const mine = message.senderId === MY_USER_ID;
+                    return (
+                      <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm ${mine ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
+                          {!mine ? <div className="mb-1 text-[11px] text-muted-foreground">{message.senderName}</div> : null}
+                          <div>{message.content}</div>
+                          <div className={`mt-1 text-[10px] ${mine ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                            {new Date(message.createdAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-
-                <div className="flex gap-2" data-no-swipe="true">
-                  <Input
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    placeholder="메시지를 입력하세요"
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        handleSend();
-                      }
-                    }}
-                  />
-                  <Button size="icon" onClick={handleSend}>
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-                상단에서 목록 패널을 열고 친구나 대화를 선택해 주세요.
+                      </div>
+                    );
+                  })
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </ScrollArea>
 
-      {actionTarget ? (
-        <Card className="fixed left-3 right-3 top-24 z-[80] mx-auto max-w-md border-primary/20 shadow-xl" data-no-swipe="true">
-          <CardHeader>
-            <CardTitle>{actionTarget.kind === "friend" ? "친구 관리" : "대화방 관리"}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} placeholder="이름 변경" />
-            <div className="flex flex-wrap gap-2">
-              {actionTarget.kind === "friend" ? (
-                <Button variant="outline" onClick={handleStartChatFromFriend}>
-                  <MessageSquarePlus className="mr-2 h-4 w-4" />
-                  새 대화
-                </Button>
-              ) : null}
-              <Button variant="outline" onClick={handleRename}>
-                <Pencil className="mr-2 h-4 w-4" />
-                이름 변경
-              </Button>
-              <Button variant="destructive" onClick={handleDelete}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                삭제
-              </Button>
-              <Button variant="ghost" onClick={() => setActionTarget(null)}>
-                닫기
+            <div className="flex gap-2" data-no-swipe="true">
+              <Input
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder={activeRoom ? "메시지를 입력하세요" : "채팅방을 먼저 선택해 주세요"}
+                disabled={!activeRoom}
+              />
+              <Button onClick={handleSend} disabled={!activeRoom || !draft.trim()} size="icon">
+                <Send className="h-4 w-4" />
               </Button>
             </div>
           </CardContent>
         </Card>
-      ) : null}
+      </div>
     </div>
   );
 };

@@ -1,12 +1,16 @@
-import { useEffect, useState } from "react";
-import { Award, Flame, Medal, Plus, Trophy, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Award, Flame, Footprints, HeartPulse, Medal, Moon, Plus, Trophy, Users } from "lucide-react";
 import { Header } from "@/components/Header";
+import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getFriends, type FriendEntry } from "@/services/socialStore";
+
+type ChallengeIcon = "run" | "heart" | "sleep" | "fire" | "team";
 
 type ChallengeEntry = {
   id: string;
@@ -14,35 +18,60 @@ type ChallengeEntry = {
   description: string;
   progress: number;
   reward: string;
+  icon: ChallengeIcon;
   memberIds: string[];
+  joinedUserIds: string[];
+  completedUserIds: string[];
 };
 
-const CHALLENGE_KEY = "game_challenges";
+const CHALLENGE_KEY = "game_challenges_v2";
+const MY_USER_ID = localStorage.getItem("user_id") || "me";
+
+const challengeIcons: Array<{
+  key: ChallengeIcon;
+  label: string;
+  Icon: typeof Footprints;
+}> = [
+  { key: "run", label: "러닝", Icon: Footprints },
+  { key: "heart", label: "회복", Icon: HeartPulse },
+  { key: "sleep", label: "수면", Icon: Moon },
+  { key: "fire", label: "집중", Icon: Flame },
+  { key: "team", label: "그룹", Icon: Users },
+];
 
 const seedChallenges: ChallengeEntry[] = [
   {
     id: "challenge-1",
     title: "7일 러닝 스트릭",
     description: "7일 연속 3km 이상 달리기",
-    progress: 71,
     reward: "러닝 배지",
+    progress: 71,
+    icon: "run",
     memberIds: [],
+    joinedUserIds: [],
+    completedUserIds: [],
   },
   {
     id: "challenge-2",
     title: "수면 회복 챌린지",
     description: "이번 주 평균 수면 7시간 30분 달성",
-    progress: 58,
     reward: "리커버리 배지",
+    progress: 58,
+    icon: "sleep",
     memberIds: [],
+    joinedUserIds: [],
+    completedUserIds: [],
   },
   {
     id: "challenge-3",
     title: "주간 거리 경쟁",
-    description: "친구들과 이번 주 총 거리 경쟁",
-    progress: 83,
+    description: "친구와 이번 주 총 거리 기록 경쟁",
     reward: "그룹 MVP 타이틀",
+    progress: 83,
+    icon: "team",
     memberIds: [],
+    joinedUserIds: [],
+    completedUserIds: [],
   },
 ];
 
@@ -80,12 +109,34 @@ const Game = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [reward, setReward] = useState("");
+  const [selectedIcon, setSelectedIcon] = useState<ChallengeIcon>("run");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+
+  useDeviceBackNavigation({
+    fallback: "/",
+    isRootPage: true,
+    onBackWithinPage: () => {
+      if (showCreate) {
+        setShowCreate(false);
+        return true;
+      }
+      return false;
+    },
+  });
 
   useEffect(() => {
     setFriends(getFriends());
     setChallenges(readChallenges());
   }, []);
+
+  const myChallenges = useMemo(
+    () =>
+      challenges.filter(
+        (challenge) =>
+          challenge.joinedUserIds.includes(MY_USER_ID) || challenge.completedUserIds.includes(MY_USER_ID),
+      ),
+    [challenges],
+  );
 
   const handleToggleMember = (friendId: string) => {
     setSelectedMembers((previous) =>
@@ -105,7 +156,10 @@ const Game = () => {
         description: description.trim(),
         reward: reward.trim() || "커뮤니티 배지",
         progress: 0,
+        icon: selectedIcon,
         memberIds: selectedMembers,
+        joinedUserIds: [MY_USER_ID],
+        completedUserIds: [],
       },
       ...challenges,
     ];
@@ -115,8 +169,84 @@ const Game = () => {
     setTitle("");
     setDescription("");
     setReward("");
+    setSelectedIcon("run");
     setSelectedMembers([]);
     setShowCreate(false);
+  };
+
+  const handleJoinChallenge = (challengeId: string) => {
+    const next = challenges.map((challenge) =>
+      challenge.id === challengeId && !challenge.joinedUserIds.includes(MY_USER_ID)
+        ? {
+            ...challenge,
+            joinedUserIds: [...challenge.joinedUserIds, MY_USER_ID],
+          }
+        : challenge,
+    );
+    setChallenges(next);
+    writeChallenges(next);
+  };
+
+  const handleCompleteChallenge = (challengeId: string) => {
+    const next = challenges.map((challenge) =>
+      challenge.id === challengeId
+        ? {
+            ...challenge,
+            joinedUserIds: challenge.joinedUserIds.includes(MY_USER_ID)
+              ? challenge.joinedUserIds
+              : [...challenge.joinedUserIds, MY_USER_ID],
+            completedUserIds: challenge.completedUserIds.includes(MY_USER_ID)
+              ? challenge.completedUserIds
+              : [...challenge.completedUserIds, MY_USER_ID],
+            progress: 100,
+          }
+        : challenge,
+    );
+    setChallenges(next);
+    writeChallenges(next);
+  };
+
+  const renderChallengeCard = (challenge: ChallengeEntry) => {
+    const iconMeta = challengeIcons.find((item) => item.key === challenge.icon) || challengeIcons[0];
+    const Icon = iconMeta.Icon;
+    const joined = challenge.joinedUserIds.includes(MY_USER_ID);
+    const completed = challenge.completedUserIds.includes(MY_USER_ID);
+
+    return (
+      <div key={challenge.id} className="rounded-2xl border bg-background/80 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-semibold">
+              <Icon className="h-4 w-4 text-primary" />
+              {challenge.title}
+            </div>
+            <div className="text-sm text-muted-foreground">{challenge.description}</div>
+            <div className="text-xs text-muted-foreground">
+              참여 인원 {challenge.memberIds.length > 0 ? challenge.memberIds.length : 1}명
+            </div>
+          </div>
+          <div className="text-xs text-primary">{challenge.reward}</div>
+        </div>
+        <Progress value={challenge.progress} className="mt-3" />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <div className="text-xs text-muted-foreground">{challenge.progress}% 달성</div>
+          <div className="flex gap-2">
+            {!joined ? (
+              <Button size="sm" variant="outline" onClick={() => handleJoinChallenge(challenge.id)}>
+                참여하기
+              </Button>
+            ) : null}
+            {!completed ? (
+              <Button size="sm" onClick={() => handleCompleteChallenge(challenge.id)}>
+                완료하기
+              </Button>
+            ) : (
+              <div className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">완료됨</div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -140,8 +270,27 @@ const Game = () => {
               <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="챌린지 제목" />
               <Input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="챌린지 설명" />
               <Input value={reward} onChange={(event) => setReward(event.target.value)} placeholder="보상" />
+
               <div className="space-y-3">
-                <div className="text-sm font-medium">함께할 친구 선택</div>
+                <div className="text-sm font-medium">챌린지 아이콘</div>
+                <div className="grid grid-cols-5 gap-2">
+                  {challengeIcons.map(({ key, label, Icon }) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      variant={selectedIcon === key ? "default" : "outline"}
+                      className="flex h-auto flex-col gap-2 py-3"
+                      onClick={() => setSelectedIcon(key)}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="text-xs">{label}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="text-sm font-medium">같이할 친구 선택</div>
                 <div className="grid gap-3 md:grid-cols-2">
                   {friends.length === 0 ? (
                     <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">추가된 친구가 없습니다.</div>
@@ -165,86 +314,83 @@ const Game = () => {
           </Card>
         ) : null}
 
-        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <Card className="border-primary/25 bg-gradient-to-br from-primary/12 to-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Flame className="h-5 w-5 text-primary" />
-                이번 주 챌린지
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {challenges.map((challenge) => (
-                <div key={challenge.id} className="rounded-2xl border bg-background/80 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-semibold">{challenge.title}</div>
-                      <div className="text-sm text-muted-foreground">{challenge.description}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        참여 인원 {challenge.memberIds.length > 0 ? challenge.memberIds.length : 1}명
+        <Tabs defaultValue="community" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="community">커뮤니티 챌린지</TabsTrigger>
+            <TabsTrigger value="mine">나의 챌린지</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="community" className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <Card className="border-primary/25 bg-gradient-to-br from-primary/12 to-primary/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Flame className="h-5 w-5 text-primary" />
+                    이번 주 챌린지
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">{challenges.map(renderChallengeCard)}</CardContent>
+              </Card>
+
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Trophy className="h-5 w-5 text-primary" />
+                      주간 리더보드
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {leaderboard.map((entry) => (
+                      <div key={entry.name} className="flex items-center justify-between rounded-xl border p-3">
+                        <div className="flex items-center gap-3">
+                          <Medal className="h-4 w-4 text-primary" />
+                          <span className="font-medium">
+                            {entry.rank}. {entry.name}
+                          </span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">{entry.score}</span>
                       </div>
-                    </div>
-                    <div className="text-xs text-primary">{challenge.reward}</div>
-                  </div>
-                  <Progress value={challenge.progress} className="mt-3" />
-                  <div className="mt-2 text-xs text-muted-foreground">{challenge.progress}% 달성</div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                    ))}
+                  </CardContent>
+                </Card>
 
-          <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Award className="h-5 w-5 text-primary" />
+                      대표 배지
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-3">
+                    {badges.map((badge) => (
+                      <div key={badge} className="rounded-xl border p-3 text-sm">
+                        {badge}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="mine">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-primary" />
-                  주간 리더보드
-                </CardTitle>
+                <CardTitle>나의 챌린지</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {leaderboard.map((entry) => (
-                  <div key={entry.name} className="flex items-center justify-between rounded-xl border p-3">
-                    <div className="flex items-center gap-3">
-                      <Medal className="h-4 w-4 text-primary" />
-                      <span className="font-medium">
-                        {entry.rank}. {entry.name}
-                      </span>
-                    </div>
-                    <span className="text-sm text-muted-foreground">{entry.score}</span>
+              <CardContent className="space-y-4">
+                {myChallenges.length > 0 ? (
+                  myChallenges.map(renderChallengeCard)
+                ) : (
+                  <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                    아직 참여하거나 완료한 챌린지가 없습니다.
                   </div>
-                ))}
+                )}
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5 text-primary" />
-                  대표 배지
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-3">
-                {badges.map((badge) => (
-                  <div key={badge} className="rounded-xl border p-3 text-sm">
-                    {badge}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  커뮤니티 제안
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                친구들과 주간 챌린지를 만들고, 공개 챌린지로 확장해 더 많은 사람과 함께할 수 있습니다.
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

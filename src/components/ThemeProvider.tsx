@@ -3,7 +3,14 @@ import type { ThemeProviderProps } from "next-themes/dist/types";
 
 export const ThemeProvider = ({ children, ...props }: ThemeProviderProps) => {
   return (
-    <NextThemesProvider attribute="class" defaultTheme="light" enableSystem={false} {...props}>
+    <NextThemesProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      disableTransitionOnChange
+      themes={["light", "dark", "theme-lavender", "theme-iris", "theme-rose", "theme-ocean", "theme-peach", "theme-midnight"]}
+      {...props}
+    >
       {children}
     </NextThemesProvider>
   );

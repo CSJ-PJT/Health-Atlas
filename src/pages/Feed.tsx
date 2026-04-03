@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Film, ImagePlus, MessageCircle, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { Film, Heart, ImagePlus, MessageCircle, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import {
   addFeedComment,
   createFeedPost,
@@ -21,6 +22,7 @@ import {
   ensureFeedSeed,
   getFeedComments,
   getFeedPosts,
+  toggleFeedCommentLike,
   updateFeedPost,
   type FeedComment,
   type FeedMedia,
@@ -32,7 +34,7 @@ const MY_USER_NAME = localStorage.getItem("user_nickname") || "사용자";
 
 const Feed = () => {
   const [composerOpen, setComposerOpen] = useState(false);
-  const [detailPost, setDetailPost] = useState<FeedPost | null>(null);
+  const [detailPostId, setDetailPostId] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
   const [search, setSearch] = useState("");
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
@@ -40,22 +42,58 @@ const Feed = () => {
   const [commentDraft, setCommentDraft] = useState("");
   const [media, setMedia] = useState<FeedMedia[]>([]);
   const [tick, setTick] = useState(0);
+  const [isBusy, setIsBusy] = useState(false);
+  const [showSpinner, setShowSpinner] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useDeviceBackNavigation({
+    fallback: "/",
+    isRootPage: true,
+    onBackWithinPage: () => {
+      if (composerOpen) {
+        setComposerOpen(false);
+        return true;
+      }
+      if (detailPostId) {
+        setDetailPostId(null);
+        setReplyTarget(null);
+        return true;
+      }
+      return false;
+    },
+  });
 
   useEffect(() => {
     ensureFeedSeed();
     setTick((value) => value + 1);
   }, []);
 
+  useEffect(() => {
+    if (!isBusy) {
+      setShowSpinner(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowSpinner(true), 1500);
+    return () => window.clearTimeout(timer);
+  }, [isBusy]);
+
   const posts = useMemo(() => getFeedPosts(), [tick]);
   const filteredPosts = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return posts;
-    return posts.filter((post) => post.authorName.toLowerCase().includes(keyword) || post.content.toLowerCase().includes(keyword));
+    return posts.filter(
+      (post) =>
+        post.authorName.toLowerCase().includes(keyword) ||
+        post.content.toLowerCase().includes(keyword) ||
+        post.authorId.toLowerCase().includes(keyword),
+    );
   }, [posts, search]);
 
+  const detailPost = useMemo(
+    () => posts.find((post) => post.id === detailPostId) ?? null,
+    [detailPostId, posts],
+  );
   const comments = useMemo(() => (detailPost ? getFeedComments(detailPost.id) : []), [detailPost, tick]);
-  const rootComments = comments.filter((comment) => comment.parentId === null);
 
   const resetComposer = () => {
     setCaption("");
@@ -71,27 +109,32 @@ const Feed = () => {
   const handleFiles = async (files: FileList | null) => {
     if (!files) return;
 
-    const nextMedia = await Promise.all(
-      Array.from(files).map(
-        (file) =>
-          new Promise<FeedMedia>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const result = String(reader.result || "");
-              resolve({
-                id: `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                type: file.type.startsWith("video/") ? "video" : "image",
-                url: result,
-                thumbnailUrl: file.type.startsWith("video/") ? undefined : result,
-              });
-            };
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(file);
-          }),
-      ),
-    );
+    setIsBusy(true);
+    try {
+      const nextMedia = await Promise.all(
+        Array.from(files).map(
+          (file) =>
+            new Promise<FeedMedia>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = String(reader.result || "");
+                resolve({
+                  id: `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                  type: file.type.startsWith("video/") ? "video" : "image",
+                  url: result,
+                  thumbnailUrl: file.type.startsWith("video/") ? undefined : result,
+                });
+              };
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(file);
+            }),
+        ),
+      );
 
-    setMedia((previous) => [...previous, ...nextMedia]);
+      setMedia((previous) => [...previous, ...nextMedia]);
+    } finally {
+      setIsBusy(false);
+    }
   };
 
   const handleSave = () => {
@@ -125,6 +168,25 @@ const Feed = () => {
     setTick((value) => value + 1);
   };
 
+  const handleReply = (comment: FeedComment) => {
+    setReplyTarget(comment);
+    setCommentDraft((previous) => {
+      const prefix = `@${comment.authorId} `;
+      return previous.startsWith(prefix) ? previous : `${prefix}${previous}`.trim();
+    });
+  };
+
+  const renderTaggedContent = (content: string) =>
+    content.split(/(@[A-Za-z0-9_-]+)/g).map((part, index) =>
+      part.startsWith("@") ? (
+        <span key={`${part}-${index}`} className="font-medium text-primary">
+          {part}
+        </span>
+      ) : (
+        <span key={`${part}-${index}`}>{part}</span>
+      ),
+    );
+
   const renderCommentTree = (parentId: string | null, depth = 0) =>
     comments
       .filter((comment) => comment.parentId === parentId)
@@ -132,17 +194,33 @@ const Feed = () => {
         <div key={comment.id} className={`space-y-2 ${depth > 0 ? "ml-4 border-l pl-4" : ""}`}>
           <div className="rounded-xl border p-3">
             <div className="flex items-center justify-between gap-2">
-              <div className="font-medium">{comment.authorName}</div>
+              <div>
+                <div className="font-medium">{comment.authorName}</div>
+                <div className="text-xs text-muted-foreground">@{comment.authorId}</div>
+              </div>
               <div className="text-xs text-muted-foreground">{new Date(comment.createdAt).toLocaleString("ko-KR")}</div>
             </div>
-            <div className="mt-2 text-sm">{comment.content}</div>
-            <button
-              type="button"
-              className="mt-2 text-xs font-medium text-primary"
-              onClick={() => setReplyTarget(comment)}
-            >
-              답글 달기
-            </button>
+            <div className="mt-2 text-sm leading-6">{renderTaggedContent(comment.content)}</div>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+              <button
+                type="button"
+                className="flex items-center gap-1 font-medium text-muted-foreground transition-colors hover:text-primary"
+                onClick={() => {
+                  toggleFeedCommentLike(comment.id, MY_USER_ID);
+                  setTick((value) => value + 1);
+                }}
+              >
+                <Heart className={`h-3.5 w-3.5 ${comment.likedUserIds.includes(MY_USER_ID) ? "fill-current text-primary" : ""}`} />
+                좋아요 {comment.likedUserIds.length}
+              </button>
+              <button
+                type="button"
+                className="font-medium text-primary"
+                onClick={() => handleReply(comment)}
+              >
+                답글 달기
+              </button>
+            </div>
           </div>
           {renderCommentTree(comment.id, depth + 1)}
         </div>
@@ -173,7 +251,7 @@ const Feed = () => {
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  <Textarea value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="내용을 입력해 주세요." className="min-h-32" />
+                  <Textarea value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="내용을 입력하세요" className="min-h-32" />
                   <div className="space-y-3 rounded-2xl border border-dashed p-4">
                     <input
                       ref={fileInputRef}
@@ -227,7 +305,12 @@ const Feed = () => {
                 const cover = post.media?.[0];
                 const commentCount = getFeedComments(post.id).length;
                 return (
-                  <button key={post.id} type="button" onClick={() => setDetailPost(post)} className="group overflow-hidden rounded-2xl border bg-card text-left">
+                  <button
+                    key={post.id}
+                    type="button"
+                    onClick={() => setDetailPostId(post.id)}
+                    className="group overflow-hidden rounded-2xl border bg-card text-left"
+                  >
                     <div className="relative aspect-square bg-muted/40">
                       {cover?.type === "video" ? (
                         <>
@@ -290,7 +373,7 @@ const Feed = () => {
           </CardContent>
         </Card>
 
-        <Dialog open={!!detailPost} onOpenChange={(open) => !open && setDetailPost(null)}>
+        <Dialog open={!!detailPost} onOpenChange={(open) => !open && setDetailPostId(null)}>
           <DialogContent className="max-w-4xl">
             {detailPost ? (
               <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -300,7 +383,7 @@ const Feed = () => {
                   </DialogHeader>
                   <ScrollArea className="max-h-[70vh]">
                     <div className="space-y-3 pr-4">
-                      <div className="rounded-xl border p-4 text-sm">{detailPost.content}</div>
+                      <div className="rounded-xl border p-4 text-sm leading-6">{renderTaggedContent(detailPost.content)}</div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {detailPost.media.map((item) => (
                           <div key={item.id} className="overflow-hidden rounded-2xl border bg-muted/20">
@@ -323,7 +406,13 @@ const Feed = () => {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <ScrollArea className="h-[44vh] pr-3">
-                        <div className="space-y-3">{rootComments.length > 0 ? renderCommentTree(null) : <div className="text-sm text-muted-foreground">첫 댓글을 남겨 보세요.</div>}</div>
+                        <div className="space-y-3">
+                          {comments.length > 0 ? (
+                            renderCommentTree(null)
+                          ) : (
+                            <div className="text-sm text-muted-foreground">첫 댓글을 남겨보세요.</div>
+                          )}
+                        </div>
                       </ScrollArea>
 
                       {replyTarget ? (
@@ -336,7 +425,7 @@ const Feed = () => {
                       ) : null}
 
                       <div className="space-y-3">
-                        <Textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글을 입력해 주세요." className="min-h-24" />
+                        <Textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글이나 @id 태그를 입력하세요" className="min-h-24" />
                         <Button onClick={handleAddComment} className="w-full">
                           댓글 등록
                         </Button>
@@ -349,6 +438,14 @@ const Feed = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      {showSpinner ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-background/70 backdrop-blur-sm">
+          <div className="rounded-2xl border bg-background px-6 py-4 text-sm font-medium text-muted-foreground">
+            불러오는 중...
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
