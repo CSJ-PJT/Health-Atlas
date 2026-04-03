@@ -589,6 +589,7 @@ function Admin() {
       let savedCount = 0;
       let skippedCount = 0;
       const failures: string[] = [];
+      const successes: string[] = [];
 
       for (const date of dateStrings) {
         try {
@@ -606,10 +607,21 @@ function Admin() {
 
           await saveHealthSnapshot(healthData, provider.id, `${date}T12:00:00.000Z`);
           savedCount += 1;
+          successes.push(date);
         } catch (error) {
           skippedCount += 1;
-          failures.push(`${date}: ${error instanceof Error ? error.message : "unknown error"}`);
+          const reason = error instanceof Error ? error.message : "unknown error";
+          failures.push(`${date}: ${reason}`);
+          await createTransferLog("provider_backfill_day", "error", `${provider.displayName} ${date} 실패 - ${reason}`);
         }
+      }
+
+      if (successes.length > 0) {
+        await createTransferLog(
+          "provider_backfill_day",
+          "success",
+          `${provider.displayName} 성공 날짜: ${successes.slice(0, 10).join(", ")}${successes.length > 10 ? " ..." : ""}`,
+        );
       }
 
       await createTransferLog(
