@@ -16,7 +16,6 @@ type CapacitorAppPlugin = {
 
 type CapacitorWindow = Window & {
   Capacitor?: {
-    isNativePlatform?: () => boolean;
     Plugins?: {
       App?: CapacitorAppPlugin;
     };
@@ -47,7 +46,7 @@ export function useDeviceBackNavigation(input: string | BackNavigationOptions = 
       location.state !== null &&
       "from" in location.state &&
       typeof (location.state as { from?: unknown }).from === "string"
-        ? ((location.state as { from: string }).from || fallback)
+        ? ((location.state as { from?: string }).from || fallback)
         : fallback;
 
     const pushGuardState = () => {
@@ -57,9 +56,7 @@ export function useDeviceBackNavigation(input: string | BackNavigationOptions = 
     const tryExitApp = () => {
       const appPlugin = (window as CapacitorWindow).Capacitor?.Plugins?.App;
       appPlugin?.exitApp?.();
-      const navigatorWithApp = navigator as Navigator & {
-        app?: { exitApp?: () => void };
-      };
+      const navigatorWithApp = navigator as Navigator & { app?: { exitApp?: () => void } };
       navigatorWithApp.app?.exitApp?.();
       window.close();
       window.setTimeout(pushGuardState, 150);
@@ -82,7 +79,7 @@ export function useDeviceBackNavigation(input: string | BackNavigationOptions = 
           tryExitApp();
         } else {
           lastBackAttemptAt = now;
-          toast(options.exitMessage || "종료하시려면 다시 누르시기 바랍니다");
+          toast(options.exitMessage || "종료하려면 다시 눌러 주세요");
           pushGuardState();
         }
         return;
@@ -96,10 +93,7 @@ export function useDeviceBackNavigation(input: string | BackNavigationOptions = 
 
     pushGuardState();
 
-    const handlePopState = () => {
-      handleBackAttempt();
-    };
-
+    const handlePopState = () => handleBackAttempt();
     const handleNativeBack = (event: Event) => {
       event.preventDefault();
       handleBackAttempt();

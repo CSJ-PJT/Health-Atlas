@@ -28,7 +28,7 @@ class MainActivity : BridgeActivity() {
                     lastBackPressAt = now
                     Toast.makeText(
                         this@MainActivity,
-                        "종료하시려면 다시 누르시기 바랍니다",
+                        "종료하려면 다시 눌러 주세요",
                         Toast.LENGTH_SHORT
                     ).show()
                 }

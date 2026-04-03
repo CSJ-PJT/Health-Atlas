@@ -25,10 +25,12 @@ export interface FeedPost {
   content: string;
   createdAt: string;
   media: FeedMedia[];
+  tags?: string[];
 }
 
-const POSTS_KEY = "social_feed_posts_v4";
-const COMMENTS_KEY = "social_feed_comments_v2";
+const POSTS_KEY = "social_feed_posts_v5";
+const COMMENTS_KEY = "social_feed_comments_v3";
+const SAMPLE_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 
 function readJson<T>(key: string, fallback: T): T {
   const stored = localStorage.getItem(key);
@@ -44,7 +46,28 @@ function readJson<T>(key: string, fallback: T): T {
 }
 
 function writeJson<T>(key: string, value: T) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeMediaForStorage(media: FeedMedia[]) {
+  return media.map((item) =>
+    item.type === "video"
+      ? {
+          ...item,
+          url: SAMPLE_VIDEO_URL,
+          thumbnailUrl: item.thumbnailUrl,
+        }
+      : {
+          ...item,
+          url: item.url,
+          thumbnailUrl: item.thumbnailUrl || item.url,
+        },
+  );
 }
 
 function buildSvgPlaceholder(title: string, accent: string, detail: string) {
@@ -73,14 +96,13 @@ function buildSeedMedia(index: number): FeedMedia[] {
   const imageA = buildSvgPlaceholder(`Run #${index}`, accent, "Recovery / Tempo / Long run");
   const imageB = buildSvgPlaceholder(`Lift #${index}`, "#f3e8ff", "Strength / Mobility / Sleep");
   const videoThumb = buildSvgPlaceholder(`Video #${index}`, "#ede9fe", "Preview");
-  const demoVideo = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 
   if (index % 4 === 0) {
     return [
       {
         id: `media-video-${index}`,
         type: "video",
-        url: demoVideo,
+        url: SAMPLE_VIDEO_URL,
         thumbnailUrl: videoThumb,
       },
     ];
@@ -129,15 +151,15 @@ export function ensureFeedSeed() {
   const authorNames = ["민서", "서연", "지우", "하나", "시온"];
   const captions = [
     "오늘 러닝 후 회복 스트레칭까지 마무리했습니다.",
-    "인터벌 훈련이 잘 풀려서 페이스가 안정적이었어요.",
+    "인터벌 훈련 덕분에 페이스가 안정적이었어요.",
     "주말 장거리 러닝을 앞두고 수면과 수분을 먼저 챙겼습니다.",
-    "비 오는 날이라 실내 러닝으로 루틴을 유지했습니다.",
-    "회복 주간이라 강도는 낮추고 자세를 더 신경 썼습니다.",
-    "아침 러닝 뒤 체감 회복이 빨라 만족스러웠습니다.",
+    "비 오는 날이라 실내 러닝으로 루틴을 유지했어요.",
+    "회복 주간이라 강도보다 자세를 더 신경 썼습니다.",
+    "아침 러닝 때 체감 회복이 꽤 만족스러웠습니다.",
     "HRV 흐름이 좋아서 오늘은 페이스를 조금 올렸어요.",
-    "실내 운동으로 대체했지만 루틴은 그대로 가져갔습니다.",
-    "조깅 전에 15분 종아리 컨디셔닝을 챙겼습니다.",
-    "장거리 후 다음 주를 위해 가볍게 정리했습니다.",
+    "실내 운동으로 대체했지만 루틴은 그대로 가져갑니다.",
+    "조깅 전에 15분 종아리 컨디셔닝도 챙겼습니다.",
+    "장거리 전 다음 주를 위해 가볍게 정리했습니다.",
   ];
 
   const seeded: FeedPost[] = captions.map((content, index) => ({
@@ -147,6 +169,7 @@ export function ensureFeedSeed() {
     content,
     createdAt: new Date(Date.now() - index * 1000 * 60 * 43).toISOString(),
     media: buildSeedMedia(index + 1),
+    tags: ["러닝", "회복", "기록"].slice(0, (index % 3) + 1),
   }));
 
   writeJson(POSTS_KEY, seeded);
@@ -163,7 +186,7 @@ function seedComments(posts: FeedPost[]) {
         authorId: "seed-coach",
         authorName: "코치봇",
         parentId: null,
-        content: "오늘 흐름이 안정적입니다. 회복 상태를 계속 기록해보세요.",
+        content: "오늘 흐름이 안정적입니다. 회복 상태를 계속 기록해 보세요.",
         likedUserIds: [],
         createdAt: new Date(Date.now() - index * 1000 * 60 * 19).toISOString(),
       },
@@ -173,7 +196,7 @@ function seedComments(posts: FeedPost[]) {
         authorId: post.authorId,
         authorName: post.authorName,
         parentId,
-        content: `@seed-coach 감사합니다. 내일도 기록 이어갈게요.`,
+        content: "@seed-coach 감사합니다. 내일도 기록 이어갈게요.",
         likedUserIds: [],
         createdAt: new Date(Date.now() - index * 1000 * 60 * 11).toISOString(),
       },
@@ -183,7 +206,7 @@ function seedComments(posts: FeedPost[]) {
   writeJson(COMMENTS_KEY, seededComments);
 }
 
-export function createFeedPost(authorId: string, authorName: string, content: string, media: FeedMedia[]) {
+export function createFeedPost(authorId: string, authorName: string, content: string, media: FeedMedia[], tags: string[] = []) {
   const next = [
     {
       id: `feed-${Date.now()}`,
@@ -191,35 +214,72 @@ export function createFeedPost(authorId: string, authorName: string, content: st
       authorName,
       content,
       createdAt: new Date().toISOString(),
-      media,
+      media: sanitizeMediaForStorage(media),
+      tags,
     },
     ...getFeedPosts(),
   ];
-  writeJson(POSTS_KEY, next);
+
+  if (writeJson(POSTS_KEY, next)) {
+    return true;
+  }
+
+  const fallback = next.map((post, index) =>
+    index === 0
+      ? {
+          ...post,
+          media: post.media.slice(0, 1).map((item) => ({
+            ...item,
+            url: item.thumbnailUrl || item.url,
+          })),
+        }
+      : post,
+  );
+
+  return writeJson(POSTS_KEY, fallback);
 }
 
-export function updateFeedPost(id: string, content: string, media?: FeedMedia[]) {
+export function updateFeedPost(id: string, content: string, media?: FeedMedia[], tags?: string[]) {
   const next = getFeedPosts().map((post) =>
     post.id === id
       ? {
           ...post,
           content,
-          media: media ?? post.media,
+          media: sanitizeMediaForStorage(media ?? post.media),
+          tags: tags ?? post.tags ?? [],
         }
       : post,
   );
-  writeJson(POSTS_KEY, next);
+
+  if (writeJson(POSTS_KEY, next)) {
+    return true;
+  }
+
+  const fallback = next.map((post) =>
+    post.id === id
+      ? {
+          ...post,
+          media: (media ?? post.media).slice(0, 1).map((item) => ({
+            ...item,
+            url: item.thumbnailUrl || item.url,
+          })),
+        }
+      : post,
+  );
+
+  return writeJson(POSTS_KEY, fallback);
 }
 
 export function deleteFeedPost(id: string) {
-  writeJson(
+  const postsOk = writeJson(
     POSTS_KEY,
     getFeedPosts().filter((post) => post.id !== id),
   );
-  writeJson(
+  const commentsOk = writeJson(
     COMMENTS_KEY,
     getFeedComments().filter((comment) => comment.postId !== id),
   );
+  return postsOk && commentsOk;
 }
 
 export function addFeedComment(
@@ -242,7 +302,7 @@ export function addFeedComment(
       createdAt: new Date().toISOString(),
     },
   ];
-  writeJson(COMMENTS_KEY, next);
+  return writeJson(COMMENTS_KEY, next);
 }
 
 export function toggleFeedCommentLike(commentId: string, userId: string) {
@@ -261,5 +321,5 @@ export function toggleFeedCommentLike(commentId: string, userId: string) {
     };
   });
 
-  writeJson(COMMENTS_KEY, next);
+  return writeJson(COMMENTS_KEY, next);
 }

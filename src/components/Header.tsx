@@ -41,7 +41,6 @@ export const Header = ({ showNav = false }: HeaderProps) => {
             </Link>
 
             <div className="flex shrink-0 items-center gap-2">
-              <AdviceDrawer />
               <Link
                 to="/profile"
                 state={{ from: location.pathname }}
@@ -55,6 +54,7 @@ export const Header = ({ showNav = false }: HeaderProps) => {
                   {nickname}
                 </span>
               </Link>
+              <AdviceDrawer />
             </div>
           </div>
         </div>
