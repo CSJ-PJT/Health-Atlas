@@ -104,6 +104,16 @@ interface EquipmentEntry {
   distanceKm: string;
 }
 
+interface ProviderValidationSummary {
+  providerId: ProviderId;
+  checkedAt: string;
+  mode: "live-test" | "backfill";
+  successCount?: number;
+  skippedCount?: number;
+  failedDates?: string[];
+  message: string;
+}
+
 type ApiDialogId = "garmin" | "samsung" | "apple" | "strava" | "kakao" | "line";
 
 const providers: ProviderId[] = ["samsung", "garmin", "apple-health", "strava"];
@@ -244,6 +254,7 @@ function Admin() {
   const [providerMessage, setProviderMessage] = useState("");
   const [providerIssues, setProviderIssues] = useState<string[]>([]);
   const [providerAuthExpiresAt, setProviderAuthExpiresAt] = useState("");
+  const [providerValidationSummary, setProviderValidationSummary] = useState<ProviderValidationSummary | null>(null);
   const [gptStatus, setGptStatus] = useState<"checking" | "connected" | "disconnected">("checking");
   const [gptLastSync, setGptLastSync] = useState("");
   const [remainingTokens, setRemainingTokens] = useState(0);
@@ -460,12 +471,30 @@ function Admin() {
       const healthData = await provider.getTodayData();
       await saveHealthSnapshot(healthData, provider.id, new Date().toISOString());
       await createTransferLog("provider_test", "success", `${provider.displayName} 실데이터 테스트 성공`);
+      setProviderValidationSummary({
+        providerId,
+        checkedAt: new Date().toISOString(),
+        mode: "live-test",
+        successCount: 1,
+        skippedCount: 0,
+        failedDates: [],
+        message: `${provider.displayName} 실데이터 테스트와 health_data 적재가 성공했습니다.`,
+      });
       invalidateHealthData();
       toast({ title: `${provider.displayName} 테스트 성공`, description: "실데이터 fetch와 health_data 적재를 완료했습니다." });
       await refreshConnectionState();
       await fetchLogs();
     } catch (error) {
       console.error("Provider test failed:", error);
+      setProviderValidationSummary({
+        providerId,
+        checkedAt: new Date().toISOString(),
+        mode: "live-test",
+        successCount: 0,
+        skippedCount: 0,
+        failedDates: [],
+        message: error instanceof Error ? error.message : "실데이터 테스트 중 오류가 발생했습니다.",
+      });
       await createTransferLog("provider_test", "error", error instanceof Error ? error.message : "provider test failed");
       toast({ title: `${getProviderMeta(providerId).label} 테스트 실패`, description: error instanceof Error ? error.message : "실데이터 테스트 중 오류가 발생했습니다.", variant: "destructive" });
       await fetchLogs();
@@ -497,6 +526,15 @@ function Admin() {
       }
       if (successes.length > 0) await createTransferLog("provider_backfill_day", "success", `${provider.displayName} 성공 날짜: ${successes.slice(0, 10).join(", ")}${successes.length > 10 ? " ..." : ""}`);
       await createTransferLog("provider_backfill", failures.length > 0 ? "error" : "success", `${provider.displayName} 최근 ${days}일 적재 완료 (성공 ${savedCount}건, 건너뜀 ${skippedCount}건)`);
+      setProviderValidationSummary({
+        providerId,
+        checkedAt: new Date().toISOString(),
+        mode: "backfill",
+        successCount: savedCount,
+        skippedCount,
+        failedDates: failures,
+        message: `${provider.displayName} 최근 ${days}일 적재 결과를 기록했습니다.`,
+      });
       invalidateHealthData();
       toast({ title: `${provider.displayName} 최근 ${days}일 적재 완료`, description: failures.length > 0 ? `${savedCount}건 저장, ${skippedCount}건 건너뜀` : `${savedCount}일치를 저장했습니다.` });
       if (failures.length > 0) console.warn("Provider backfill skipped dates:", failures);
@@ -504,6 +542,15 @@ function Admin() {
       await fetchLogs();
     } catch (error) {
       console.error("Provider backfill failed:", error);
+      setProviderValidationSummary({
+        providerId,
+        checkedAt: new Date().toISOString(),
+        mode: "backfill",
+        successCount: 0,
+        skippedCount: 0,
+        failedDates: [],
+        message: error instanceof Error ? error.message : "기간 적재 중 오류가 발생했습니다.",
+      });
       await createTransferLog("provider_backfill", "error", error instanceof Error ? error.message : "provider backfill failed");
       toast({ title: `${getProviderMeta(providerId).label} 기간 적재 실패`, description: error instanceof Error ? error.message : "기간 적재 중 오류가 발생했습니다.", variant: "destructive" });
       await fetchLogs();
@@ -596,6 +643,7 @@ function Admin() {
             <Card><CardHeader><CardTitle>API 설정</CardTitle><CardDescription>서비스별 API 값은 별도 창에서 관리합니다.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(["garmin", "samsung", "apple", "strava", "kakao", "line"] as ApiDialogId[]).map((item) => <Dialog key={item} open={apiDialog === item} onOpenChange={(open) => setApiDialog(open ? item : null)}><DialogTrigger asChild><Button variant="outline" className="gap-2"><KeyRound className="h-4 w-4" />{getApiDialogTitle(item)}</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{getApiDialogTitle(item)}</DialogTitle><DialogDescription>연동에 필요한 값을 저장합니다.</DialogDescription></DialogHeader>{item === "garmin" ? <div className="space-y-3"><Input value={garminApiBaseUrl} onChange={(e) => setGarminApiBaseUrl(e.target.value)} placeholder="API Base URL" /><Input value={garminAccessToken} onChange={(e) => setGarminAccessToken(e.target.value)} placeholder="Access Token" /><Input value={garminUserId} onChange={(e) => setGarminUserId(e.target.value)} placeholder="User ID" /></div> : null}{item === "samsung" ? <div className="space-y-3"><Input value={samsungApiKey} onChange={(e) => setSamsungApiKey(e.target.value)} placeholder="API Key" /><Input value={samsungClientId} onChange={(e) => setSamsungClientId(e.target.value)} placeholder="Client ID" /></div> : null}{item === "apple" ? <div className="space-y-3"><Input value={appleAppId} onChange={(e) => setAppleAppId(e.target.value)} placeholder="App ID" /><Input value={appleTeamId} onChange={(e) => setAppleTeamId(e.target.value)} placeholder="Team ID" /><Input value={appleRedirectUri} onChange={(e) => setAppleRedirectUri(e.target.value)} placeholder="Redirect URI" /><Input value={appleApiBaseUrl} onChange={(e) => setAppleApiBaseUrl(e.target.value)} placeholder="Bridge API Base URL" /><Input value={appleAccessToken} onChange={(e) => setAppleAccessToken(e.target.value)} placeholder="Bridge Access Token" /></div> : null}{item === "strava" ? <div className="space-y-3"><Input value={stravaClientId} onChange={(e) => setStravaClientId(e.target.value)} placeholder="Client ID" /><Input value={stravaClientSecret} onChange={(e) => setStravaClientSecret(e.target.value)} placeholder="Client Secret" /><Input value={stravaRefreshToken} onChange={(e) => setStravaRefreshToken(e.target.value)} placeholder="Refresh Token" /><Input value={stravaAthleteId} onChange={(e) => setStravaAthleteId(e.target.value)} placeholder="Athlete ID" /></div> : null}{item === "kakao" ? <div className="space-y-3"><Input value={kakaoRestApiKey} onChange={(e) => setKakaoRestApiKey(e.target.value)} placeholder="REST API Key" /><Input value={kakaoClientSecret} onChange={(e) => setKakaoClientSecret(e.target.value)} placeholder="Client Secret" /><Input value={kakaoRedirectUri} onChange={(e) => setKakaoRedirectUri(e.target.value)} placeholder="Redirect URI" /><Input value={kakaoConsentScope} onChange={(e) => setKakaoConsentScope(e.target.value)} placeholder="Scopes" /></div> : null}{item === "line" ? <div className="space-y-3"><Input value={lineChannelId} onChange={(e) => setLineChannelId(e.target.value)} placeholder="Channel ID" /><Input value={lineClientSecret} onChange={(e) => setLineClientSecret(e.target.value)} placeholder="Client Secret" /><Input value={lineRedirectUri} onChange={(e) => setLineRedirectUri(e.target.value)} placeholder="Redirect URI" /><Input value={lineScope} onChange={(e) => setLineScope(e.target.value)} placeholder="Scope" /></div> : null}<DialogFooter className="sm:justify-between"><Button variant="outline" onClick={() => setApiDialog(null)}>닫기</Button><div className="flex gap-2">{item === "kakao" ? <Button variant="outline" onClick={startKakaoLogin}>로그인 테스트</Button> : null}{item === "line" ? <Button variant="outline" onClick={startLineLogin}>로그인 테스트</Button> : null}<Button onClick={() => saveProviderConfig(item)}>저장</Button></div></DialogFooter></DialogContent></Dialog>)}</CardContent></Card>
             <Card><CardHeader><CardTitle>기간 적재</CardTitle><CardDescription>공급자별 최근 7일 또는 30일 데이터를 한 번에 적재합니다.</CardDescription></CardHeader><CardContent className="space-y-4">{providers.map((providerId) => <div key={`${providerId}-backfill`} className="flex flex-col gap-2 rounded-xl border p-3 md:flex-row md:items-center md:justify-between"><div className="font-medium">{getProviderMeta(providerId).label}</div><div className="flex gap-2"><Button variant="outline" disabled={backfillingProviderId !== null} onClick={() => void backfillProviderData(providerId, 7)}>{backfillingProviderId === providerId ? "적재 중..." : "최근 7일"}</Button><Button variant="outline" disabled={backfillingProviderId !== null} onClick={() => void backfillProviderData(providerId, 30)}>{backfillingProviderId === providerId ? "적재 중..." : "최근 30일"}</Button></div></div>)}</CardContent></Card>
             <Card><CardHeader><CardTitle>실데이터 테스트</CardTitle><CardDescription>공급자별로 즉시 fetch 후 health_data 적재를 검증합니다.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{providers.map((providerId) => <Button key={providerId} variant="outline" className="gap-2" disabled={testingProviderId !== null} onClick={() => void testProviderFetch(providerId)}><RefreshCw className={`h-4 w-4 ${testingProviderId === providerId ? "animate-spin" : ""}`} />{testingProviderId === providerId ? "테스트 중..." : `${getProviderMeta(providerId).label} 테스트`}</Button>)}</CardContent></Card>
+            {providerValidationSummary ? <Card><CardHeader><CardTitle>마지막 검증 결과</CardTitle><CardDescription>{formatDateTime(providerValidationSummary.checkedAt)} · {providerValidationSummary.mode === "live-test" ? "실데이터 테스트" : "기간 적재"}</CardDescription></CardHeader><CardContent className="space-y-3"><div className="font-medium">{getProviderMeta(providerValidationSummary.providerId).label}</div><div className="rounded-xl bg-muted p-3 text-sm">{providerValidationSummary.message}</div><div className="grid gap-3 md:grid-cols-3"><div className="rounded-xl border p-3 text-sm"><div className="text-muted-foreground">성공</div><div className="mt-1 font-semibold">{providerValidationSummary.successCount ?? 0}</div></div><div className="rounded-xl border p-3 text-sm"><div className="text-muted-foreground">건너뜀</div><div className="mt-1 font-semibold">{providerValidationSummary.skippedCount ?? 0}</div></div><div className="rounded-xl border p-3 text-sm"><div className="text-muted-foreground">실패 날짜</div><div className="mt-1 font-semibold">{providerValidationSummary.failedDates?.length ?? 0}</div></div></div>{providerValidationSummary.failedDates && providerValidationSummary.failedDates.length > 0 ? <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"><div className="mb-1 font-medium">확인할 실패 항목</div><ul className="space-y-1">{providerValidationSummary.failedDates.slice(0, 6).map((item) => <li key={item}>- {item}</li>)}</ul></div> : null}</CardContent></Card> : null}
             <Card><CardHeader><CardTitle>최근 연동 로그</CardTitle><CardDescription>최근 5개의 동기화 로그를 표시합니다.</CardDescription></CardHeader><CardContent className="space-y-3">{logs.length === 0 ? <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">표시할 로그가 없습니다.</div> : logs.map((log) => <div key={log.id} className="flex items-start justify-between rounded-xl border p-4"><div className="min-w-0"><div className="font-medium">{log.log_type}</div><div className="mt-1 text-sm text-muted-foreground">{log.message}</div><div className="mt-1 text-xs text-muted-foreground">{formatDateTime(log.created_at)}</div></div><div className="ml-3 flex items-center gap-2 text-xs text-muted-foreground"><Clock className="h-4 w-4" />{log.status}</div></div>)}</CardContent></Card>
           </TabsContent>
 

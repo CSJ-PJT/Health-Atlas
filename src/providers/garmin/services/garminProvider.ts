@@ -25,7 +25,7 @@ export const garminProvider: HealthProvider = {
         available: true,
         requiresPermission: false,
         lastSyncAt: localStorage.getItem("garmin_last_sync"),
-        message: "Garmin mock 데이터 연결 상태입니다.",
+        message: "Garmin mock 데이터로 연결 상태를 확인했습니다.",
         issues: [],
       };
     }

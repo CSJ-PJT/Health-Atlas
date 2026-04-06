@@ -29,7 +29,7 @@ export const stravaProvider: HealthProvider = {
     }
 
     if (authExpiresAt && Number(authExpiresAt) * 1000 < Date.now()) {
-      issues.push("Strava access token 만료 시간이 지났습니다. 다음 동기화 때 refresh가 필요합니다.");
+      issues.push("Strava access token 만료 시각이 지났습니다. 다음 요청 전에 refresh가 필요합니다.");
     }
 
     if (available && !isMockHealthDataEnabled()) {
@@ -47,7 +47,7 @@ export const stravaProvider: HealthProvider = {
       requiresPermission: !connected,
       lastSyncAt: localStorage.getItem("strava_last_sync"),
       authExpiresAt: authExpiresAt ? new Date(Number(authExpiresAt) * 1000).toISOString() : null,
-      message: connected ? "Strava 연결 확인 완료" : "Strava 설정 확인이 필요합니다.",
+      message: connected ? "Strava 연결 상태를 확인했습니다." : "Strava 설정 확인이 필요합니다.",
       issues,
     };
   },

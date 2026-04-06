@@ -33,7 +33,7 @@ export const appleHealthProvider: HealthProvider = {
     }
 
     if (available && !hasAppleHealthBridgeConfig() && !isMockHealthDataEnabled()) {
-      issues.push("Apple Health bridge URL 또는 access token 설정이 없어 실데이터를 불러올 수 없습니다.");
+      issues.push("Apple Health bridge URL 또는 access token 설정이 없어 실제 데이터를 불러올 수 없습니다.");
     }
 
     if (available && hasAppleHealthBridgeConfig() && !isMockHealthDataEnabled()) {
@@ -50,7 +50,7 @@ export const appleHealthProvider: HealthProvider = {
       available,
       requiresPermission: !connected,
       lastSyncAt: localStorage.getItem("apple_health_last_sync"),
-      message: connected ? "Apple Health 연결 확인 완료" : "Apple Health 설정 확인이 필요합니다.",
+      message: connected ? "Apple Health 연결 상태를 확인했습니다." : "Apple Health 설정 확인이 필요합니다.",
       issues,
     };
   },
@@ -73,7 +73,7 @@ export const appleHealthProvider: HealthProvider = {
     }
 
     if (!hasAppleHealthBridgeConfig()) {
-      throw new Error("Apple Health 실데이터를 읽으려면 bridge URL과 access token 설정이 필요합니다.");
+      throw new Error("Apple Health 데이터를 읽으려면 bridge URL과 access token 설정이 필요합니다.");
     }
 
     const payload = await fetchAppleHealthDailyPayload(getAppleHealthProviderConfig(), getTodayDateString());
