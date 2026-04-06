@@ -4,6 +4,8 @@ import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedSt
 import {
   type ChallengeEntry,
   type MultiRoom,
+  type RankingRange,
+  type RankingRow,
 } from "@/services/entertainmentTypes";
 import { loadServerSnapshot, saveServerSnapshot } from "@/services/repositories/serverSnapshotRepository";
 
@@ -15,6 +17,14 @@ type GameScores = Record<PlayableGameId, number>;
 
 function getProfileId() {
   return localStorage.getItem("profile_id");
+}
+
+function getUserId() {
+  return localStorage.getItem("user_id") || "me";
+}
+
+function getUserName() {
+  return localStorage.getItem("user_nickname") || "사용자";
 }
 
 function buildTextInList(ids: string[]) {
@@ -78,6 +88,68 @@ export async function hydrateEntertainmentRepositoryFromServer() {
   }
 
   return changed;
+}
+
+export async function recordEntertainmentScoreEvent(gameId: PlayableGameId, score: number) {
+  const profileId = getProfileId();
+  if (!profileId) return false;
+
+  const { error } = await supabase.from("entertainment_score_events" as never).insert({
+    id: `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    profile_id: profileId,
+    user_id: getUserId(),
+    player_name: getUserName(),
+    game_id: gameId,
+    score,
+    played_at: new Date().toISOString(),
+  });
+
+  return !error;
+}
+
+export async function loadEntertainmentLeaderboard(gameId: PlayableGameId, range: RankingRange) {
+  const now = Date.now();
+  const cutoff = new Date(now - (range === "weekly" ? 7 : 30) * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("entertainment_score_events" as never)
+    .select("*")
+    .eq("game_id", gameId)
+    .gte("played_at", cutoff)
+    .order("played_at", { ascending: false });
+
+  if (error) return null;
+
+  return buildRankingRows((data || []) as Array<Record<string, unknown>>);
+}
+
+export async function loadEntertainmentTopFive(gameId: PlayableGameId) {
+  const { data, error } = await supabase
+    .from("entertainment_score_events" as never)
+    .select("*")
+    .eq("game_id", gameId)
+    .order("played_at", { ascending: false });
+
+  if (error) return null;
+
+  return buildRankingRows((data || []) as Array<Record<string, unknown>>).slice(0, 5);
+}
+
+function buildRankingRows(rows: Array<Record<string, unknown>>): RankingRow[] {
+  const bestByUser = new Map<string, { name: string; score: number }>();
+  rows.forEach((row) => {
+    const userId = String(row.user_id || "");
+    const name = String(row.player_name || "사용자");
+    const score = Number(row.score || 0);
+    const current = bestByUser.get(userId);
+    if (!current || score > current.score) {
+      bestByUser.set(userId, { name, score });
+    }
+  });
+
+  return Array.from(bestByUser.entries())
+    .map(([userId, value]) => ({ userId, name: value.name, score: value.score }))
+    .sort((left, right) => right.score - left.score)
+    .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
 async function syncServerChallenges(challenges: ChallengeEntry[]) {

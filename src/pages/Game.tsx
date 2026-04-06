@@ -16,6 +16,9 @@ import {
   getStoredEntertainmentRooms,
   getStoredEntertainmentScores,
   hydrateEntertainmentRepositoryFromServer,
+  loadEntertainmentLeaderboard,
+  loadEntertainmentTopFive,
+  recordEntertainmentScoreEvent,
   saveStoredEntertainmentChallenges,
   saveStoredEntertainmentRooms,
   saveStoredEntertainmentScores,
@@ -80,6 +83,8 @@ export default function Game() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [rankingMode, setRankingMode] = useState<RankingRange>("weekly");
   const [rankingGame, setRankingGame] = useState<PlayableGameId>("tap-sprint");
+  const [liveRanking, setLiveRanking] = useState<RankingRow[]>(rankingData["tap-sprint"].weekly);
+  const [liveTopFive, setLiveTopFive] = useState<Array<{ name: string; score: number; badge: string }>>(topFiveData["tap-sprint"]);
   const [showTopFive, setShowTopFive] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showRoomCreate, setShowRoomCreate] = useState(false);
@@ -124,8 +129,33 @@ export default function Game() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRankings() {
+      const [rankingRows, topRows] = await Promise.all([
+        loadEntertainmentLeaderboard(rankingGame, rankingMode),
+        loadEntertainmentTopFive(rankingGame),
+      ]);
+
+      if (cancelled) return;
+
+      setLiveRanking(rankingRows && rankingRows.length > 0 ? rankingRows : rankingData[rankingGame][rankingMode]);
+      setLiveTopFive(
+        topRows && topRows.length > 0
+          ? topRows.map((row) => ({ name: row.name, score: row.score, badge: "Top Score" }))
+          : topFiveData[rankingGame],
+      );
+    }
+
+    void loadRankings();
+    return () => {
+      cancelled = true;
+    };
+  }, [rankingGame, rankingMode, scores]);
+
   const activeRoom = rooms.find((room) => room.id === activeRoomId) || null;
-  const currentLeaderboard = rankingData[rankingGame][rankingMode];
+  const currentLeaderboard = liveRanking;
   const myRanking = currentLeaderboard.find((entry) => entry.userId === MY_USER_ID);
   const myChallenges = useMemo(() => challenges.filter((item) => item.joinedUserIds.includes(MY_USER_ID) || item.completedUserIds.includes(MY_USER_ID)), [challenges]);
 
@@ -189,6 +219,7 @@ export default function Game() {
     const next = { ...scores, [gameId]: Math.max(scores[gameId] || 0, score) };
     setScores(next);
     saveStoredEntertainmentScores(next);
+    void recordEntertainmentScoreEvent(gameId, score);
     if (gameId === "tetris" && next.tetris >= 180) awardBadge({ id: "badge-tetris-master", name: "블록 마스터", description: "테트리스 180점 이상을 달성했습니다.", icon: "🧱" });
   };
 
@@ -251,7 +282,7 @@ export default function Game() {
                     {showTopFive ? (
                       <div className="rounded-2xl border p-4">
                         <div className="mb-3 flex items-center gap-2 text-sm font-semibold"><Crown className="h-4 w-4 text-primary" />역대 TOP 5</div>
-                        <div className="space-y-3">{topFiveData[rankingGame].map((entry, index) => <div key={`${entry.name}-${index}`} className="flex items-center justify-between rounded-xl bg-muted/40 p-3"><div><div className="font-medium">{index + 1}. {entry.name}</div><div className="text-xs text-muted-foreground">{entry.badge}</div></div><div className="text-sm font-semibold text-primary">{entry.score}</div></div>)}</div>
+                        <div className="space-y-3">{liveTopFive.map((entry, index) => <div key={`${entry.name}-${index}`} className="flex items-center justify-between rounded-xl bg-muted/40 p-3"><div><div className="font-medium">{index + 1}. {entry.name}</div><div className="text-xs text-muted-foreground">{entry.badge}</div></div><div className="text-sm font-semibold text-primary">{entry.score}</div></div>)}</div>
                       </div>
                     ) : (
                       <ScrollArea className="h-72 pr-3"><div className="space-y-3">{currentLeaderboard.map((entry) => <div key={`${entry.userId}-${entry.rank}`} className="flex items-center justify-between rounded-xl border p-4"><div><div className="font-medium">{entry.rank}위 {entry.name}</div><div className="text-xs text-muted-foreground">@{entry.userId}</div></div><div className="text-sm font-semibold text-primary">{entry.score}</div></div>)}</div></ScrollArea>
