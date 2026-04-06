@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getEarnedBadges } from "@/services/achievementStore";
-import { createScopedFeedPost, getFeedPosts, hydrateFeedStoreFromServer, type FeedMedia } from "@/services/feedStore";
+import { createScopedFeedPost, getFeedPosts, hydrateFeedStoreFromServer, subscribeFeedStoreChanges, type FeedMedia } from "@/services/feedStore";
 import { getProfileSettings, hydrateProfileSettingsFromServer, saveProfileSettings } from "@/services/profileStore";
 import { buildRecordTag, findDisplayedRecord, hydrateVerifiedRecordsFromServer } from "@/services/verifiedRecordStore";
 
@@ -135,6 +135,14 @@ const Profile = () => {
         setReloadTick((value) => value + 1);
       }
     })();
+
+    const unsubscribe = subscribeFeedStoreChanges(() => {
+      setReloadTick((value) => value + 1);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const earnedBadges = useMemo(() => getEarnedBadges(), [reloadTick]);

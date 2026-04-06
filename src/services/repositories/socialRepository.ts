@@ -112,6 +112,30 @@ export async function hydrateSocialRepositoryFromServer() {
   return changed;
 }
 
+export function subscribeSocialRepositoryChanges(onChange: () => void) {
+  const profileId = getProfileId();
+  const roomFilter = profileId ? `profile_id=eq.${profileId}` : undefined;
+  const channel = supabase
+    .channel(`social-repository-${Date.now()}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "social_friends", ...(roomFilter ? { filter: roomFilter } : {}) }, async () => {
+      await hydrateSocialRepositoryFromServer();
+      onChange();
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "social_chat_rooms", ...(roomFilter ? { filter: roomFilter } : {}) }, async () => {
+      await hydrateSocialRepositoryFromServer();
+      onChange();
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "social_chat_messages", ...(roomFilter ? { filter: roomFilter } : {}) }, async () => {
+      await hydrateSocialRepositoryFromServer();
+      onChange();
+    })
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
 async function replaceServerFriends(friends: FriendEntry[]) {
   const profileId = getProfileId();
   if (!profileId) {

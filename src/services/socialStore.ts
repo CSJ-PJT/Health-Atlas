@@ -9,6 +9,7 @@ import {
   saveStoredChatMessages,
   saveStoredChatRooms,
   saveStoredFriends,
+  subscribeSocialRepositoryChanges,
   upsertStoredChatMessage,
   upsertStoredChatRoom,
   upsertStoredFriend,
@@ -218,4 +219,8 @@ export function ensureSocialSeed() {
 
 export async function hydrateSocialStoreFromServer() {
   return hydrateSocialRepositoryFromServer();
+}
+
+export function subscribeSocialStoreChanges(onChange: () => void) {
+  return subscribeSocialRepositoryChanges(onChange);
 }

@@ -95,6 +95,24 @@ export async function hydrateFeedRepositoryFromServer() {
   return changed;
 }
 
+export function subscribeFeedRepositoryChanges(onChange: () => void) {
+  const channel = supabase
+    .channel(`feed-repository-${Date.now()}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "social_feed_posts" }, async () => {
+      await hydrateFeedRepositoryFromServer();
+      onChange();
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "social_feed_comments" }, async () => {
+      await hydrateFeedRepositoryFromServer();
+      onChange();
+    })
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
 async function replaceServerFeedPosts(posts: FeedPost[]) {
   const profileId = getProfileId();
   if (!profileId) {

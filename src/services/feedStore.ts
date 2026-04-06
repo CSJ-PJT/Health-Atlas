@@ -6,6 +6,7 @@ import {
   hydrateFeedRepositoryFromServer,
   saveStoredFeedComments,
   saveStoredFeedPosts,
+  subscribeFeedRepositoryChanges,
   upsertStoredFeedComment,
   upsertStoredFeedPost,
 } from "@/services/repositories/feedRepository";
@@ -331,4 +332,8 @@ export function deleteFeedComment(commentId: string) {
 
 export async function hydrateFeedStoreFromServer() {
   return hydrateFeedRepositoryFromServer();
+}
+
+export function subscribeFeedStoreChanges(onChange: () => void) {
+  return subscribeFeedRepositoryChanges(onChange);
 }

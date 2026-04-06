@@ -24,6 +24,7 @@ import {
   renameFriend,
   saveChatMessage,
   saveFriend,
+  subscribeSocialStoreChanges,
   upsertDirectRoom,
   type ChatRoom,
   type FriendEntry,
@@ -133,6 +134,14 @@ const Chat = () => {
         refreshSocialState();
       }
     })();
+
+    const unsubscribe = subscribeSocialStoreChanges(() => {
+      refreshSocialState();
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const activeRoom = rooms.find((room) => room.id === activeRoomId) ?? null;

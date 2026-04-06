@@ -17,6 +17,7 @@ import {
   getFeedComments,
   getFeedPosts,
   hydrateFeedStoreFromServer,
+  subscribeFeedStoreChanges,
   toggleFeedCommentLike,
   updateFeedPost,
   type FeedComment,
@@ -135,6 +136,14 @@ export default function Feed() {
         setTick((value) => value + 1);
       }
     })();
+
+    const unsubscribe = subscribeFeedStoreChanges(() => {
+      setTick((value) => value + 1);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
