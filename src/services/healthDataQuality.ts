@@ -65,7 +65,7 @@ export function analyzeRecordQuality(record: QualityRecord | null | undefined) {
       flags.push({
         key: "distance_outlier",
         severity: "warn",
-        message: "러닝 거리 또는 시간이 비정상적으로 커서 자동 기록 오류 가능성이 있습니다.",
+        message: "러닝 거리나 운동 시간이 비정상적으로 커서 자동 기록 오류일 가능성이 있습니다.",
       });
     }
 
@@ -81,13 +81,13 @@ export function analyzeRecordQuality(record: QualityRecord | null | undefined) {
       flags.push({
         key: "heart_rate_missing",
         severity: "info",
-        message: "심박 데이터가 없어 운동 강도 분석의 신뢰도가 낮습니다.",
+        message: "심박 데이터가 비어 있어 운동 강도 분석 정확도가 낮아질 수 있습니다.",
       });
     } else if (avgHeartRate < 45 || avgHeartRate > 205) {
       flags.push({
         key: "heart_rate_outlier",
         severity: "warn",
-        message: "평균 심박수가 비정상 범위로 감지되어 센서 오류 가능성이 있습니다.",
+        message: "평균 심박이 비정상 범위로 감지되어 센서 오류 가능성이 있습니다.",
       });
     }
 
@@ -104,7 +104,7 @@ export function analyzeRecordQuality(record: QualityRecord | null | undefined) {
     flags.push({
       key: "sleep_outlier",
       severity: "info",
-      message: "수면 시간이 과도하게 길게 기록되어 수면 병합 오류를 점검할 필요가 있습니다.",
+      message: "수면 시간이 과도하게 길게 기록되어 수면 병합 오류 여부를 확인할 필요가 있습니다.",
     });
   }
 
@@ -120,7 +120,7 @@ export function analyzeRecordQuality(record: QualityRecord | null | undefined) {
     flags.push({
       key: "steps_outlier",
       severity: "warn",
-      message: "걸음 수가 매우 커 중복 수집 여부를 점검하는 것이 좋습니다.",
+      message: "걸음 수가 매우 커서 중복 수집 여부를 확인하는 것이 좋습니다.",
     });
   }
 
@@ -129,7 +129,7 @@ export function analyzeRecordQuality(record: QualityRecord | null | undefined) {
 
 export function summarizeQualityFlags(flags: QualityFlag[]) {
   if (flags.length === 0) {
-    return "데이터 품질 이상치는 크게 감지되지 않았습니다.";
+    return "데이터 이상치는 크게 감지되지 않았습니다.";
   }
   return flags.map((flag) => flag.message).join(" ");
 }

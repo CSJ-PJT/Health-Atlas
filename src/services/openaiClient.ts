@@ -15,7 +15,7 @@ type ResponseItem = {
 async function getApiKey() {
   const { apiKey } = await getResolvedOpenAiCredentials();
   if (!apiKey) {
-    throw new Error("OpenAI API Key가 설정되지 않았습니다.");
+    throw new Error("OpenAI API Key가 설정되어 있지 않습니다.");
   }
   return apiKey;
 }
