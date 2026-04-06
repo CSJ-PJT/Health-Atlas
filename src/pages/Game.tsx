@@ -22,6 +22,7 @@ import {
   saveStoredEntertainmentChallenges,
   saveStoredEntertainmentRooms,
   saveStoredEntertainmentScores,
+  subscribeEntertainmentRepositoryChanges,
 } from "@/services/repositories/entertainmentRepository";
 import { getFriends, type FriendEntry } from "@/services/socialStore";
 import {
@@ -85,6 +86,7 @@ export default function Game() {
   const [rankingGame, setRankingGame] = useState<PlayableGameId>("tap-sprint");
   const [liveRanking, setLiveRanking] = useState<RankingRow[]>(rankingData["tap-sprint"].weekly);
   const [liveTopFive, setLiveTopFive] = useState<Array<{ name: string; score: number; badge: string }>>(topFiveData["tap-sprint"]);
+  const [rankingRefreshTick, setRankingRefreshTick] = useState(0);
   const [showTopFive, setShowTopFive] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showRoomCreate, setShowRoomCreate] = useState(false);
@@ -126,7 +128,15 @@ export default function Game() {
       setRooms(getRooms());
     }
     void hydrateEntertainment();
-    return () => { cancelled = true; };
+    const unsubscribe = subscribeEntertainmentRepositoryChanges(() => {
+      if (cancelled) return;
+      setChallenges(getChallenges());
+      setScores(getScores());
+      setRooms(getRooms());
+      setFriends(getFriends());
+      setRankingRefreshTick((value) => value + 1);
+    });
+    return () => { cancelled = true; unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -152,7 +162,7 @@ export default function Game() {
     return () => {
       cancelled = true;
     };
-  }, [rankingGame, rankingMode, scores]);
+  }, [rankingGame, rankingMode, scores, rankingRefreshTick]);
 
   const activeRoom = rooms.find((room) => room.id === activeRoomId) || null;
   const currentLeaderboard = liveRanking;

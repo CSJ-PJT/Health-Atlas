@@ -90,6 +90,45 @@ export async function hydrateEntertainmentRepositoryFromServer() {
   return changed;
 }
 
+export function subscribeEntertainmentRepositoryChanges(onChange: () => void) {
+  const profileId = getProfileId();
+  const profileFilter = profileId ? `profile_id=eq.${profileId}` : undefined;
+  const channel = supabase
+    .channel(`entertainment-repository-${Date.now()}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "entertainment_challenges", ...(profileFilter ? { filter: profileFilter } : {}) },
+      async () => {
+        await hydrateEntertainmentRepositoryFromServer();
+        onChange();
+      },
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "entertainment_rooms", ...(profileFilter ? { filter: profileFilter } : {}) },
+      async () => {
+        await hydrateEntertainmentRepositoryFromServer();
+        onChange();
+      },
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "entertainment_scores", ...(profileFilter ? { filter: profileFilter } : {}) },
+      async () => {
+        await hydrateEntertainmentRepositoryFromServer();
+        onChange();
+      },
+    )
+    .on("postgres_changes", { event: "*", schema: "public", table: "entertainment_score_events" }, async () => {
+      onChange();
+    })
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
 export async function recordEntertainmentScoreEvent(gameId: PlayableGameId, score: number) {
   const profileId = getProfileId();
   if (!profileId) return false;
