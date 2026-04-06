@@ -20,11 +20,28 @@ async function loadTranspiledModule(relativePath) {
   return import(`data:text/javascript;base64,${encoded}`);
 }
 
+async function loadTranspiledModuleWithoutImports(relativePath) {
+  const fullPath = path.join(rootDir, relativePath);
+  const source = await readFile(fullPath, "utf8");
+  const stripped = source.replace(/^import .*;$/gm, "");
+  const transpiled = ts.transpileModule(stripped, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2020,
+      target: ts.ScriptTarget.ES2020,
+    },
+    fileName: fullPath,
+  }).outputText;
+
+  const encoded = Buffer.from(transpiled, "utf8").toString("base64");
+  return import(`data:text/javascript;base64,${encoded}`);
+}
+
 async function run() {
   let passed = 0;
 
   const qualityModule = await loadTranspiledModule("src/services/healthDataQuality.ts");
   const localAiModule = await loadTranspiledModule("src/services/localAiEngine.ts");
+  const verifiedRecordModule = await loadTranspiledModuleWithoutImports("src/services/verifiedRecordStore.ts");
 
   const qualityFlags = qualityModule.analyzeRecordQuality({
     running_data: {
@@ -72,6 +89,28 @@ async function run() {
   assert.equal(blueprint.name, "RH Local AI");
   assert.ok(Array.isArray(blueprint.modules), "blueprint modules should be an array");
   assert.ok(blueprint.modules.includes("chat-reply"), "blueprint should include chat-reply");
+  passed += 1;
+
+  assert.equal(
+    verifiedRecordModule.buildRecordTag({ type: "full", officialTime: "2:59:59" }),
+    "Sub3",
+    "full marathon under 3 hours should map to Sub3",
+  );
+  assert.equal(
+    verifiedRecordModule.buildRecordTag({ type: "full", officialTime: "3:50:22" }),
+    "Sub4",
+    "full marathon under 4 hours should map to Sub4",
+  );
+  assert.equal(
+    verifiedRecordModule.buildRecordTag({ type: "half", officialTime: "1:45:00" }),
+    "Half 1:45:00",
+    "half marathon should use Half prefix",
+  );
+  assert.equal(
+    verifiedRecordModule.buildRecordTag({ type: "10k", officialTime: "0:48:10" }),
+    "10K 0:48:10",
+    "10k should use 10K prefix",
+  );
   passed += 1;
 
   console.log(`Service tests passed: ${passed}`);
