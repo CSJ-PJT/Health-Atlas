@@ -42,6 +42,9 @@ async function run() {
   const qualityModule = await loadTranspiledModule("src/services/healthDataQuality.ts");
   const localAiModule = await loadTranspiledModule("src/services/localAiEngine.ts");
   const verifiedRecordModule = await loadTranspiledModuleWithoutImports("src/services/verifiedRecordStore.ts");
+  const payloadGuardModule = await loadTranspiledModule("src/providers/shared/services/providerPayloadGuards.ts");
+  const garminMapperModule = await loadTranspiledModule("src/providers/garmin/services/garminMapper.ts");
+  const stravaMapperModule = await loadTranspiledModule("src/providers/strava/services/stravaMapper.ts");
 
   const qualityFlags = qualityModule.analyzeRecordQuality({
     running_data: {
@@ -111,6 +114,88 @@ async function run() {
     "10K 0:48:10",
     "10k should use 10K prefix",
   );
+  passed += 1;
+
+  assert.deepEqual(payloadGuardModule.asObject(null), {}, "asObject should return empty object for null");
+  assert.deepEqual(payloadGuardModule.asArray("nope"), [], "asArray should return empty array for non-array");
+  assert.deepEqual(
+    payloadGuardModule.asStringArray(["a", 1, "b", null]),
+    ["a", "b"],
+    "asStringArray should keep only string values",
+  );
+  passed += 1;
+
+  const garminMapped = garminMapperModule.mapGarminPayloadToNormalizedHealthData({
+    summary: {
+      steps: 12345,
+      distanceMeters: 12500,
+      activeCalories: 640,
+      sleepMinutes: 430,
+      averageHeartRate: 148,
+      restingHeartRate: 52,
+      weightKg: 68.2,
+      bodyFatPercent: 15.4,
+      vo2Max: 55,
+      caloriesConsumed: 2100,
+    },
+    activities: [
+      {
+        id: "g1",
+        name: "Morning Run",
+        type: "running",
+        durationMinutes: 58,
+        distanceMeters: 12000,
+        calories: 720,
+        averageHeartRate: 151,
+        averageSpeedMetersPerSecond: 3.8,
+        averageRunCadence: 176,
+      },
+    ],
+    sleep: [{ totalMinutes: 430, deepMinutes: 90, remMinutes: 75 }],
+    nutrition: [{ calories: 2100, proteinGrams: 130, carbsGrams: 250, fatGrams: 55 }],
+    hydration: [{ milliliters: 1800 }],
+  });
+  assert.equal(garminMapped.steps_data.count, 12345, "garmin mapper should map steps");
+  assert.equal(garminMapped.steps_data.distance, "12.50", "garmin mapper should map distance to km string");
+  assert.equal(garminMapped.exercise_data.length, 1, "garmin mapper should map activities");
+  assert.equal(garminMapped.nutrition_data.proteinGrams, 130, "garmin mapper should sum protein");
+  passed += 1;
+
+  const stravaMapped = stravaMapperModule.mapStravaPayloadToNormalizedHealthData({
+    summary: {
+      steps: 9876,
+      distanceMeters: 10400,
+      activeCalories: 540,
+      averageHeartRate: 144,
+      restingHeartRate: 49,
+      weightKg: 66,
+      vo2Max: 53,
+      elevationGain: 220,
+    },
+    activities: [
+      {
+        id: 101,
+        name: "Tempo Run",
+        type: "Run",
+        start_date: "2026-04-06T06:00:00.000Z",
+        elapsed_time: 3600,
+        moving_time: 3400,
+        distance: 10000,
+        total_elevation_gain: 180,
+        calories: 690,
+        average_speed: 3.6,
+        max_speed: 5.2,
+        average_heartrate: 152,
+        max_heartrate: 176,
+      },
+    ],
+    athlete: { weight: 66 },
+    stats: { recent_run_totals: { distance: 42000 } },
+  });
+  assert.equal(stravaMapped.steps_data.count, 9876, "strava mapper should map steps");
+  assert.equal(stravaMapped.exercise_data[0].distance, 10, "strava mapper should map distance to km");
+  assert.equal(stravaMapped.heart_rate, 144, "strava mapper should map average heart rate");
+  assert.ok(Array.isArray(stravaMapped.vo2max), "strava mapper should map vo2max collection");
   passed += 1;
 
   console.log(`Service tests passed: ${passed}`);
