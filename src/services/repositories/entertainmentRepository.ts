@@ -44,6 +44,7 @@ export function getStoredEntertainmentScores() {
     "resource-rush": 0,
     "fitcraft-island": 0,
     "pulse-frontier": 0,
+    "private-product-valley": 0,
     tetris: 0,
   });
 }

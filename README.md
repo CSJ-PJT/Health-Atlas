@@ -1,73 +1,101 @@
-# Welcome to your Lovable project
+# Health Sync Daily Monorepo
 
-## Project info
+This repository is now structured as a monorepo with two independently deployable apps:
 
-**URL**: https://lovable.dev/projects/760ea3f2-8564-4f72-897f-cd37a8a466ca
+- `apps/health-app`
+- `apps/private-product-game`
 
-## How can I edit this code?
+The health app remains the source of truth for raw health data, provider sync, analytics, AI coaching, social, admin, and game-link derivation.
 
-There are several ways of editing your application.
+The standalone game app consumes only derived game-safe parameters through a dedicated linkage layer. It never reads raw health records directly.
 
-**Use Lovable**
+## Workspace Layout
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/760ea3f2-8564-4f72-897f-cd37a8a466ca) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```text
+apps/
+  health-app/
+  private-product-game/
+packages/
+  shared-auth/
+  shared-profile/
+  shared-types/
+  game-link-sdk/
+  design-system/
+supabase/
+  migrations/
+docs/
+  monorepo-architecture.md
+  life-sim-mode.md
 ```
 
-**Edit a file directly in GitHub**
+## Apps
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Health App
 
-**Use GitHub Codespaces**
+Focused on:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- provider sync and normalized health data
+- AI coaching and analytics
+- social and admin flows
+- lightweight game-link management
 
-## What technologies are used for this project?
+Game-related UI in the health app is intentionally small:
 
-This project is built with:
+- connect/disconnect game account
+- preview derived game parameters
+- view linked missions and rewards
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### private-product Game
 
-## How can I deploy this project?
+Focused on:
 
-Simply open [Lovable](https://lovable.dev/projects/760ea3f2-8564-4f72-897f-cd37a8a466ca) and click on Share -> Publish.
+- standalone top-down life-sim RPG vertical slice
+- fullscreen-capable play surface
+- local-first save system with optional linked cloud save
+- optional bonuses from derived game-link data only
 
-## Can I connect a custom domain to my Lovable project?
+## Commands
 
-Yes, you can!
+From the repo root:
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```bash
+npm run dev:health
+npm run dev:game
+npm run build:health
+npm run build:game
+npm test
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## Environment
+
+Copy `.env.example` to `.env` and provide:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+## Database
+
+Apply migrations with:
+
+```bash
+npx supabase db push
+```
+
+Recent monorepo/game-link work introduces:
+
+- secure-ish game account linkage tables
+- derived game-link profile storage
+- mission/reward sync tables
+- optional standalone life-sim cloud saves
+
+See:
+
+- `docs/monorepo-architecture.md`
+- `docs/life-sim-mode.md`
+
+## Security Notes
+
+- The game must not consume raw health rows.
+- The linkage layer exposes only derived parameters such as activity, sleep, recovery, hydration, consistency, and resonance.
+- New linkage tables use RLS and RPC-driven access.
+- Current client identity is still based on the existing app profile/user model, so linkage RPC policies are a transitional compromise until first-class auth is fully tightened.

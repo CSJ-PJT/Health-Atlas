@@ -1,0 +1,99 @@
+import type { GarminDailyPayload } from "@/providers/garmin/types/garmin";
+import type { NormalizedHealthData } from "@/providers/shared/types/provider";
+
+export function mapGarminPayloadToNormalizedHealthData(payload: GarminDailyPayload): NormalizedHealthData {
+  const summary = payload.summary || {};
+  const activities = payload.activities || [];
+  const sleepSessions = payload.sleep || [];
+  const nutrition = payload.nutrition || [];
+  const hydration = payload.hydration || [];
+
+  const totalNutritionCalories = nutrition.reduce((sum, item) => sum + (item.calories || 0), 0);
+  const totalHydrationLiters = hydration.reduce((sum, item) => sum + ((item.milliliters || 0) / 1000), 0);
+
+  return {
+    steps_data: {
+      count: summary.steps || 0,
+      distance: ((summary.distanceMeters || 0) / 1000).toFixed(2),
+      calories: Math.round(summary.activeCalories || 0),
+      movingMinutes: Math.round(activities.reduce((sum, activity) => sum + (activity.durationMinutes || 0), 0)),
+    },
+    exercise_data: activities.length > 0
+      ? activities.map((activity) => ({
+          type: activity.name || activity.type || "Garmin Activity",
+          duration: Math.round(activity.durationMinutes || 0),
+          calories: Math.round(activity.calories || 0),
+          exerciseType: activity.type,
+          distance: activity.distanceMeters ? Number((activity.distanceMeters / 1000).toFixed(2)) : undefined,
+          startTime: activity.startTime,
+          endTime: activity.endTime,
+          averageHeartRate: activity.averageHeartRate,
+          maxHeartRate: activity.maxHeartRate,
+          averageSpeed: activity.averageSpeedMetersPerSecond
+            ? Number((activity.averageSpeedMetersPerSecond * 3.6).toFixed(1))
+            : undefined,
+          maxSpeed: activity.maxSpeedMetersPerSecond ? Number((activity.maxSpeedMetersPerSecond * 3.6).toFixed(1)) : undefined,
+          averagePaceSecondsPerKilometer: activity.averagePaceSecondsPerKilometer,
+          elevationGainMeters: activity.elevationGainMeters,
+          elevationLossMeters: activity.elevationLossMeters,
+        }))
+      : [{
+          type: "Garmin Activity",
+          duration: 0,
+          calories: 0,
+        }],
+    sleep_data: {
+      totalMinutes: Math.round(
+        sleepSessions.reduce((sum, session) => sum + (session.totalMinutes || 0), 0) || summary.sleepMinutes || 0,
+      ),
+      stages: sleepSessions.map((session) => ({
+        startTime: session.startTime,
+        endTime: session.endTime,
+        deepMinutes: session.deepMinutes || 0,
+        lightMinutes: session.lightMinutes || 0,
+        remMinutes: session.remMinutes || 0,
+        awakeMinutes: session.awakeMinutes || 0,
+      })),
+      hrvStatus: "Balanced",
+    },
+    body_composition_data: {
+      weight: summary.weightKg || 0,
+      bodyFat: summary.bodyFatPercent || 0,
+    },
+    nutrition_data: {
+      calories: Math.round(totalNutritionCalories || summary.caloriesConsumed || 0),
+      nutrition,
+      proteinGrams: Number(nutrition.reduce((sum, item) => sum + (item.proteinGrams || 0), 0).toFixed(1)),
+      carbsGrams: Number(nutrition.reduce((sum, item) => sum + (item.carbsGrams || 0), 0).toFixed(1)),
+      fatGrams: Number(nutrition.reduce((sum, item) => sum + (item.fatGrams || 0), 0).toFixed(1)),
+    },
+    heart_rate: Math.round(summary.averageHeartRate || summary.restingHeartRate || 0),
+    resting_heart_rate: summary.restingHeartRate,
+    hydration: totalHydrationLiters > 0 ? [{ totalLiters: totalHydrationLiters, entries: hydration }] : [],
+    vo2max: summary.vo2Max ? [{ value: summary.vo2Max }] : [],
+    source_metrics: {
+      hydrationMl: summary.hydrationMl || 0,
+      activeCalories: summary.activeCalories || 0,
+      restingCalories: summary.restingCalories || 0,
+      garminActivities: activities.map((activity) => ({
+        id: activity.id || "",
+        type: activity.type || "",
+        name: activity.name || "",
+        averageRunCadence: activity.averageRunCadence || 0,
+        maxRunCadence: activity.maxRunCadence || 0,
+        vo2Max: activity.vo2Max || 0,
+        trainingEffectLabel: activity.trainingEffectLabel || "",
+        trainingEffectAerobic: activity.trainingEffectAerobic || 0,
+        trainingEffectAnaerobic: activity.trainingEffectAnaerobic || 0,
+        trainingLoad: activity.trainingLoad || 0,
+        estimatedSweatLossMl: activity.estimatedSweatLossMl || 0,
+        averageStrideLengthMeters: activity.averageStrideLengthMeters || 0,
+        temperatureCelsius: activity.temperatureCelsius ?? null,
+        steps: activity.steps || 0,
+        routePoints: activity.routePoints || [],
+        laps: activity.laps || [],
+        timeline: activity.timeline || [],
+      })),
+    },
+  };
+}

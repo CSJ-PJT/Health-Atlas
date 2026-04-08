@@ -1,6 +1,14 @@
 ﻿import type { PlayableGameId } from "@/components/entertainment/playableGames";
 import type { RankingRange, RankingRow } from "@/services/entertainmentTypes";
 
+export const majorEntertainmentModes: Array<{ id: PlayableGameId; title: string; summary: string }> = [
+  {
+    id: "private-product-valley",
+    title: "제5새벽 계곡",
+    summary: "회복 농장과 새벽 마을, 정화 광맥을 오가며 작물을 기르고 사람들을 돕는 톱다운 라이프 심 RPG입니다.",
+  },
+];
+
 export const miniGames: Array<{ id: PlayableGameId; title: string; summary: string }> = [
   {
     id: "tap-sprint",
@@ -131,6 +139,16 @@ export function buildSeedRankingData(
         { name: myUserName, userId: myUserId, score: 1170, rank: 2 },
       ],
     },
+    "private-product-valley": {
+      weekly: [
+        { name: "아리아", userId: "aria", score: 180, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 146, rank: 2 },
+      ],
+      monthly: [
+        { name: "아리아", userId: "aria", score: 780, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 702, rank: 2 },
+      ],
+    },
     tetris: {
       weekly: [
         { name: "윤호", userId: "yunho", score: 230, rank: 1 },
@@ -187,6 +205,13 @@ export function buildSeedTopFiveData(myUserName: string): Record<PlayableGameId,
       { name: myUserName, score: 2450, badge: "Pulse General" },
       { name: "지우", score: 2388, badge: "Outpost Hunter" },
       { name: "가온", score: 2320, badge: "Tactical Mind" },
+    ],
+    "private-product-valley": [
+      { name: "아리아", score: 980, badge: "Dawn Keeper" },
+      { name: "도윤", score: 944, badge: "Purifier Builder" },
+      { name: myUserName, score: 910, badge: "Renewal Farmer" },
+      { name: "민서", score: 888, badge: "Harvest Warden" },
+      { name: "서연", score: 850, badge: "Archive Walker" },
     ],
     tetris: [
       { name: "윤호", score: 2310, badge: "Block Master" },

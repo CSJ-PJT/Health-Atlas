@@ -1,0 +1,16 @@
+{
+  "name": "@health-sync/health-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@health-sync/game-link-sdk": "workspace:*",
+    "@health-sync/shared-auth": "workspace:*",
+    "@health-sync/shared-types": "workspace:*"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  }
+}
