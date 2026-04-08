@@ -124,6 +124,7 @@ function getChallenges(): ChallengeEntry[] {
 function getScores(): Record<PlayableGameId, number> { return getStoredEntertainmentScores(); }
 function getRooms(): MultiRoom[] { return getStoredEntertainmentRooms(); }
 export default function Game() {
+  const standaloneprivate-productUrl = import.meta.env.VITE_private-product_APP_URL;
   const navigate = useNavigate();
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [challenges, setChallenges] = useState<ChallengeEntry[]>([]);
@@ -829,11 +830,19 @@ export default function Game() {
                           key={mode.id}
                           type="button"
                           className="rounded-3xl border border-primary/20 bg-background/70 p-5 text-left transition hover:border-primary/40 hover:bg-muted/30"
-                          onClick={() => navigate("/game-link", { state: { from: "/game" } })}
+                          onClick={() => {
+                            if (standaloneprivate-productUrl) {
+                              window.location.href = standaloneprivate-productUrl;
+                              return;
+                            }
+                            navigate("/game-link", { state: { from: "/game" } });
+                          }}
                         >
                           <div className="text-lg font-semibold">{mode.title}</div>
                           <div className="mt-2 text-sm text-muted-foreground">{mode.summary}</div>
-                          <div className="mt-4 text-xs text-primary">별도 게임 앱 연동 안내</div>
+                          <div className="mt-4 text-xs text-primary">
+                            {standaloneprivate-productUrl ? "별도 private-product 앱 열기" : "별도 게임 앱 연동 안내"}
+                          </div>
                         </button>
                       ))}
                     </CardContent>

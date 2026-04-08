@@ -11,3 +11,5 @@
 - Expose only derived game-safe parameters.
 - Never route raw `health_data` directly into the standalone game app.
 - Keep connect/disconnect, mission preview, reward sync, and derived stat preview readable and simple.
+- Treat private-product as a separate deployable product. The health app should launch or link to it, not embed the full standalone game loop.
+- Preserve Pulse Frontier and the lightweight entertainment hub here.

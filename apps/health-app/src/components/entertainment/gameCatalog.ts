@@ -5,7 +5,7 @@ export const majorEntertainmentModes: Array<{ id: PlayableGameId; title: string;
   {
     id: "private-product-valley",
     title: "제5새벽 계곡",
-    summary: "회복 농장과 새벽 마을, 정화 광맥을 오가며 작물을 기르고 사람들을 돕는 톱다운 라이프 심 RPG입니다.",
+    summary: "별도 private-product 앱에서 즐기는 톱다운 라이프 심 RPG입니다. 농장, 마을, 광산, 정착지 확장이 하나의 세계로 이어집니다.",
   },
 ];
 
@@ -33,7 +33,7 @@ export const miniGames: Array<{ id: PlayableGameId; title: string; summary: stri
   {
     id: "fitcraft-island",
     title: "FitCraft Island",
-    summary: "건강 활동으로 해금한 재료로 친구와 함께 2D 섬을 꾸미는 협동 창조형 게임입니다.",
+    summary: "창조형 건설 시스템의 원형입니다. 현재는 private-product의 정착지 확장과 거주지 건설 기반으로 수렴 중입니다.",
   },
   {
     id: "pulse-frontier",

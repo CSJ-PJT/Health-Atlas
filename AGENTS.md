@@ -23,6 +23,9 @@
 - Prefer serializable state and adapter/repository boundaries.
 - Design with future desktop/EXE/Steam packaging in mind.
 - Do not make progression depend on health linkage.
+- `apps/private-product-game` is the standalone game product.
+- `FitCraft Island` should converge into private-product as building / settlement systems, not as a competing standalone product.
+- `Pulse Frontier` stays in the health app entertainment hub for now.
 
 ## Supabase / Security
 
