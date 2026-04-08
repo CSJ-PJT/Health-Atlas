@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
 import { loadServerSnapshot, saveServerSnapshot } from "@/services/repositories/serverSnapshotRepository";
+import { repairLegacyText } from "@/services/textRepair";
 import type { FeedComment, FeedPost } from "@/services/feedStore";
 
 const POSTS_KEY = "social_feed_posts_v5";
@@ -272,11 +273,11 @@ async function loadServerFeedPosts() {
     (row): FeedPost => ({
       id: row.id,
       authorId: row.author_id,
-      authorName: row.author_name,
-      content: row.content,
+      authorName: repairLegacyText(row.author_name),
+      content: repairLegacyText(row.content),
       createdAt: row.created_at,
       media: Array.isArray(row.media) ? (row.media as FeedPost["media"]) : [],
-      tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+      tags: Array.isArray(row.tags) ? (row.tags as string[]).map((tag) => repairLegacyText(tag)) : [],
       visibility: (row.visibility as "public" | "profile" | null) || "public",
     }),
   );
@@ -297,9 +298,9 @@ async function loadServerFeedComments() {
       id: row.id,
       postId: row.post_id,
       authorId: row.author_id,
-      authorName: row.author_name,
+      authorName: repairLegacyText(row.author_name),
       parentId: row.parent_id,
-      content: row.content,
+      content: repairLegacyText(row.content),
       likedUserIds: Array.isArray(row.liked_user_ids) ? (row.liked_user_ids as string[]) : [],
       createdAt: row.created_at,
     }),

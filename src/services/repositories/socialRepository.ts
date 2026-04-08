@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
 import { loadServerSnapshot, saveServerSnapshot } from "@/services/repositories/serverSnapshotRepository";
+import { repairLegacyText } from "@/services/textRepair";
 import type { ChatMessage, ChatRoom, FriendEntry } from "@/services/socialStore";
 
 const FRIENDS_KEY = "social_friends";
@@ -337,7 +338,7 @@ async function loadServerFriends() {
   return (data || []).map(
     (row): FriendEntry => ({
       id: row.id,
-      name: row.name,
+      name: repairLegacyText(row.name),
       phone: row.phone,
       addedAt: row.added_at,
     }),
@@ -358,7 +359,7 @@ async function loadServerChatRooms() {
   return (data || []).map(
     (row): ChatRoom => ({
       id: row.id,
-      name: row.name,
+      name: repairLegacyText(row.name),
       type: row.type as ChatRoom["type"],
       memberIds: Array.isArray(row.member_ids) ? (row.member_ids as string[]) : [],
       createdAt: row.created_at,
@@ -382,8 +383,8 @@ async function loadServerChatMessages() {
       id: row.id,
       roomId: row.room_id,
       senderId: row.sender_id,
-      senderName: row.sender_name,
-      content: row.content,
+      senderName: repairLegacyText(row.sender_name),
+      content: repairLegacyText(row.content),
       createdAt: row.created_at,
     }),
   );
