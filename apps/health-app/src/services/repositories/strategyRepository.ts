@@ -26,7 +26,7 @@ export function buildStrategySnapshot(state: StrategyGameState) {
 export async function upsertStrategyMatch(room: MultiRoom, state: StrategyGameState) {
   const profileId = getProfileId();
 
-  const { error } = await supabase.from("entertainment_strategy_matches" as never).upsert({
+  const { error } = await supabase.from("entertainment_strategy_matches").upsert({
     id: room.id,
     room_id: room.id,
     profile_id: profileId,
@@ -43,7 +43,7 @@ export async function upsertStrategyMatch(room: MultiRoom, state: StrategyGameSt
 }
 
 export async function appendStrategyEvent(roomId: string, userId: string, action: StrategyAction) {
-  const { error } = await supabase.from("entertainment_strategy_events" as never).insert({
+  const { error } = await supabase.from("entertainment_strategy_events").insert({
     id: `strategy-event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     match_id: roomId,
     room_id: roomId,
@@ -58,7 +58,7 @@ export async function appendStrategyEvent(roomId: string, userId: string, action
 
 export async function saveStrategySnapshot(roomId: string, state: StrategyGameState) {
   const snapshot = buildStrategySnapshot(state);
-  const { error } = await supabase.from("entertainment_strategy_snapshots" as never).upsert({
+  const { error } = await supabase.from("entertainment_strategy_snapshots").upsert({
     id: `${roomId}:${snapshot.version}`,
     match_id: roomId,
     version: snapshot.version,
@@ -71,7 +71,7 @@ export async function saveStrategySnapshot(roomId: string, state: StrategyGameSt
 
 export async function loadLatestStrategyState(roomId: string) {
   const { data, error } = await supabase
-    .from("entertainment_strategy_snapshots" as never)
+    .from("entertainment_strategy_snapshots")
     .select("*")
     .eq("match_id", roomId)
     .order("version", { ascending: false })
@@ -88,7 +88,7 @@ export async function loadLatestStrategyState(roomId: string) {
 export async function upsertStrategySeasonResults(state: StrategyGameState) {
   const userIds = state.players.map((player) => player.userId);
   const { data } = await supabase
-    .from("entertainment_strategy_season_scores" as never)
+    .from("entertainment_strategy_season_scores")
     .select("*")
     .in("user_id", userIds);
 
@@ -125,13 +125,13 @@ export async function upsertStrategySeasonResults(state: StrategyGameState) {
     };
   });
 
-  const { error } = await supabase.from("entertainment_strategy_season_scores" as never).upsert(rows);
+  const { error } = await supabase.from("entertainment_strategy_season_scores").upsert(rows);
   return !error;
 }
 
 export async function loadStrategySeasonLeaderboard(limit = 20): Promise<StrategySeasonRow[]> {
   const { data, error } = await supabase
-    .from("entertainment_strategy_season_scores" as never)
+    .from("entertainment_strategy_season_scores")
     .select("*")
     .order("rating", { ascending: false })
     .order("capture_points", { ascending: false })

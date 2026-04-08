@@ -249,5 +249,5 @@ export async function loadServerAuditEvents() {
 }
 
 export async function loadSnapshotFallback(scopeKey: string) {
-  return loadServerSnapshot(scopeKey);
+  return loadServerSnapshot(scopeKey as Parameters<typeof loadServerSnapshot>[0]);
 }

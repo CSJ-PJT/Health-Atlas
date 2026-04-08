@@ -8,7 +8,12 @@ export function mapAppleHealthPayloadToNormalizedHealthData(payload: AppleHealth
   const nutrition = payload.nutrition || [];
   const hydration = payload.hydration || [];
 
-  const nutritionTotals = nutrition.reduce(
+  const nutritionTotals = nutrition.reduce<{
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  }>(
     (acc, item) => {
       acc.calories += item.calories || 0;
       acc.protein += item.proteinGrams || 0;

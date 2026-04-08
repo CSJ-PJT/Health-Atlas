@@ -26,7 +26,7 @@ const legacyTextMap: Array<[string, string]> = [
 ];
 
 export function repairLegacyText(value: string) {
-  return legacyTextMap.reduce((current, [broken, repaired]) => current.replaceAll(broken, repaired), value);
+  return legacyTextMap.reduce((current, [broken, repaired]) => current.split(broken).join(repaired), value);
 }
 
 export function deepRepairLegacyValue<T>(value: T): T {

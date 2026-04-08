@@ -25,12 +25,22 @@ import { getMockHealthHistory } from "@/providers/shared/services/mockData";
 import { buildAiRecommendation } from "@/services/aiCoach";
 import { isDisplayMetricEnabled } from "@/services/displaySettings";
 import { formatMinutesToClock } from "@/utils/formatDuration";
+import type { HealthConnectPermissionStatus } from "@/lib/health-connect/types";
 
 const formatPace = (minutesPerKm: number) => {
   const minutes = Math.floor(minutesPerKm);
   const seconds = Math.round((minutesPerKm - minutes) * 60);
   return `${minutes}:${seconds.toString().padStart(2, "0")} /km`;
 };
+
+const toCheckPermissionsResult = (status: HealthConnectPermissionStatus): CheckPermissionsResult => ({
+  hasAllPermissions: status.hasAllPermissions,
+  hasAll: status.hasAll,
+  granted: status.granted,
+  missing: status.missing || [],
+  requiredCount: status.requiredCount,
+  grantedCount: status.grantedCount,
+});
 
 const formatStoredSync = () => {
   const stored = localStorage.getItem("lastSync");
@@ -62,7 +72,7 @@ const Index = () => {
     setProviderErrorMessage(null);
   }, [error]);
 
-  const runningSession = useMemo(() => {
+  const runningSession = useMemo<any>(() => {
     if (!todayData) {
       return null;
     }
@@ -231,7 +241,7 @@ const Index = () => {
   const handleCheckPermissions = async () => {
     try {
       const result = await checkSamsungHealthBridgePermissions();
-      setPermissionResult(result);
+      setPermissionResult(toCheckPermissionsResult(result));
       toast({
         title: "권한 확인 완료",
         description: result.hasAllPermissions ? "모든 권한이 허용되었습니다." : "일부 권한이 부족합니다.",
@@ -249,7 +259,7 @@ const Index = () => {
     try {
       await activeProvider.connect();
       const status = await checkSamsungHealthBridgePermissions();
-      setPermissionResult(status);
+      setPermissionResult(toCheckPermissionsResult(status));
       toast({
         title: "권한 요청 완료",
         description: status.hasAllPermissions ? "모든 권한이 허용되었습니다." : "추가 권한 설정이 필요합니다.",
@@ -282,7 +292,7 @@ const Index = () => {
   const handleReadSummary = async () => {
     try {
       const result = await readSamsungHealthSummary();
-      setHealthSummary(result);
+      setHealthSummary(result as HealthSummary);
       toast({
         title: "데이터 읽기 완료",
         description: "Health Connect 요약 데이터를 읽었습니다.",
@@ -301,7 +311,7 @@ const Index = () => {
     const sleepGoal = 480;
     const calorieGoal = 900;
     const exerciseGoalMinutes = 60;
-    const hydrationAmount = data.hydration.reduce((sum: number, item: any) => {
+    const hydrationAmount = Number(data.hydration.reduce((sum: number, item: any) => {
       if (typeof item?.milliliters === "number") {
         return sum + item.milliliters;
       }
@@ -309,7 +319,7 @@ const Index = () => {
         return sum + Math.round(item.volumeLiters * 1000);
       }
       return sum;
-    }, 0);
+    }, 0));
 
     const heroItems = [
       { label: "걸음 수", value: data.steps_data.count.toLocaleString() },

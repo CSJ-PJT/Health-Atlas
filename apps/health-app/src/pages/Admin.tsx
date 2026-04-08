@@ -449,7 +449,14 @@ function Admin() {
     setVerifiedRecords(next);
     setDisplayedRecordType(recordType);
     setDisplayRecordTypeState(recordType);
-    if (recordType === "full" && officialTime.trim() < "04:00:00") awardBadge("badge-sub4", "Sub4 마라토너", "4시간 이내 풀코스 인증");
+    if (recordType === "full" && officialTime.trim() < "04:00:00") {
+      awardBadge({
+        id: "badge-sub4",
+        name: "Sub4 마라토너",
+        description: "4시간 이내 풀코스 인증",
+        icon: "🏅",
+      });
+    }
     toast({ title: "인증 기록을 저장했습니다", description: buildRecordTag(next[0]) || officialTime.trim() });
   }
 

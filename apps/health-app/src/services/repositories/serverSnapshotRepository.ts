@@ -1,3 +1,4 @@
+import type { Json } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { deepRepairLegacyValue } from "@/services/textRepair";
 
@@ -19,7 +20,7 @@ function getProfileId() {
   return localStorage.getItem("profile_id");
 }
 
-export async function loadServerSnapshot<T>(scopeKey: SnapshotScopeKey): Promise<T | null> {
+export async function loadServerSnapshot<T>(scopeKey: SnapshotScopeKey | string): Promise<T | null> {
   const profileId = getProfileId();
   if (!profileId) {
     return null;
@@ -40,7 +41,7 @@ export async function loadServerSnapshot<T>(scopeKey: SnapshotScopeKey): Promise
   return data?.payload ? deepRepairLegacyValue(data.payload as T) : null;
 }
 
-export async function saveServerSnapshot(scopeKey: SnapshotScopeKey, payload: unknown) {
+export async function saveServerSnapshot(scopeKey: SnapshotScopeKey | string, payload: unknown) {
   const profileId = getProfileId();
   if (!profileId) {
     return false;
@@ -50,7 +51,7 @@ export async function saveServerSnapshot(scopeKey: SnapshotScopeKey, payload: un
     {
       profile_id: profileId,
       scope_key: scopeKey,
-      payload,
+      payload: payload as Json,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "profile_id,scope_key" },

@@ -657,19 +657,22 @@ export default function Game() {
     }
     const startedAt = new Date().toISOString();
     const gameTitle = miniGames.find((game) => game.id === activeRoom.gameId)?.title || "게임";
-    const botMessages = activeRoom.participants
+    const botEvents = activeRoom.participants
       .filter((participant) => participant.isBot)
-      .flatMap((participant, index) => {
+      .map((participant) => {
         const score = generateBotScore(activeRoom.gameId, activeRoom.durationSeconds || 30);
-        return [
-          buildSystemMessage("score", {
-              userId: participant.userId,
-              name: participant.name,
-              score,
-              gameId: activeRoom.gameId,
-            }),
-          createRoomActionMessage(participant.name, `점수 ${score}를 기록했습니다.`),
-        ];
+        return buildSystemMessage("score", {
+          userId: participant.userId,
+          name: participant.name,
+          score,
+          gameId: activeRoom.gameId,
+        });
+      });
+    const botChatMessages = activeRoom.participants
+      .filter((participant) => participant.isBot)
+      .map((participant) => {
+        const score = generateBotScore(activeRoom.gameId, activeRoom.durationSeconds || 30);
+        return createRoomActionMessage(participant.name, `점수 ${score}를 기록했습니다.`);
       });
     saveRooms(
       rooms.map((room) =>
@@ -684,12 +687,12 @@ export default function Game() {
                   durationSeconds: activeRoom.durationSeconds,
                   startedAt,
                 }),
-                ...botMessages.filter((item) => "type" in item),
+                ...botEvents,
               ],
               chatMessages: [
                 ...room.chatMessages,
                 createRoomActionMessage(activeRoom.hostName, `${gameTitle} 게임을 시작했습니다.`),
-                ...botMessages.filter((item) => !("type" in item)),
+                ...botChatMessages,
               ],
               updatedAt: new Date().toISOString(),
             }

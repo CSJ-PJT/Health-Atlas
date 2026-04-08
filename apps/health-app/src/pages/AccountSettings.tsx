@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
@@ -84,6 +84,9 @@ const permissionOptions = {
     { key: "readRoutes", label: "경로 읽기" },
   ],
 } as const;
+
+type PermissionRecord = Record<string, boolean>;
+type PermissionSetter = Dispatch<SetStateAction<PermissionRecord>>;
 
 type PermissionTab = keyof typeof permissionOptions;
 
@@ -377,23 +380,23 @@ export default function AccountSettings() {
   const permissionStateByTab = useMemo(
     () => ({
       "health-connect": {
-        current: healthConnectPermissions,
-        setCurrent: setHealthConnectPermissions,
+        current: healthConnectPermissions as PermissionRecord,
+        setCurrent: setHealthConnectPermissions as PermissionSetter,
         storageKey: "health_connect_permissions",
       },
       garmin: {
-        current: garminPermissions,
-        setCurrent: setGarminPermissions,
+        current: garminPermissions as PermissionRecord,
+        setCurrent: setGarminPermissions as PermissionSetter,
         storageKey: "garmin_permissions",
       },
       "apple-health": {
-        current: applePermissions,
-        setCurrent: setApplePermissions,
+        current: applePermissions as PermissionRecord,
+        setCurrent: setApplePermissions as PermissionSetter,
         storageKey: "apple_health_permissions",
       },
       strava: {
-        current: stravaPermissions,
-        setCurrent: setStravaPermissions,
+        current: stravaPermissions as PermissionRecord,
+        setCurrent: setStravaPermissions as PermissionSetter,
         storageKey: "strava_permissions",
       },
     }),

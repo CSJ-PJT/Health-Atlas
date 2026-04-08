@@ -439,7 +439,7 @@ export function getMockStravaDailyPayload(): StravaDailyPayload {
   };
 }
 
-export function getMockNormalizedHealthData(providerId = getStoredProviderId()) {
+export function getMockNormalizedHealthData(providerId: ProviderId = getStoredProviderId()) {
   if (providerId === "samsung") {
     return mapTodaySnapshotToNormalizedHealthData(getMockSamsungTodaySnapshot());
   }
@@ -471,12 +471,8 @@ export function getMockNormalizedHealthData(providerId = getStoredProviderId()) 
       ...exercise,
       type:
         index === 0
-          ? providerId === "strava"
-            ? "Strava Run"
-            : `${base.meta.shortLabel} Run`
-          : providerId === "apple-health"
-            ? "Recovery Walk"
-            : exercise.type,
+          ? `${base.meta.shortLabel} Run`
+          : exercise.type,
     })),
   };
 }

@@ -145,7 +145,7 @@ export async function recordEntertainmentScoreEvent(gameId: PlayableGameId, scor
   const profileId = getProfileId();
   if (!profileId) return false;
 
-  const { error } = await supabase.from("entertainment_score_events" as never).insert({
+  const { error } = await supabase.from("entertainment_score_events").insert({
     id: `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     profile_id: profileId,
     user_id: getUserId(),
@@ -162,7 +162,7 @@ export async function loadEntertainmentLeaderboard(gameId: PlayableGameId, range
   const now = Date.now();
   const cutoff = new Date(now - (range === "weekly" ? 7 : 30) * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
-    .from("entertainment_score_events" as never)
+    .from("entertainment_score_events")
     .select("*")
     .eq("game_id", gameId)
     .gte("played_at", cutoff)
@@ -175,7 +175,7 @@ export async function loadEntertainmentLeaderboard(gameId: PlayableGameId, range
 
 export async function loadEntertainmentTopFive(gameId: PlayableGameId) {
   const { data, error } = await supabase
-    .from("entertainment_score_events" as never)
+    .from("entertainment_score_events")
     .select("*")
     .eq("game_id", gameId)
     .order("played_at", { ascending: false });
@@ -207,7 +207,7 @@ async function syncServerChallenges(challenges: ChallengeEntry[]) {
   const profileId = getProfileId();
   if (!profileId) return false;
 
-  const { error } = await supabase.from("entertainment_challenges" as never).upsert(
+  const { error } = await supabase.from("entertainment_challenges").upsert(
     challenges.map((challenge) => ({
       id: challenge.id,
       profile_id: profileId,
@@ -243,13 +243,13 @@ async function syncServerScores(scores: GameScores) {
     updated_at: new Date().toISOString(),
   }));
 
-  const { error: deleteError } = await supabase.from("entertainment_scores" as never).delete().eq("profile_id", profileId);
+  const { error: deleteError } = await supabase.from("entertainment_scores").delete().eq("profile_id", profileId);
   if (deleteError) {
     void saveServerSnapshot("entertainment_scores", scores);
     return false;
   }
 
-  const { error } = await supabase.from("entertainment_scores" as never).upsert(rows);
+  const { error } = await supabase.from("entertainment_scores").upsert(rows);
   if (error) {
     void saveServerSnapshot("entertainment_scores", scores);
     return false;
@@ -262,7 +262,7 @@ async function syncServerRooms(rooms: MultiRoom[]) {
   const profileId = getProfileId();
   if (!profileId) return false;
 
-  const { error } = await supabase.from("entertainment_rooms" as never).upsert(
+  const { error } = await supabase.from("entertainment_rooms").upsert(
     rooms.map((room) => ({
       id: room.id,
       profile_id: profileId,
@@ -299,7 +299,7 @@ async function loadServerChallenges() {
   if (!profileId) return null;
 
   const { data, error } = await supabase
-    .from("entertainment_challenges" as never)
+    .from("entertainment_challenges")
     .select("*")
     .eq("profile_id", profileId)
     .order("created_at", { ascending: false });
@@ -327,7 +327,7 @@ async function loadServerScores() {
   const profileId = getProfileId();
   if (!profileId) return null;
 
-  const { data, error } = await supabase.from("entertainment_scores" as never).select("*").eq("profile_id", profileId);
+  const { data, error } = await supabase.from("entertainment_scores").select("*").eq("profile_id", profileId);
   if (error) {
     return loadServerSnapshot<GameScores>("entertainment_scores");
   }
@@ -351,7 +351,7 @@ async function loadServerScores() {
 
 async function loadServerRooms() {
   const { data, error } = await supabase
-    .from("entertainment_rooms" as never)
+    .from("entertainment_rooms")
     .select("*")
     .order("created_at", { ascending: false });
 
