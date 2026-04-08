@@ -1,28 +1,33 @@
-import type { PlayableGameId } from "@/components/entertainment/GameArena";
+﻿import type { PlayableGameId } from "@/components/entertainment/playableGames";
 import type { MultiRoom } from "@/services/entertainmentTypes";
 
 export type RoomSystemState = {
   gameId: PlayableGameId;
-  durationSeconds: 30 | 60;
+  durationSeconds?: 30 | 60;
   startedAt: string;
 };
 
-export function buildSystemMessage(type: "start" | "score", payload: Record<string, unknown>) {
-  return `__system__:${type}:${JSON.stringify(payload)}`;
+export function buildSystemMessage(type: "start" | "score" | "turn" | "move" | "capture" | "spawn" | "resolve", payload: Record<string, unknown>) {
+  return {
+    id: `system-${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    payload,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 export function parseLatestStart(room: MultiRoom | null): RoomSystemState | null {
   if (!room) return null;
 
-  const startMessage = [...room.chat]
+  const startMessage = [...room.systemEvents]
     .reverse()
-    .find((message) => typeof message.text === "string" && message.text.startsWith("__system__:start:"));
+    .find((event) => event.type === "start");
 
   if (!startMessage) return null;
 
   try {
-    const payload = JSON.parse(startMessage.text.replace("__system__:start:", "")) as RoomSystemState;
-    if (!payload?.gameId || !payload?.durationSeconds || !payload?.startedAt) return null;
+    const payload = startMessage.payload as RoomSystemState;
+    if (!payload?.gameId || !payload?.startedAt) return null;
     return payload;
   } catch {
     return null;
@@ -33,10 +38,10 @@ export function buildRoomScoreboard(room: MultiRoom | null) {
   if (!room) return [];
 
   const bestByUser = new Map<string, { name: string; score: number }>();
-  room.chat.forEach((message) => {
-    if (!message.text.startsWith("__system__:score:")) return;
+  room.systemEvents.forEach((event) => {
+    if (event.type !== "score") return;
     try {
-      const payload = JSON.parse(message.text.replace("__system__:score:", "")) as {
+      const payload = event.payload as {
         userId: string;
         name: string;
         score: number;
@@ -59,10 +64,10 @@ export function buildRoomScoreboard(room: MultiRoom | null) {
 export function hasRoomScore(room: MultiRoom | null, userId: string) {
   if (!room) return false;
 
-  return room.chat.some((message) => {
-    if (!message.text.startsWith("__system__:score:")) return false;
+  return room.systemEvents.some((event) => {
+    if (event.type !== "score") return false;
     try {
-      const payload = JSON.parse(message.text.replace("__system__:score:", "")) as {
+      const payload = event.payload as {
         userId?: string;
       };
       return payload.userId === userId;
@@ -71,3 +76,4 @@ export function hasRoomScore(room: MultiRoom | null, userId: string) {
     }
   });
 }
+

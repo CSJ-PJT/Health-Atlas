@@ -1,4 +1,4 @@
-﻿import type { PlayableGameId } from "@/components/entertainment/GameArena";
+﻿import type { PlayableGameId } from "@/components/entertainment/playableGames";
 import { supabase } from "@/integrations/supabase/client";
 import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
 import {
@@ -42,7 +42,8 @@ export function getStoredEntertainmentScores() {
     "reaction-grid": 0,
     "pace-memory": 0,
     "resource-rush": 0,
-    "block-builder": 0,
+    "fitcraft-island": 0,
+    "pulse-frontier": 0,
     tetris: 0,
   });
 }
@@ -268,11 +269,17 @@ async function syncServerRooms(rooms: MultiRoom[]) {
       host_id: room.hostId,
       host_name: room.hostName,
       game_id: room.gameId,
-      duration_seconds: room.durationSeconds,
+      room_mode: room.mode,
+      room_status: room.roomStatus,
+      visibility: room.visibility,
+      editable_by: room.editableBy,
+      duration_seconds: room.durationSeconds || 30,
       team_mode: room.teamMode,
       participants: room.participants,
-      chat: room.chat,
+      chat: room.chatMessages,
+      system_events: room.systemEvents,
       max_players: room.maxPlayers,
+      game_state: room.gameState,
       updated_at: new Date().toISOString(),
     })),
   );
@@ -333,7 +340,8 @@ async function loadServerScores() {
       "reaction-grid": 0,
       "pace-memory": 0,
       "resource-rush": 0,
-      "block-builder": 0,
+      "fitcraft-island": 0,
+      "pulse-frontier": 0,
       tetris: 0,
     } as GameScores,
   );
@@ -356,13 +364,22 @@ async function loadServerRooms() {
       hostId: String(row.host_id || ""),
       hostName: String(row.host_name || ""),
       gameId: (row.game_id as PlayableGameId) || "tap-sprint",
+      mode: (row.room_mode as MultiRoom["mode"]) || "arcade",
+      roomStatus: (row.room_status as MultiRoom["roomStatus"]) || "lobby",
+      visibility: (row.visibility as MultiRoom["visibility"]) || "public",
+      editableBy: (row.editable_by as MultiRoom["editableBy"]) || "host",
       durationSeconds: Number(row.duration_seconds || 30) === 60 ? 60 : 30,
       teamMode: Boolean(row.team_mode),
       participants: Array.isArray(row.participants)
         ? (row.participants as MultiRoom["participants"])
         : [],
-      chat: Array.isArray(row.chat) ? (row.chat as MultiRoom["chat"]) : [],
+      chatMessages: Array.isArray(row.chat) ? (row.chat as MultiRoom["chatMessages"]) : [],
+      systemEvents: Array.isArray((row as { system_events?: unknown }).system_events)
+        ? (((row as { system_events: unknown[] }).system_events) as MultiRoom["systemEvents"])
+        : [],
       maxPlayers: Number(row.max_players || 30),
+      gameState: (row.game_state as MultiRoom["gameState"]) || null,
     }),
   );
 }
+
