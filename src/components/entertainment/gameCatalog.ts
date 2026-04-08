@@ -2,20 +2,59 @@ import type { PlayableGameId } from "@/components/entertainment/GameArena";
 import type { RankingRange, RankingRow } from "@/services/entertainmentTypes";
 
 export const miniGames: Array<{ id: PlayableGameId; title: string; summary: string }> = [
-  { id: "tap-sprint", title: "탭 스프린트", summary: "제한 시간 동안 최대한 많이 탭해서 반응 속도를 겨루는 게임입니다." },
-  { id: "reaction-grid", title: "리액션 그리드", summary: "빛나는 칸을 빠르게 눌러 반응 정확도와 속도를 겨룹니다." },
-  { id: "pace-memory", title: "페이스 메모리", summary: "순서를 기억하고 재현하며 집중력을 겨루는 기억 게임입니다." },
-  { id: "tetris", title: "테트리스", summary: "시간이 지날수록 빨라지는 블록 게임입니다." },
+  {
+    id: "tap-sprint",
+    title: "탭 스프린트",
+    summary: "제한 시간 동안 최대한 많이 탭해서 반응 속도를 겨루는 게임입니다.",
+  },
+  {
+    id: "reaction-grid",
+    title: "리액션 그리드",
+    summary: "빛나는 칸을 빠르게 눌러 반응 정확도와 속도를 겨룹니다.",
+  },
+  {
+    id: "pace-memory",
+    title: "페이스 메모리",
+    summary: "순서를 기억하고 재현하면서 집중력과 기억력을 겨루는 게임입니다.",
+  },
+  {
+    id: "tetris",
+    title: "테트리스",
+    summary: "시간이 지날수록 빨라지는 블록 게임입니다.",
+  },
 ];
 
 export const featuredBadges = [
-  { id: "lavender", icon: "💜", name: "라벤더 러너", detail: "균형 잡힌 회복 루틴을 꾸준히 이어간 러너에게 주어지는 배지입니다." },
-  { id: "sub4", icon: "🏅", name: "Sub4 체이서", detail: "공인 풀코스 기록 목표를 향해 안정적으로 전진하는 러너의 배지입니다." },
-  { id: "mountain", icon: "⛰️", name: "마운틴 헌터", detail: "누적 상승 고도를 꾸준히 채운 러너에게 주어지는 배지입니다." },
-  { id: "ultra", icon: "🔥", name: "울트라 스피릿", detail: "장거리 훈련을 오래 이어간 러너에게 주어지는 배지입니다." },
+  {
+    id: "lavender",
+    icon: "🪻",
+    name: "라벤더 러너",
+    detail: "균형 잡힌 회복 루틴과 꾸준한 러닝 흐름을 유지한 러너에게 주어지는 대표 배지입니다.",
+  },
+  {
+    id: "sub4",
+    icon: "🏃",
+    name: "Sub4 체이서",
+    detail: "공인 풀코스 기록 목표를 향해 안정적으로 전진하는 러너를 위한 배지입니다.",
+  },
+  {
+    id: "mountain",
+    icon: "⛰️",
+    name: "마운틴 헌터",
+    detail: "누적 상승 고도를 꾸준히 채우며 강한 하체 지구력을 만든 러너에게 주어집니다.",
+  },
+  {
+    id: "ultra",
+    icon: "🔥",
+    name: "울트라 스피릿",
+    detail: "장거리 훈련과 회복 루틴을 오래 이어 간 러너에게 주어지는 배지입니다.",
+  },
 ];
 
-export function buildSeedRankingData(myUserId: string, myUserName: string): Record<PlayableGameId, Record<RankingRange, RankingRow[]>> {
+export function buildSeedRankingData(
+  myUserId: string,
+  myUserName: string,
+): Record<PlayableGameId, Record<RankingRange, RankingRow[]>> {
   return {
     "tap-sprint": {
       weekly: [
