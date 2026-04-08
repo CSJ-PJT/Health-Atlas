@@ -6,6 +6,7 @@
 - Shared contracts go in `packages/*`.
 - Do not make the game app import or query raw health records directly.
 - Health-to-game data must flow through derived, game-safe linkage only.
+- Treat the repository root `src/` tree as transitional legacy code after the split. Prefer editing the app-specific trees first.
 
 ## Health App
 

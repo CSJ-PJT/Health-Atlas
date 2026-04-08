@@ -9,6 +9,15 @@ The health app remains the source of truth for raw health data, provider sync, a
 
 The standalone game app consumes only derived game-safe parameters through a dedicated linkage layer. It never reads raw health records directly.
 
+## Transitional Note
+
+The repository root still contains historical pre-monorepo source and mobile shell files. New product work should now target:
+
+- `apps/health-app`
+- `apps/private-product-game`
+
+The root source tree is transitional and should only be edited when a migration task explicitly needs it.
+
 ## Workspace Layout
 
 ```text
@@ -63,6 +72,8 @@ npm run dev:health
 npm run dev:game
 npm run build:health
 npm run build:game
+npm run typecheck:health
+npm run typecheck:game
 npm test
 ```
 
