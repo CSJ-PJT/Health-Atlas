@@ -1,10 +1,31 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Film, Heart, ImagePlus, MessageCircle, Pencil, Plus, Search, Tag, Trash2, Upload, X } from "lucide-react";
+ï»¿import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Film,
+  Heart,
+  ImagePlus,
+  MessageCircle,
+  Pencil,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
@@ -26,7 +47,7 @@ import {
 } from "@/services/feedStore";
 
 const MY_USER_ID = localStorage.getItem("user_id") || "me";
-const MY_USER_NAME = localStorage.getItem("user_nickname") || "»ç¿ëÀÚ";
+const MY_USER_NAME = localStorage.getItem("user_nickname") || "ì‚¬ìš©ì";
 const SAMPLE_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 const PAGE_SIZE = 8;
 
@@ -62,16 +83,16 @@ function resizeImageFile(file: File) {
         canvas.height = Math.max(1, Math.round(image.height * scale));
         const context = canvas.getContext("2d");
         if (!context) {
-          reject(new Error("ÀÌ¹ÌÁö¸¦ Ã³¸®ÇÒ ¼ö ¾ø½À´Ï´Ù."));
+          reject(new Error("ì´ë¯¸ì§€ë¥¼ ì²˜ë¦¬í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤."));
           return;
         }
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/jpeg", 0.82));
       };
-      image.onerror = () => reject(new Error("ÀÌ¹ÌÁö¸¦ ºÒ·¯¿Ã ¼ö ¾ø½À´Ï´Ù."));
+      image.onerror = () => reject(new Error("ì´ë¯¸ì§€ë¥¼ ë¶ˆëŸ¬ì˜¬ ìˆ˜ ì—†ìŠµë‹ˆë‹¤."));
       image.src = String(reader.result || "");
     };
-    reader.onerror = () => reject(new Error("ÆÄÀÏÀ» ÀĞÀ» ¼ö ¾ø½À´Ï´Ù."));
+    reader.onerror = () => reject(new Error("íŒŒì¼ì„ ì½ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤."));
     reader.readAsDataURL(file);
   });
 }
@@ -166,16 +187,23 @@ export default function Feed() {
     () => getFeedPosts().filter((post) => (post.visibility || "public") === "public"),
     [tick],
   );
+
   const filteredPosts = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return publicPosts;
     return publicPosts.filter((post) => {
       const tagsText = Array.isArray(post.tags) ? post.tags.join(" ") : "";
-      return [post.authorName, post.authorId, post.content, tagsText].some((value) => value.toLowerCase().includes(keyword));
+      return [post.authorName, post.authorId, post.content, tagsText].some((value) =>
+        value.toLowerCase().includes(keyword),
+      );
     });
   }, [publicPosts, search]);
+
   const visiblePosts = filteredPosts.slice(0, visibleCount);
-  const detailPost = useMemo(() => visiblePosts.concat(filteredPosts).find((post) => post.id === detailPostId) || null, [detailPostId, filteredPosts, visiblePosts]);
+  const detailPost = useMemo(
+    () => visiblePosts.concat(filteredPosts).find((post) => post.id === detailPostId) || null,
+    [detailPostId, filteredPosts, visiblePosts],
+  );
   const comments = useMemo(() => (detailPost ? getFeedComments(detailPost.id) : []), [detailPost, tick]);
 
   useEffect(() => {
@@ -232,8 +260,8 @@ export default function Feed() {
       setMedia((previous) => [...previous, ...nextMedia]);
     } catch (error) {
       toast({
-        title: "¹Ìµğ¾î Ãß°¡¿¡ ½ÇÆĞÇß½À´Ï´Ù.",
-        description: error instanceof Error ? error.message : "ÆÄÀÏÀ» Ã³¸®ÇÏÁö ¸øÇß½À´Ï´Ù.",
+        title: "ë¯¸ë””ì–´ ì¶”ê°€ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.",
+        description: error instanceof Error ? error.message : "íŒŒì¼ì„ ì²˜ë¦¬í•˜ì§€ ëª»í–ˆìŠµë‹ˆë‹¤.",
         variant: "destructive",
       });
     } finally {
@@ -243,7 +271,7 @@ export default function Feed() {
 
   const handleSave = () => {
     if (!caption.trim() && media.length === 0) {
-      toast({ title: "³»¿ëÀÌ³ª ¹Ìµğ¾î¸¦ Ãß°¡ÇØ ÁÖ¼¼¿ä.", variant: "destructive" });
+      toast({ title: "ë‚´ìš©ì´ë‚˜ ë¯¸ë””ì–´ë¥¼ ì¶”ê°€í•´ ì£¼ì„¸ìš”.", variant: "destructive" });
       return;
     }
 
@@ -257,14 +285,14 @@ export default function Feed() {
       : createScopedFeedPost(MY_USER_ID, MY_USER_NAME, caption.trim(), media, "public", parsedTags);
 
     if (!success) {
-      toast({ title: "ÇÇµå ¾÷·Îµå¿¡ ½ÇÆĞÇß½À´Ï´Ù.", variant: "destructive" });
+      toast({ title: "í”¼ë“œ ì—…ë¡œë“œì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.", variant: "destructive" });
       return;
     }
 
     setTick((value) => value + 1);
     setComposerOpen(false);
     resetComposer();
-    toast({ title: editingPostId ? "°Ô½Ã±ÛÀ» ¼öÁ¤Çß½À´Ï´Ù." : "°Ô½Ã±ÛÀ» ¿Ã·È½À´Ï´Ù." });
+    toast({ title: editingPostId ? "ê²Œì‹œê¸€ì„ ìˆ˜ì •í–ˆìŠµë‹ˆë‹¤." : "ê²Œì‹œê¸€ì„ ì˜¬ë ¸ìŠµë‹ˆë‹¤." });
   };
 
   const handleEdit = (post: FeedPost) => {
@@ -278,7 +306,7 @@ export default function Feed() {
   const handleDelete = (postId: string) => {
     const success = deleteFeedPost(postId);
     if (!success) {
-      toast({ title: "°Ô½Ã±Û »èÁ¦¿¡ ½ÇÆĞÇß½À´Ï´Ù.", variant: "destructive" });
+      toast({ title: "ê²Œì‹œê¸€ ì‚­ì œì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.", variant: "destructive" });
       return;
     }
     setTick((value) => value + 1);
@@ -289,13 +317,19 @@ export default function Feed() {
 
   const handleAddComment = () => {
     if (!detailPost || !commentDraft.trim()) {
-      toast({ title: "´ñ±Û ³»¿ëÀ» ÀÔ·ÂÇØ ÁÖ¼¼¿ä.", variant: "destructive" });
+      toast({ title: "ëŒ“ê¸€ ë‚´ìš©ì„ ì…ë ¥í•´ ì£¼ì„¸ìš”.", variant: "destructive" });
       return;
     }
 
-    const success = addFeedComment(detailPost.id, MY_USER_ID, MY_USER_NAME, commentDraft.trim(), replyTarget?.id || null);
+    const success = addFeedComment(
+      detailPost.id,
+      MY_USER_ID,
+      MY_USER_NAME,
+      commentDraft.trim(),
+      replyTarget?.id || null,
+    );
     if (!success) {
-      toast({ title: "´ñ±Û µî·Ï¿¡ ½ÇÆĞÇß½À´Ï´Ù.", variant: "destructive" });
+      toast({ title: "ëŒ“ê¸€ ë“±ë¡ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.", variant: "destructive" });
       return;
     }
 
@@ -332,7 +366,9 @@ export default function Feed() {
                 <div className="font-medium">{comment.authorName}</div>
                 <div className="text-xs text-muted-foreground">@{comment.authorId}</div>
               </div>
-              <div className="text-xs text-muted-foreground">{new Date(comment.createdAt).toLocaleString("ko-KR")}</div>
+              <div className="text-xs text-muted-foreground">
+                {new Date(comment.createdAt).toLocaleString("ko-KR")}
+              </div>
             </div>
             <div className="mt-2 text-sm leading-6">{renderTaggedContent(comment.content)}</div>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
@@ -346,16 +382,22 @@ export default function Feed() {
                   }
                 }}
               >
-                <Heart className={`h-3.5 w-3.5 ${comment.likedUserIds.includes(MY_USER_ID) ? "fill-current text-primary" : ""}`} />
-                ÁÁ¾Æ¿ä {comment.likedUserIds.length}
+                <Heart
+                  className={`h-3.5 w-3.5 ${comment.likedUserIds.includes(MY_USER_ID) ? "fill-current text-primary" : ""}`}
+                />
+                ì¢‹ì•„ìš” {comment.likedUserIds.length}
               </button>
-              <button type="button" className="flex items-center gap-1 font-medium text-primary" onClick={() => {
-                setReplyTarget(comment);
-                setCommentDraft(`@${comment.authorId} `);
-                setShowCommentComposer(true);
-              }}>
+              <button
+                type="button"
+                className="flex items-center gap-1 font-medium text-primary"
+                onClick={() => {
+                  setReplyTarget(comment);
+                  setCommentDraft(`@${comment.authorId} `);
+                  setShowCommentComposer(true);
+                }}
+              >
                 <MessageCircle className="h-3.5 w-3.5" />
-                ´ä±Û
+                ë‹µê¸€
               </button>
             </div>
           </div>
@@ -368,12 +410,17 @@ export default function Feed() {
       <Header showNav />
       <div className="mx-auto max-w-6xl space-y-4 p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="text-3xl font-bold">ÇÇµå</h1>
+          <h1 className="text-3xl font-bold">í”¼ë“œ</h1>
 
           <div className="flex w-full gap-2 lg:w-auto">
-            <div className="relative flex-1 lg:w-80">
+            <div className="relative flex-1 lg:w-96">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ÇÇµå¸¦ °Ë»öÇØ º¸¼¼¿ä." className="pl-9" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="ì‘ì„±ì, ë‚´ìš©, íƒœê·¸ë¡œ í”¼ë“œë¥¼ ê²€ìƒ‰í•´ ë³´ì„¸ìš”."
+                className="pl-9"
+              />
             </div>
 
             <Dialog
@@ -390,33 +437,53 @@ export default function Feed() {
               </DialogTrigger>
               <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>{editingPostId ? "°Ô½Ã±Û ¼öÁ¤" : "»õ °Ô½Ã±Û"}</DialogTitle>
+                  <DialogTitle>{editingPostId ? "ê²Œì‹œê¸€ ìˆ˜ì •" : "ìƒˆ ê²Œì‹œê¸€"}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <Textarea value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="³»¿ëÀ» ÀÔ·ÂÇØ ÁÖ¼¼¿ä." className="min-h-32" />
+                  <Textarea
+                    value={caption}
+                    onChange={(event) => setCaption(event.target.value)}
+                    placeholder="ì˜¤ëŠ˜ì˜ ê¸°ë¡, ì‚¬ì§„ ì´ì•¼ê¸°, íƒœê·¸í•  ì¹œêµ¬ë¥¼ ììœ ë¡­ê²Œ ì ì–´ ì£¼ì„¸ìš”."
+                    className="min-h-32"
+                  />
                   <div className="relative">
                     <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="ÅÂ±×¸¦ ½°Ç¥·Î ÀÔ·ÂÇØ ÁÖ¼¼¿ä." className="pl-9" />
+                    <Input
+                      value={tags}
+                      onChange={(event) => setTags(event.target.value)}
+                      placeholder="íƒœê·¸ë¥¼ ì‰¼í‘œë¡œ ì…ë ¥í•´ ì£¼ì„¸ìš”. ì˜ˆ: ëŸ¬ë‹, íšŒë³µ, ì£¼ë§í›ˆë ¨"
+                      className="pl-9"
+                    />
                   </div>
                   <div className="space-y-3 rounded-2xl border border-dashed p-4">
-                    <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={(event) => void handleFiles(event.target.files)} />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,video/*"
+                      multiple
+                      className="hidden"
+                      onChange={(event) => void handleFiles(event.target.files)}
+                    />
                     <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2">
                       <Upload className="h-4 w-4" />
-                      »çÁø / µ¿¿µ»ó Ãß°¡
+                      ì‚¬ì§„ ë˜ëŠ” ë™ì˜ìƒ ì¶”ê°€
                     </Button>
+                    <p className="text-xs text-muted-foreground">
+                      ì—¬ëŸ¬ ì¥ì„ ì˜¬ë¦´ ìˆ˜ ìˆê³ , ì•„ë˜ í™”ì‚´í‘œë¡œ ìˆœì„œë¥¼ ë°”ê¿€ ìˆ˜ ìˆìŠµë‹ˆë‹¤.
+                    </p>
                     <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                       {media.map((item, index) => (
                         <div key={item.id} className="space-y-2 rounded-xl border bg-muted/20 p-2">
                           <div className="overflow-hidden rounded-lg">
                             {item.type === "video" ? (
                               <div className="relative aspect-square">
-                                <img src={item.thumbnailUrl} alt="video preview" className="h-full w-full object-cover" />
+                                <img src={item.thumbnailUrl} alt="ë™ì˜ìƒ ë¯¸ë¦¬ë³´ê¸°" className="h-full w-full object-cover" />
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 text-white">
                                   <Film className="h-5 w-5" />
                                 </div>
                               </div>
                             ) : (
-                              <img src={item.url} alt="preview" className="aspect-square w-full object-cover" />
+                              <img src={item.url} alt="ì´ë¯¸ì§€ ë¯¸ë¦¬ë³´ê¸°" className="aspect-square w-full object-cover" />
                             )}
                           </div>
                           <div className="grid grid-cols-3 gap-1">
@@ -426,7 +493,12 @@ export default function Feed() {
                             <Button size="icon" variant="outline" onClick={() => removeMedia(item.id)}>
                               <X className="h-4 w-4" />
                             </Button>
-                            <Button size="icon" variant="outline" onClick={() => moveMedia(index, 1)} disabled={index === media.length - 1}>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              onClick={() => moveMedia(index, 1)}
+                              disabled={index === media.length - 1}
+                            >
                               <ChevronRight className="h-4 w-4" />
                             </Button>
                           </div>
@@ -436,8 +508,10 @@ export default function Feed() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setComposerOpen(false)}>Ãë¼Ò</Button>
-                  <Button onClick={handleSave}>{editingPostId ? "ÀúÀå" : "¾÷·Îµå"}</Button>
+                  <Button variant="outline" onClick={() => setComposerOpen(false)}>
+                    ì·¨ì†Œ
+                  </Button>
+                  <Button onClick={handleSave}>{editingPostId ? "ìˆ˜ì • ì™„ë£Œ" : "ê²Œì‹œê¸€ ì˜¬ë¦¬ê¸°"}</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -451,15 +525,29 @@ export default function Feed() {
                 const cover = post.media?.[0];
                 const commentCount = getFeedComments(post.id).length;
                 return (
-                  <button key={post.id} type="button" onClick={() => { setDetailPostId(post.id); setDetailMediaIndex(0); }} className="group overflow-hidden rounded-2xl border bg-card text-left">
+                  <button
+                    key={post.id}
+                    type="button"
+                    onClick={() => {
+                      setDetailPostId(post.id);
+                      setDetailMediaIndex(0);
+                    }}
+                    className="group overflow-hidden rounded-2xl border bg-card text-left"
+                  >
                     <div className="relative aspect-square bg-muted/40">
                       {cover?.type === "video" ? (
                         <>
-                          <img src={cover.thumbnailUrl} alt={post.content || "ÇÇµå ºñµğ¿À"} className="h-full w-full object-cover" />
-                          <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">VIDEO</div>
+                          <img src={cover.thumbnailUrl} alt={post.content || "í”¼ë“œ ë™ì˜ìƒ"} className="h-full w-full object-cover" />
+                          <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">
+                            VIDEO
+                          </div>
                         </>
                       ) : cover?.url ? (
-                        <img src={cover.url} alt={post.content || "ÇÇµå ÀÌ¹ÌÁö"} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                        <img
+                          src={cover.url}
+                          alt={post.content || "í”¼ë“œ ì´ë¯¸ì§€"}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
                       ) : (
                         <div className="flex h-full items-center justify-center text-muted-foreground">
                           <ImagePlus className="h-8 w-8" />
@@ -467,13 +555,15 @@ export default function Feed() {
                       )}
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white">
                         <div className="truncate text-sm font-semibold">{post.authorName}</div>
-                        <div className="line-clamp-2 text-xs text-white/80">{post.content || "¹Ìµğ¾î °Ô½Ã¹°"}</div>
+                        <div className="line-clamp-2 text-xs text-white/80">{post.content || "ë¯¸ë””ì–´ ê²Œì‹œë¬¼"}</div>
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-2 p-3">
                       <div className="min-w-0">
-                        <div className="truncate text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleString("ko-KR")}</div>
-                        <div className="text-xs text-muted-foreground">{post.media.length}°³ ¹Ìµğ¾î</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {new Date(post.createdAt).toLocaleString("ko-KR")}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{post.media.length}ê°œ ë¯¸ë””ì–´</div>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
@@ -510,6 +600,11 @@ export default function Feed() {
                 );
               })}
             </div>
+            {filteredPosts.length === 0 ? (
+              <div className="flex min-h-40 items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground">
+                ì¡°ê±´ì— ë§ëŠ” í”¼ë“œê°€ ì—†ìŠµë‹ˆë‹¤.
+              </div>
+            ) : null}
             <div ref={loadMoreRef} className="h-6" />
           </CardContent>
         </Card>
@@ -520,25 +615,29 @@ export default function Feed() {
               <div className="grid h-full gap-6 lg:grid-cols-[1.05fr_0.95fr]">
                 <div className="min-h-0 space-y-4">
                   <DialogHeader>
-                    <DialogTitle>{detailPost.authorName}</DialogTitle>
+                    <DialogTitle>{detailPost.authorName}ë‹˜ì˜ í”¼ë“œ</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-3">
-                    {detailPost.content ? <div className="rounded-xl border p-4 text-sm leading-6">{renderTaggedContent(detailPost.content)}</div> : null}
+                    {detailPost.content ? (
+                      <div className="rounded-xl border p-4 text-sm leading-6">{renderTaggedContent(detailPost.content)}</div>
+                    ) : null}
                     {Array.isArray(detailPost.tags) && detailPost.tags.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {detailPost.tags.map((tag) => (
-                          <span key={tag} className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">#{tag}</span>
+                          <span key={tag} className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                            #{tag}
+                          </span>
                         ))}
                       </div>
                     ) : null}
                     <div className="overflow-x-auto">
                       <div className="flex snap-x snap-mandatory gap-3">
-                        {detailPost.media.map((item, index) => (
-                          <div key={item.id} className={`min-w-full snap-center overflow-hidden rounded-2xl border ${index === detailMediaIndex ? "" : ""}`}>
+                        {detailPost.media.map((item) => (
+                          <div key={item.id} className="min-w-full snap-center overflow-hidden rounded-2xl border">
                             {item.type === "video" ? (
                               <video controls playsInline src={item.url} poster={item.thumbnailUrl} className="aspect-square w-full object-cover" />
                             ) : (
-                              <img src={item.url} alt="detail" className="aspect-square w-full object-cover" />
+                              <img src={item.url} alt="í”¼ë“œ ìƒì„¸ ì´ë¯¸ì§€" className="aspect-square w-full object-cover" />
                             )}
                           </div>
                         ))}
@@ -546,11 +645,23 @@ export default function Feed() {
                     </div>
                     {detailPost.media.length > 1 ? (
                       <div className="flex items-center justify-between gap-2">
-                        <Button variant="outline" size="icon" onClick={() => setDetailMediaIndex((value) => Math.max(0, value - 1))} disabled={detailMediaIndex === 0}>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setDetailMediaIndex((value) => Math.max(0, value - 1))}
+                          disabled={detailMediaIndex === 0}
+                        >
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
-                        <div className="text-xs text-muted-foreground">{detailMediaIndex + 1} / {detailPost.media.length}</div>
-                        <Button variant="outline" size="icon" onClick={() => setDetailMediaIndex((value) => Math.min(detailPost.media.length - 1, value + 1))} disabled={detailMediaIndex === detailPost.media.length - 1}>
+                        <div className="text-xs text-muted-foreground">
+                          {detailMediaIndex + 1} / {detailPost.media.length}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setDetailMediaIndex((value) => Math.min(detailPost.media.length - 1, value + 1))}
+                          disabled={detailMediaIndex === detailPost.media.length - 1}
+                        >
                           <ChevronRight className="h-4 w-4" />
                         </Button>
                       </div>
@@ -562,7 +673,7 @@ export default function Feed() {
                   <Card className="flex h-full flex-col">
                     <CardContent className="flex min-h-0 flex-1 flex-col gap-4 pt-6">
                       <div className="flex items-center justify-between">
-                        <div className="text-lg font-semibold">´ñ±Û</div>
+                        <div className="text-lg font-semibold">ëŒ“ê¸€</div>
                         <Button
                           variant={showCommentComposer ? "default" : "outline"}
                           size="sm"
@@ -576,13 +687,17 @@ export default function Feed() {
                           }}
                         >
                           <MessageCircle className="h-4 w-4" />
-                          ´ñ±Û ¾²±â
+                          ëŒ“ê¸€ ì‘ì„±
                         </Button>
                       </div>
 
                       <div className="min-h-0 flex-1 overflow-y-auto pr-2">
                         <div className="space-y-3">
-                          {comments.length > 0 ? renderCommentTree(null) : <div className="text-sm text-muted-foreground">Ã¹ ´ñ±ÛÀ» ³²°Ü º¸¼¼¿ä.</div>}
+                          {comments.length > 0 ? (
+                            renderCommentTree(null)
+                          ) : (
+                            <div className="text-sm text-muted-foreground">ì²« ëŒ“ê¸€ì„ ë‚¨ê²¨ ë³´ì„¸ìš”.</div>
+                          )}
                         </div>
                       </div>
 
@@ -590,7 +705,7 @@ export default function Feed() {
                         <div className="space-y-3 border-t pt-3">
                           {replyTarget ? (
                             <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
-                              <div className="font-medium">{replyTarget.authorName}´Ô¿¡°Ô ´ä±Û ÀÛ¼º Áß</div>
+                              <div className="font-medium">{replyTarget.authorName}ë‹˜ì—ê²Œ ë‹µê¸€ì„ ì‘ì„±í•˜ëŠ” ì¤‘ì…ë‹ˆë‹¤.</div>
                               <button
                                 type="button"
                                 className="mt-1 text-primary"
@@ -599,12 +714,19 @@ export default function Feed() {
                                   setCommentDraft("");
                                 }}
                               >
-                                ´ä±Û Ãë¼Ò
+                                ë‹µê¸€ ì·¨ì†Œ
                               </button>
                             </div>
                           ) : null}
-                          <Textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="´ñ±ÛÀÌ³ª @id ÅÂ±×¸¦ ÀÔ·ÂÇØ ÁÖ¼¼¿ä." className="min-h-24" />
-                          <Button onClick={handleAddComment} className="w-full">´ñ±Û µî·Ï</Button>
+                          <Textarea
+                            value={commentDraft}
+                            onChange={(event) => setCommentDraft(event.target.value)}
+                            placeholder="ëŒ“ê¸€ì´ë‚˜ @id íƒœê·¸ë¥¼ ì…ë ¥í•´ ì£¼ì„¸ìš”."
+                            className="min-h-24"
+                          />
+                          <Button onClick={handleAddComment} className="w-full">
+                            ëŒ“ê¸€ ë“±ë¡
+                          </Button>
                         </div>
                       ) : null}
                     </CardContent>
@@ -618,12 +740,11 @@ export default function Feed() {
 
       {showSpinner ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-background/70 backdrop-blur-sm">
-          <div className="rounded-2xl border bg-background px-6 py-4 text-sm font-medium text-muted-foreground">ºÒ·¯¿À´Â Áß...</div>
+          <div className="rounded-2xl border bg-background px-6 py-4 text-sm font-medium text-muted-foreground">
+            ë¶ˆëŸ¬ì˜¤ëŠ” ì¤‘...
+          </div>
         </div>
       ) : null}
     </div>
   );
 }
-
-
-
