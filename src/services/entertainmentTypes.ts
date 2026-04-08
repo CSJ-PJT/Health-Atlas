@@ -1,4 +1,6 @@
-import type { PlayableGameId } from "@/components/entertainment/GameArena";
+import type { PlayableGameId, RoomMode } from "@/components/entertainment/playableGames";
+import type { SandboxWorldState } from "@/components/entertainment/sandbox/sandboxTypes";
+import type { StrategyGameState } from "@/components/entertainment/strategy/strategyTypes";
 
 export type ChallengeIcon = "run" | "heart" | "sleep" | "team";
 export type RankingRange = "weekly" | "monthly";
@@ -22,15 +24,29 @@ export type RankingRow = {
   rank: number;
 };
 
+export type RoomStatus = "lobby" | "running" | "finished";
+export type RoomVisibility = "public" | "friends" | "private";
+export type RoomEditableBy = "host" | "everyone" | "friends";
+export type RoomParticipant = { userId: string; name: string; isBot?: boolean; teamId?: string; ready?: boolean };
+export type RoomChatMessage = { id: string; name: string; text: string; createdAt: string };
+export type RoomSystemEvent = { id: string; type: string; payload: unknown; createdAt: string };
+
 export type MultiRoom = {
   id: string;
   title: string;
   hostId: string;
   hostName: string;
   gameId: PlayableGameId;
-  durationSeconds: 30 | 60;
+  mode: RoomMode;
+  roomStatus: RoomStatus;
+  visibility: RoomVisibility;
+  editableBy: RoomEditableBy;
+  durationSeconds?: 30 | 60;
   teamMode: boolean;
-  participants: Array<{ userId: string; name: string; isBot?: boolean }>;
-  chat: Array<{ id: string; name: string; text: string }>;
+  participants: RoomParticipant[];
+  chatMessages: RoomChatMessage[];
+  systemEvents: RoomSystemEvent[];
   maxPlayers: number;
+  gameState?: StrategyGameState | SandboxWorldState | null;
+  updatedAt?: string;
 };

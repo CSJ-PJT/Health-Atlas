@@ -15,14 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-
-export type PlayableGameId =
-  | "tap-sprint"
-  | "reaction-grid"
-  | "pace-memory"
-  | "resource-rush"
-  | "block-builder"
-  | "tetris";
+import type { PlayableGameId } from "@/components/entertainment/playableGames";
 
 type Props = {
   gameId: PlayableGameId;
@@ -138,8 +131,10 @@ function getGameTitle(gameId: PlayableGameId) {
       return "페이스 메모리";
     case "resource-rush":
       return "리소스 러시";
-    case "block-builder":
-      return "블록 빌더";
+    case "pulse-frontier":
+      return "Pulse Frontier";
+    case "fitcraft-island":
+      return "FitCraft Island";
     case "tetris":
       return "테트리스";
   }
@@ -584,7 +579,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
           </div>
         ) : null}
 
-        {gameId === "block-builder" ? (
+        {gameId === "fitcraft-island" ? (
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="rounded-xl border p-4">

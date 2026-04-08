@@ -1,4 +1,4 @@
-﻿import type { PlayableGameId } from "@/components/entertainment/GameArena";
+﻿import type { PlayableGameId } from "@/components/entertainment/playableGames";
 import type { RankingRange, RankingRow } from "@/services/entertainmentTypes";
 
 export const miniGames: Array<{ id: PlayableGameId; title: string; summary: string }> = [
@@ -20,12 +20,17 @@ export const miniGames: Array<{ id: PlayableGameId; title: string; summary: stri
   {
     id: "resource-rush",
     title: "리소스 러시",
-    summary: "한정된 턴 안에 자원을 전략적으로 확보해 최고 점수를 노리는 전략 게임입니다.",
+    summary: "한정된 턴 안에 자원을 전략적으로 확보해 최고 점수를 노리는 전략형 아케이드 게임입니다.",
   },
   {
-    id: "block-builder",
-    title: "블록 빌더",
-    summary: "색 블록으로 맵을 채워 자신만의 작품을 만드는 창조형 샌드박스 게임입니다.",
+    id: "fitcraft-island",
+    title: "FitCraft Island",
+    summary: "건강 활동으로 해금한 재료로 친구와 함께 2D 섬을 꾸미는 협동 창조형 게임입니다.",
+  },
+  {
+    id: "pulse-frontier",
+    title: "Pulse Frontier",
+    summary: "턴마다 자원을 모아 유닛을 배치하고 상대 본진을 점령하는 경량 전략 게임입니다.",
   },
   {
     id: "tetris",
@@ -106,7 +111,7 @@ export function buildSeedRankingData(
         { name: myUserName, userId: myUserId, score: 1012, rank: 2 },
       ],
     },
-    "block-builder": {
+    "fitcraft-island": {
       weekly: [
         { name: "가온", userId: "gaon", score: 188, rank: 1 },
         { name: myUserName, userId: myUserId, score: 176, rank: 2 },
@@ -114,6 +119,16 @@ export function buildSeedRankingData(
       monthly: [
         { name: "가온", userId: "gaon", score: 920, rank: 1 },
         { name: myUserName, userId: myUserId, score: 888, rank: 2 },
+      ],
+    },
+    "pulse-frontier": {
+      weekly: [
+        { name: "서연", userId: "seoyeon", score: 312, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 278, rank: 2 },
+      ],
+      monthly: [
+        { name: "서연", userId: "seoyeon", score: 1240, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 1170, rank: 2 },
       ],
     },
     tetris: {
@@ -159,12 +174,19 @@ export function buildSeedTopFiveData(myUserName: string): Record<PlayableGameId,
       { name: "지우", score: 2088, badge: "Crystal Raider" },
       { name: "가온", score: 2012, badge: "Trade Master" },
     ],
-    "block-builder": [
+    "fitcraft-island": [
       { name: "가온", score: 1920, badge: "Creative Architect" },
       { name: "서연", score: 1884, badge: "World Maker" },
       { name: myUserName, score: 1810, badge: "Pixel Artist" },
       { name: "민서", score: 1766, badge: "Builder Pro" },
       { name: "하나", score: 1705, badge: "Color Crafter" },
+    ],
+    "pulse-frontier": [
+      { name: "서연", score: 2610, badge: "Frontier Conqueror" },
+      { name: "민서", score: 2520, badge: "Base Breaker" },
+      { name: myUserName, score: 2450, badge: "Pulse General" },
+      { name: "지우", score: 2388, badge: "Outpost Hunter" },
+      { name: "가온", score: 2320, badge: "Tactical Mind" },
     ],
     tetris: [
       { name: "윤호", score: 2310, badge: "Block Master" },
