@@ -42,6 +42,31 @@ export interface FeedPost {
 
 const SAMPLE_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 
+const seedAuthors = ["민서", "서연", "지우", "하나", "시온"];
+const seedCaptions = [
+  "오늘은 회복 주간이라 러닝 강도보다 수면과 컨디션 관리에 집중했습니다.",
+  "인터벌 훈련 후 심박이 안정적으로 내려와서 만족스러운 하루였어요.",
+  "주말 롱런을 앞두고 수분과 영양을 미리 챙겼습니다.",
+  "비 오는 날이라 실내 러닝으로 대체했지만 루틴은 그대로 가져갔어요.",
+  "회복 주간이라 강도보다 자세와 호흡에 집중했습니다.",
+  "아침 러닝 후 컨디션과 기분이 둘 다 좋아졌어요.",
+  "HRV 흐름이 좋아서 오늘은 페이스를 조금 올려 봤습니다.",
+  "실내 이동이 많았지만 걸음 수는 꾸준히 채웠어요.",
+  "출근 전에 15분 종아리 컨디셔닝까지 챙겼습니다.",
+  "롱런 다음 주를 위해 몸을 가볍게 정리했습니다.",
+];
+
+const seedCommentMap: Record<string, { authorName: string; content: string }> = {
+  "comment-seed-1": { authorName: "코치봇", content: "오늘 흐름이 안정적입니다. 회복 상태를 계속 기록해 보세요." },
+  "comment-seed-2": { authorName: "코치봇", content: "심박 회복 속도가 좋아 보여요. 내일도 가볍게 이어가면 좋겠습니다." },
+  "comment-seed-3": { authorName: "코치봇", content: "롱런 전날이라면 수분과 탄수화물 보충을 조금 더 챙겨 보세요." },
+  "comment-seed-4": { authorName: "코치봇", content: "실내 러닝이어도 리듬이 좋네요. 스트레칭까지 이어가면 더 좋습니다." },
+  "reply-seed-1": { authorName: "민서", content: "@seed-coach 감사합니다. 오늘도 기록 이어갈게요." },
+  "reply-seed-2": { authorName: "서연", content: "@seed-coach 감사합니다. 회복 주간으로 잘 이어가 볼게요." },
+  "reply-seed-3": { authorName: "지우", content: "@seed-coach 감사합니다. 수분도 조금 더 챙겨 볼게요." },
+  "reply-seed-4": { authorName: "하나", content: "@seed-coach 감사합니다. 마무리 스트레칭까지 해둘게요." },
+};
+
 function sanitizeMediaForStorage(media: FeedMedia[]) {
   return media.map((item) =>
     item.type === "video"
@@ -107,9 +132,32 @@ function buildSeedMedia(index: number): FeedMedia[] {
 }
 
 function normalizeComment(comment: Omit<FeedComment, "likedUserIds"> & { likedUserIds?: string[] }): FeedComment {
+  const repaired = seedCommentMap[comment.id];
+  const postIndex = Number(String(comment.postId).replace("feed-seed-", "")) - 1;
+  const seedAuthor = postIndex >= 0 ? seedAuthors[postIndex % seedAuthors.length] : undefined;
+
   return {
     ...comment,
+    authorName: repaired?.authorName || (seedAuthor && comment.id.startsWith("reply-seed-") ? seedAuthor : comment.authorName),
+    content: repaired?.content || comment.content,
     likedUserIds: Array.isArray(comment.likedUserIds) ? comment.likedUserIds : [],
+  };
+}
+
+function normalizePost(post: FeedPost): FeedPost {
+  const seedIndex = Number(String(post.id).replace("feed-seed-", "")) - 1;
+  if (Number.isNaN(seedIndex) || seedIndex < 0) {
+    return {
+      ...post,
+      tags: Array.isArray(post.tags) ? post.tags : [],
+    };
+  }
+
+  return {
+    ...post,
+    authorName: seedAuthors[seedIndex % seedAuthors.length],
+    content: seedCaptions[seedIndex % seedCaptions.length],
+    tags: ["러닝", "회복", "기록"].slice(0, ((seedIndex % 3) + 1)),
   };
 }
 
@@ -125,9 +173,9 @@ function fallbackPost(post: FeedPost): FeedPost {
 }
 
 export function getFeedPosts() {
-  return getStoredFeedPosts().sort(
-    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-  );
+  return getStoredFeedPosts()
+    .map(normalizePost)
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
 }
 
 export function getFeedComments(postId?: string) {
@@ -138,33 +186,19 @@ export function getFeedComments(postId?: string) {
 }
 
 export function ensureFeedSeed() {
-  const currentPosts = getFeedPosts();
-  const currentComments = getFeedComments();
+  const currentPosts = getStoredFeedPosts();
+  const currentComments = getStoredFeedComments();
   if (currentPosts.length > 0) {
     if (currentComments.length === 0) {
-      seedComments(currentPosts);
+      seedComments(currentPosts.map(normalizePost));
     }
     return;
   }
 
-  const authorNames = ["민서", "서연", "지우", "하나", "시온"];
-  const captions = [
-    "오늘은 회복 런 다음에 스트레칭까지 마무리했습니다.",
-    "인터벌 훈련 덕분에 페이스가 안정적으로 올라왔어요.",
-    "주말 롱런을 앞두고 수분과 영양을 미리 챙겼습니다.",
-    "비 오는 날이라 실내 러닝으로 루틴을 이어갔어요.",
-    "회복 주간이라 강도보다 자세와 호흡에 집중했습니다.",
-    "아침 러닝 후 컨디션 회복이 꽤 만족스럽네요.",
-    "HRV 흐름이 좋아서 오늘은 페이스를 조금 올려봤어요.",
-    "실내 이동으로 대체했지만 루틴은 그대로 가져갑니다.",
-    "출근 전에 15분 종아리 컨디셔닝까지 챙겼습니다.",
-    "롱런 다음 주를 위해 가볍게 정리했습니다.",
-  ];
-
-  const seeded: FeedPost[] = captions.map((content, index) => ({
+  const seeded: FeedPost[] = seedCaptions.map((content, index) => ({
     id: `feed-seed-${index + 1}`,
-    authorId: `seed-${(index % authorNames.length) + 1}`,
-    authorName: authorNames[index % authorNames.length],
+    authorId: `seed-${(index % seedAuthors.length) + 1}`,
+    authorName: seedAuthors[index % seedAuthors.length],
     content,
     createdAt: new Date(Date.now() - index * 1000 * 60 * 43).toISOString(),
     media: buildSeedMedia(index + 1),
@@ -186,7 +220,7 @@ function seedComments(posts: FeedPost[]) {
         authorId: "seed-coach",
         authorName: "코치봇",
         parentId: null,
-        content: "오늘 흐름이 안정적입니다. 회복 상태를 계속 기록해 보세요.",
+        content: seedCommentMap[parentId]?.content || "오늘 흐름이 안정적입니다. 회복 상태를 계속 기록해 보세요.",
         likedUserIds: [],
         createdAt: new Date(Date.now() - index * 1000 * 60 * 19).toISOString(),
       },
@@ -196,7 +230,8 @@ function seedComments(posts: FeedPost[]) {
         authorId: post.authorId,
         authorName: post.authorName,
         parentId,
-        content: "@seed-coach 감사합니다. 내일도 기록 이어갈게요.",
+        content:
+          seedCommentMap[`reply-seed-${index + 1}`]?.content || `@seed-coach 감사합니다. 오늘도 기록 이어갈게요.`,
         likedUserIds: [],
         createdAt: new Date(Date.now() - index * 1000 * 60 * 11).toISOString(),
       },

@@ -1,4 +1,4 @@
-import type { PlayableGameId } from "@/components/entertainment/GameArena";
+ï»¿import type { PlayableGameId } from "@/components/entertainment/GameArena";
 import { supabase } from "@/integrations/supabase/client";
 import { readScopedJson, writeScopedJson } from "@/services/persistence/scopedStorage";
 import {
@@ -24,11 +24,7 @@ function getUserId() {
 }
 
 function getUserName() {
-  return localStorage.getItem("user_nickname") || "»ç¿ëÀÚ";
-}
-
-function buildTextInList(ids: string[]) {
-  return `(${ids.map((id) => `"${id.replaceAll("\"", "\\\"")}"`).join(",")})`;
+  return localStorage.getItem("user_nickname") || "ì‚¬ìš©ìž";
 }
 
 export function getStoredEntertainmentChallenges() {
@@ -92,12 +88,19 @@ export async function hydrateEntertainmentRepositoryFromServer() {
 
 export function subscribeEntertainmentRepositoryChanges(onChange: () => void) {
   const profileId = getProfileId();
-  const profileFilter = profileId ? `profile_id=eq.${profileId}` : undefined;
+  const challengeFilter = profileId ? `profile_id=eq.${profileId}` : undefined;
+  const scoreFilter = profileId ? `profile_id=eq.${profileId}` : undefined;
+
   const channel = supabase
     .channel(`entertainment-repository-${Date.now()}`)
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "entertainment_challenges", ...(profileFilter ? { filter: profileFilter } : {}) },
+      {
+        event: "*",
+        schema: "public",
+        table: "entertainment_challenges",
+        ...(challengeFilter ? { filter: challengeFilter } : {}),
+      },
       async () => {
         await hydrateEntertainmentRepositoryFromServer();
         onChange();
@@ -105,7 +108,7 @@ export function subscribeEntertainmentRepositoryChanges(onChange: () => void) {
     )
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "entertainment_rooms", ...(profileFilter ? { filter: profileFilter } : {}) },
+      { event: "*", schema: "public", table: "entertainment_rooms" },
       async () => {
         await hydrateEntertainmentRepositoryFromServer();
         onChange();
@@ -113,7 +116,12 @@ export function subscribeEntertainmentRepositoryChanges(onChange: () => void) {
     )
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "entertainment_scores", ...(profileFilter ? { filter: profileFilter } : {}) },
+      {
+        event: "*",
+        schema: "public",
+        table: "entertainment_scores",
+        ...(scoreFilter ? { filter: scoreFilter } : {}),
+      },
       async () => {
         await hydrateEntertainmentRepositoryFromServer();
         onChange();
@@ -177,7 +185,7 @@ function buildRankingRows(rows: Array<Record<string, unknown>>): RankingRow[] {
   const bestByUser = new Map<string, { name: string; score: number }>();
   rows.forEach((row) => {
     const userId = String(row.user_id || "");
-    const name = String(row.player_name || "»ç¿ëÀÚ");
+    const name = String(row.player_name || "ì‚¬ìš©ìž");
     const score = Number(row.score || 0);
     const current = bestByUser.get(userId);
     if (!current || score > current.score) {
@@ -194,28 +202,6 @@ function buildRankingRows(rows: Array<Record<string, unknown>>): RankingRow[] {
 async function syncServerChallenges(challenges: ChallengeEntry[]) {
   const profileId = getProfileId();
   if (!profileId) return false;
-
-  const incomingIds = challenges.map((item) => item.id);
-  if (incomingIds.length > 0) {
-    const { error: deleteError } = await supabase
-      .from("entertainment_challenges" as never)
-      .delete()
-      .eq("profile_id", profileId)
-      .not("id", "in", buildTextInList(incomingIds));
-    if (deleteError) {
-      void saveServerSnapshot("entertainment_challenges", challenges);
-      return false;
-    }
-  }
-
-  if (incomingIds.length === 0) {
-    const { error } = await supabase.from("entertainment_challenges" as never).delete().eq("profile_id", profileId);
-    if (error) {
-      void saveServerSnapshot("entertainment_challenges", challenges);
-      return false;
-    }
-    return true;
-  }
 
   const { error } = await supabase.from("entertainment_challenges" as never).upsert(
     challenges.map((challenge) => ({
@@ -271,28 +257,6 @@ async function syncServerScores(scores: GameScores) {
 async function syncServerRooms(rooms: MultiRoom[]) {
   const profileId = getProfileId();
   if (!profileId) return false;
-
-  const incomingIds = rooms.map((item) => item.id);
-  if (incomingIds.length > 0) {
-    const { error: deleteError } = await supabase
-      .from("entertainment_rooms" as never)
-      .delete()
-      .eq("profile_id", profileId)
-      .not("id", "in", buildTextInList(incomingIds));
-    if (deleteError) {
-      void saveServerSnapshot("entertainment_rooms", rooms);
-      return false;
-    }
-  }
-
-  if (incomingIds.length === 0) {
-    const { error } = await supabase.from("entertainment_rooms" as never).delete().eq("profile_id", profileId);
-    if (error) {
-      void saveServerSnapshot("entertainment_rooms", rooms);
-      return false;
-    }
-    return true;
-  }
 
   const { error } = await supabase.from("entertainment_rooms" as never).upsert(
     rooms.map((room) => ({
@@ -372,13 +336,9 @@ async function loadServerScores() {
 }
 
 async function loadServerRooms() {
-  const profileId = getProfileId();
-  if (!profileId) return null;
-
   const { data, error } = await supabase
     .from("entertainment_rooms" as never)
     .select("*")
-    .eq("profile_id", profileId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -402,4 +362,3 @@ async function loadServerRooms() {
     }),
   );
 }
-

@@ -39,8 +39,57 @@ export interface ChatRoom {
   createdAt: string;
 }
 
+const seedFriends: FriendEntry[] = [
+  { id: "seed-1", name: "민서", phone: "01012345678", addedAt: new Date().toISOString() },
+  { id: "seed-2", name: "서연", phone: "01087654321", addedAt: new Date().toISOString() },
+  { id: "seed-3", name: "지우", phone: "01055557777", addedAt: new Date().toISOString() },
+  { id: "seed-4", name: "하나", phone: "01011112222", addedAt: new Date().toISOString() },
+];
+
+const seedRoomNames: Record<string, string> = {
+  "room-seed-direct": "민서",
+  "room-seed-group": "주말 러닝 모임",
+  "room-seed-recovery": "회복 체크방",
+};
+
+const seedMessages: Record<string, { senderName: string; content: string }> = {
+  "msg-seed-1": {
+    senderName: "민서",
+    content: "오늘 회복 페이스 좋네. 저녁에 스트레칭 같이 할래?",
+  },
+  "msg-seed-2": {
+    senderName: "서연",
+    content: "토요일 오전 7시에 잠실 러닝 어때?",
+  },
+  "msg-seed-3": {
+    senderName: "하나",
+    content: "롱런 이후 HRV 흐름 공유해 줘.",
+  },
+};
+
+function repairFriend(friend: FriendEntry): FriendEntry {
+  const seed = seedFriends.find((item) => item.id === friend.id);
+  return seed ? { ...friend, name: seed.name, phone: seed.phone } : friend;
+}
+
+function repairRoom(room: ChatRoom): ChatRoom {
+  const repairedName = seedRoomNames[room.id];
+  return repairedName ? { ...room, name: repairedName } : room;
+}
+
+function repairMessage(message: ChatMessage): ChatMessage {
+  const repaired = seedMessages[message.id];
+  return repaired
+    ? {
+        ...message,
+        senderName: repaired.senderName,
+        content: repaired.content,
+      }
+    : message;
+}
+
 export function getFriends() {
-  return getStoredFriends();
+  return getStoredFriends().map(repairFriend);
 }
 
 export function saveFriend(contact: DeviceContact) {
@@ -71,7 +120,7 @@ export function removeFriend(friendId: string) {
 }
 
 export function getChatRooms() {
-  return getStoredChatRooms();
+  return getStoredChatRooms().map(repairRoom);
 }
 
 export function renameChatRoom(roomId: string, name: string) {
@@ -88,7 +137,7 @@ export function deleteChatRoom(roomId: string) {
 }
 
 export function getChatMessages() {
-  return getStoredChatMessages();
+  return getStoredChatMessages().map(repairMessage);
 }
 
 export function getRoomMessages(roomId: string) {
@@ -144,21 +193,16 @@ export function saveChatMessage(message: Omit<ChatMessage, "id" | "createdAt">) 
 }
 
 export function ensureSocialSeed() {
-  const friends = getFriends();
-  const rooms = getChatRooms();
-  const messages = getChatMessages();
+  const friends = getStoredFriends();
+  const rooms = getStoredChatRooms();
+  const messages = getStoredChatMessages();
 
   if (friends.length > 0 || rooms.length > 0 || messages.length > 0) {
     return;
   }
 
   const now = new Date();
-  const seedFriends: FriendEntry[] = [
-    { id: "seed-1", name: "민서", phone: "01012345678", addedAt: now.toISOString() },
-    { id: "seed-2", name: "서연", phone: "01087654321", addedAt: now.toISOString() },
-    { id: "seed-3", name: "지우", phone: "01055557777", addedAt: now.toISOString() },
-    { id: "seed-4", name: "하나", phone: "01011112222", addedAt: now.toISOString() },
-  ];
+  const seededFriends = seedFriends.map((friend) => ({ ...friend, addedAt: now.toISOString() }));
 
   const directRoom: ChatRoom = {
     id: "room-seed-direct",
@@ -184,13 +228,13 @@ export function ensureSocialSeed() {
     createdAt: now.toISOString(),
   };
 
-  const seedMessages: ChatMessage[] = [
+  const seededMessages: ChatMessage[] = [
     {
       id: "msg-seed-1",
       roomId: directRoom.id,
       senderId: "seed-1",
       senderName: "민서",
-      content: "오늘 러닝 페이스 좋네. 저녁에 스트레칭 같이 할래?",
+      content: "오늘 회복 페이스 좋네. 저녁에 스트레칭 같이 할래?",
       createdAt: new Date(now.getTime() - 1000 * 60 * 36).toISOString(),
     },
     {
@@ -198,7 +242,7 @@ export function ensureSocialSeed() {
       roomId: groupRoom.id,
       senderId: "seed-2",
       senderName: "서연",
-      content: "토요일 아침 7시에 한강 러닝 어때?",
+      content: "토요일 오전 7시에 잠실 러닝 어때?",
       createdAt: new Date(now.getTime() - 1000 * 60 * 22).toISOString(),
     },
     {
@@ -211,9 +255,9 @@ export function ensureSocialSeed() {
     },
   ];
 
-  saveStoredFriends(seedFriends);
+  saveStoredFriends(seededFriends);
   saveStoredChatRooms([directRoom, groupRoom, recoveryRoom]);
-  saveStoredChatMessages(seedMessages);
+  saveStoredChatMessages(seededMessages);
 }
 
 export async function hydrateSocialStoreFromServer() {

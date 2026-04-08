@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, CornerDownLeft, RotateCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,24 +97,22 @@ function getGameTitle(gameId: PlayableGameId) {
 }
 
 export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds }: Props) {
-  const tapDuration = durationSeconds || 10;
-  const reactionDuration = durationSeconds || 30;
-  const memoryDuration = durationSeconds || 20;
+  const timedDuration = durationSeconds || 30;
 
   const [tapCount, setTapCount] = useState(0);
   const [tapStarted, setTapStarted] = useState(false);
-  const [tapTimeLeft, setTapTimeLeft] = useState(tapDuration);
+  const [tapTimeLeft, setTapTimeLeft] = useState(timedDuration);
 
   const [reactionStarted, setReactionStarted] = useState(false);
   const [reactionHits, setReactionHits] = useState(0);
   const [reactionTarget, setReactionTarget] = useState<number | null>(null);
-  const [reactionTimeLeft, setReactionTimeLeft] = useState(reactionDuration);
+  const [reactionTimeLeft, setReactionTimeLeft] = useState(timedDuration);
 
   const [memorySequence, setMemorySequence] = useState<number[]>([]);
   const [memoryInput, setMemoryInput] = useState<number[]>([]);
   const [memoryLevel, setMemoryLevel] = useState(3);
   const [memoryShowing, setMemoryShowing] = useState(false);
-  const [memoryTimeLeft, setMemoryTimeLeft] = useState(memoryDuration);
+  const [memoryTimeLeft, setMemoryTimeLeft] = useState(timedDuration);
   const [memoryFinished, setMemoryFinished] = useState(false);
 
   const [board, setBoard] = useState<TetrisCell[][]>(createBoard());
@@ -125,16 +123,10 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
   const memoryTimeout = useRef<number | null>(null);
 
   useEffect(() => {
-    setTapTimeLeft(tapDuration);
-  }, [tapDuration]);
-
-  useEffect(() => {
-    setReactionTimeLeft(reactionDuration);
-  }, [reactionDuration]);
-
-  useEffect(() => {
-    setMemoryTimeLeft(memoryDuration);
-  }, [memoryDuration]);
+    setTapTimeLeft(timedDuration);
+    setReactionTimeLeft(timedDuration);
+    setMemoryTimeLeft(timedDuration);
+  }, [timedDuration]);
 
   const displayBoard = useMemo(() => (gameId === "tetris" ? merge(board, piece) : board), [board, gameId, piece]);
 
@@ -156,7 +148,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
     const timer = window.setTimeout(() => {
       setReactionTimeLeft((value) => value - 1);
       setReactionTarget(Math.floor(Math.random() * 9));
-    }, 900);
+    }, 850);
     return () => window.clearTimeout(timer);
   }, [gameId, reactionStarted, reactionTimeLeft]);
 
@@ -184,7 +176,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
 
   useEffect(() => {
     if (gameId !== "tetris" || !tetrisRunning) return;
-    const speed = Math.max(280, 920 - Math.floor(tetrisScore / 80) * 45);
+    const speed = Math.max(420, 1150 - Math.floor(tetrisScore / 120) * 35);
     const timer = window.setInterval(() => {
       setPiece((current) => {
         const moved = { ...current, y: current.y + 1 };
@@ -221,7 +213,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
 
   const startTapSprint = () => {
     setTapCount(0);
-    setTapTimeLeft(tapDuration);
+    setTapTimeLeft(timedDuration);
     setTapStarted(true);
   };
 
@@ -233,7 +225,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
   const startReactionGrid = () => {
     setReactionStarted(true);
     setReactionHits(0);
-    setReactionTimeLeft(reactionDuration);
+    setReactionTimeLeft(timedDuration);
     setReactionTarget(Math.floor(Math.random() * 9));
   };
 
@@ -249,7 +241,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
     setMemorySequence(next);
     setMemoryInput([]);
     setMemoryShowing(true);
-    setMemoryTimeLeft(memoryDuration);
+    setMemoryTimeLeft(timedDuration);
     setMemoryFinished(false);
     memoryTimeout.current = window.setTimeout(() => setMemoryShowing(false), 1800);
   };
@@ -315,7 +307,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
 
         {gameId === "tap-sprint" ? (
           <div className="space-y-4">
-            <Progress value={(tapTimeLeft / tapDuration) * 100} />
+            <Progress value={(tapTimeLeft / timedDuration) * 100} />
             <div className="grid grid-cols-2 gap-3 text-center">
               <div className="rounded-xl border p-4">
                 <div className="text-xs text-muted-foreground">남은 시간</div>
@@ -327,14 +319,14 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
               </div>
             </div>
             <Button className="w-full" onClick={tapStarted && tapTimeLeft > 0 ? handleTap : startTapSprint}>
-              {tapStarted && tapTimeLeft > 0 ? "탭하기" : "게임 시작"}
+              {tapStarted && tapTimeLeft > 0 ? "탭 하기" : "게임 시작"}
             </Button>
           </div>
         ) : null}
 
         {gameId === "reaction-grid" ? (
           <div className="space-y-4">
-            <Progress value={(reactionTimeLeft / reactionDuration) * 100} />
+            <Progress value={(reactionTimeLeft / timedDuration) * 100} />
             <div className="grid grid-cols-3 gap-2">
               {Array.from({ length: 9 }).map((_, index) => (
                 <button
@@ -421,22 +413,18 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
                 <CornerDownLeft className="h-4 w-4" />
               </Button>
             </div>
-            <Button variant="outline" onClick={() => movePiece(0, 1)} className="w-full">
-              <ArrowDown className="mr-2 h-4 w-4" />
-              아래로
-            </Button>
-            {!tetrisRunning ? (
-              <Button
-                className="w-full"
-                onClick={() => {
-                  setBoard(createBoard());
-                  setPiece(randomPiece());
-                  setTetrisScore(0);
-                  setTetrisRunning(true);
-                }}
-              >
-                다시 시작
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" onClick={() => setBoard(createBoard())}>
+                새로고침
               </Button>
+              <Button variant="outline" onClick={() => movePiece(0, 1)}>
+                <ArrowDown className="mr-2 h-4 w-4" />아래로
+              </Button>
+            </div>
+            {!tetrisRunning ? (
+              <div className="rounded-xl border border-primary/20 bg-primary/8 p-4 text-sm">
+                게임 오버. 블록을 다시 정리해 보세요.
+              </div>
             ) : null}
           </div>
         ) : null}

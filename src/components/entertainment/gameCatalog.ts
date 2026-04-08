@@ -2,36 +2,60 @@ import type { PlayableGameId } from "@/components/entertainment/GameArena";
 import type { RankingRange, RankingRow } from "@/services/entertainmentTypes";
 
 export const miniGames: Array<{ id: PlayableGameId; title: string; summary: string }> = [
-  { id: "tap-sprint", title: "탭 스프린트", summary: "10초 동안 최대한 많이 탭하는 반응 속도 게임입니다." },
-  { id: "reaction-grid", title: "리액션 그리드", summary: "빛나는 칸을 빠르게 눌러 반응 속도를 겨룹니다." },
-  { id: "pace-memory", title: "페이스 메모리", summary: "패턴을 기억해 정확도를 겨루는 기억력 게임입니다." },
+  { id: "tap-sprint", title: "탭 스프린트", summary: "제한 시간 동안 최대한 많이 탭해서 반응 속도를 겨루는 게임입니다." },
+  { id: "reaction-grid", title: "리액션 그리드", summary: "빛나는 칸을 빠르게 눌러 반응 정확도와 속도를 겨룹니다." },
+  { id: "pace-memory", title: "페이스 메모리", summary: "순서를 기억하고 재현하며 집중력을 겨루는 기억 게임입니다." },
   { id: "tetris", title: "테트리스", summary: "시간이 지날수록 빨라지는 블록 게임입니다." },
 ];
 
 export const featuredBadges = [
-  { id: "lavender", icon: "✦", name: "라벤더 러너", detail: "균형 잡힌 러닝 루틴을 이어가는 대표 배지입니다." },
-  { id: "sub4", icon: "🏅", name: "Sub4 체이서", detail: "공인 풀코스 기록 목표를 향해 도전하는 배지입니다." },
-  { id: "mountain", icon: "⛰", name: "마운틴 헌터", detail: "누적 상승 고도를 꾸준히 쌓은 러너에게 주어집니다." },
-  { id: "ultra", icon: "⚡", name: "울트라 스피릿", detail: "장거리 훈련을 오래 이어간 러너에게 주어집니다." },
+  { id: "lavender", icon: "💜", name: "라벤더 러너", detail: "균형 잡힌 회복 루틴을 꾸준히 이어간 러너에게 주어지는 배지입니다." },
+  { id: "sub4", icon: "🏅", name: "Sub4 체이서", detail: "공인 풀코스 기록 목표를 향해 안정적으로 전진하는 러너의 배지입니다." },
+  { id: "mountain", icon: "⛰️", name: "마운틴 헌터", detail: "누적 상승 고도를 꾸준히 채운 러너에게 주어지는 배지입니다." },
+  { id: "ultra", icon: "🔥", name: "울트라 스피릿", detail: "장거리 훈련을 오래 이어간 러너에게 주어지는 배지입니다." },
 ];
 
 export function buildSeedRankingData(myUserId: string, myUserName: string): Record<PlayableGameId, Record<RankingRange, RankingRow[]>> {
   return {
     "tap-sprint": {
-      weekly: [{ name: "민서", userId: "minseo", score: 83, rank: 1 }, { name: myUserName, userId: myUserId, score: 62, rank: 2 }],
-      monthly: [{ name: "민서", userId: "minseo", score: 322, rank: 1 }, { name: myUserName, userId: myUserId, score: 275, rank: 2 }],
+      weekly: [
+        { name: "민서", userId: "minseo", score: 83, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 62, rank: 2 },
+      ],
+      monthly: [
+        { name: "민서", userId: "minseo", score: 322, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 275, rank: 2 },
+      ],
     },
     "reaction-grid": {
-      weekly: [{ name: "지우", userId: "jiwoo", score: 210, rank: 1 }, { name: myUserName, userId: myUserId, score: 180, rank: 2 }],
-      monthly: [{ name: "지우", userId: "jiwoo", score: 774, rank: 1 }, { name: myUserName, userId: myUserId, score: 708, rank: 2 }],
+      weekly: [
+        { name: "지우", userId: "jiwoo", score: 210, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 180, rank: 2 },
+      ],
+      monthly: [
+        { name: "지우", userId: "jiwoo", score: 774, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 708, rank: 2 },
+      ],
     },
     "pace-memory": {
-      weekly: [{ name: "하나", userId: "hana", score: 168, rank: 1 }, { name: myUserName, userId: myUserId, score: 156, rank: 2 }],
-      monthly: [{ name: "하나", userId: "hana", score: 598, rank: 1 }, { name: myUserName, userId: myUserId, score: 562, rank: 2 }],
+      weekly: [
+        { name: "하나", userId: "hana", score: 168, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 156, rank: 2 },
+      ],
+      monthly: [
+        { name: "하나", userId: "hana", score: 598, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 562, rank: 2 },
+      ],
     },
     tetris: {
-      weekly: [{ name: "윤호", userId: "yunho", score: 230, rank: 1 }, { name: myUserName, userId: myUserId, score: 190, rank: 2 }],
-      monthly: [{ name: "윤호", userId: "yunho", score: 960, rank: 1 }, { name: myUserName, userId: myUserId, score: 821, rank: 2 }],
+      weekly: [
+        { name: "윤호", userId: "yunho", score: 230, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 190, rank: 2 },
+      ],
+      monthly: [
+        { name: "윤호", userId: "yunho", score: 960, rank: 1 },
+        { name: myUserName, userId: myUserId, score: 821, rank: 2 },
+      ],
     },
   };
 }
