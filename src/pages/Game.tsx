@@ -18,7 +18,7 @@ import { reduceSandboxState } from "@/components/entertainment/sandbox/sandboxEn
 import { StrategyArena } from "@/components/entertainment/StrategyArena";
 import { createFitCraftWorld } from "@/components/entertainment/sandbox/sandboxSerializer";
 import type { SandboxAction, SandboxWorldState } from "@/components/entertainment/sandbox/sandboxTypes";
-import { createPulseFrontierState } from "@/components/entertainment/strategy/strategyMap";
+import { createPulseFrontierState, loadPulseFrontierBonusOverrides } from "@/components/entertainment/strategy/strategyMap";
 import { reduceStrategyState } from "@/components/entertainment/strategy/strategyEngine";
 import type { StrategyAction, StrategyUnitType } from "@/components/entertainment/strategy/strategyTypes";
 import { awardBadge } from "@/services/achievementStore";
@@ -585,13 +585,20 @@ export default function Game() {
     void appendStrategyEvent(activeRoom.id, MY_USER_ID, action);
     void saveStrategySnapshot(activeRoom.id, nextState);
   };
-  const handleStartRoom = () => {
+  const handleStartRoom = async () => {
     if (!activeRoom || activeRoom.hostId !== MY_USER_ID) return;
     if (activeRoom.gameId === "pulse-frontier") {
       const maxTurns = activeRoom.roomRules?.maxTurns || 12;
       const mapId = activeRoom.roomRules?.mapId || "frontier-classic-8x8";
       const matchup = activeRoom.roomRules?.matchup || "1v1";
-      const strategyState = createPulseFrontierState(activeRoom.participants, maxTurns, mapId, matchup);
+      const bonusOverrides = await loadPulseFrontierBonusOverrides(activeRoom.participants);
+      const strategyState = createPulseFrontierState(
+        activeRoom.participants,
+        maxTurns,
+        mapId,
+        matchup,
+        bonusOverrides,
+      );
       const nextRoom: MultiRoom = {
         ...activeRoom,
         roomStatus: "running",
@@ -806,8 +813,13 @@ export default function Game() {
                     <CardHeader><CardTitle className="flex items-center gap-2"><Gamepad2 className="h-5 w-5 text-primary" />미니게임</CardTitle></CardHeader>
                     <CardContent className="grid gap-3 md:grid-cols-2">
                       {miniGames.map((game) => (
-                        <button key={game.id} type="button" className="rounded-2xl border p-4 text-left transition-colors hover:bg-muted/30" onClick={() => {
+                        <button key={game.id} type="button" className="rounded-2xl border p-4 text-left transition-colors hover:bg-muted/30" onClick={async () => {
                           if (game.id === "pulse-frontier") {
+                            const practiceParticipants = [
+                              { userId: MY_USER_ID, name: MY_USER_NAME, teamId: "alpha" as const },
+                              { ...buildBotParticipant([]), teamId: "beta" as const },
+                            ];
+                            const bonusOverrides = await loadPulseFrontierBonusOverrides(practiceParticipants);
                             const practiceRoom: MultiRoom = {
                               id: `practice-${Date.now()}`,
                               title: "Pulse Frontier 연습 매치",
@@ -820,12 +832,21 @@ export default function Game() {
                               editableBy: "host",
                               durationSeconds: undefined,
                               teamMode: false,
-                              participants: [{ userId: MY_USER_ID, name: MY_USER_NAME, teamId: "alpha", ready: true }, { ...buildBotParticipant([]), teamId: "beta", ready: true }],
+                              participants: [
+                                { userId: MY_USER_ID, name: MY_USER_NAME, teamId: "alpha", ready: true },
+                                { ...buildBotParticipant([]), teamId: "beta", ready: true },
+                              ],
                               chatMessages: [],
                               systemEvents: [],
                               maxPlayers: 2,
                               roomRules: { mapId: "frontier-classic-8x8", maxTurns: 12, matchup: "1v1" },
-                              gameState: createPulseFrontierState([{ userId: MY_USER_ID, name: MY_USER_NAME, teamId: "alpha" }, { ...buildBotParticipant([]), teamId: "beta" }], 12, "frontier-classic-8x8", "1v1"),
+                              gameState: createPulseFrontierState(
+                                practiceParticipants,
+                                12,
+                                "frontier-classic-8x8",
+                                "1v1",
+                                bonusOverrides,
+                              ),
                               updatedAt: new Date().toISOString(),
                             };
                             saveRooms([practiceRoom, ...rooms]);
