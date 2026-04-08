@@ -24,7 +24,7 @@ function getUserId() {
 }
 
 function getUserName() {
-  return localStorage.getItem("user_nickname") || "ì‚¬ìš©ì";
+  return localStorage.getItem("user_nickname") || "»ç¿ëÀÚ";
 }
 
 function buildTextInList(ids: string[]) {
@@ -177,7 +177,7 @@ function buildRankingRows(rows: Array<Record<string, unknown>>): RankingRow[] {
   const bestByUser = new Map<string, { name: string; score: number }>();
   rows.forEach((row) => {
     const userId = String(row.user_id || "");
-    const name = String(row.player_name || "ì‚¬ìš©ì");
+    const name = String(row.player_name || "»ç¿ëÀÚ");
     const score = Number(row.score || 0);
     const current = bestByUser.get(userId);
     if (!current || score > current.score) {
@@ -402,3 +402,4 @@ async function loadServerRooms() {
     }),
   );
 }
+

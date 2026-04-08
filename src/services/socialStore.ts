@@ -120,7 +120,6 @@ export function upsertDirectRoom(friend: FriendEntry) {
 }
 
 export function createGroupRoom(name: string, memberIds: string[]) {
-  const currentRooms = getChatRooms();
   const room: ChatRoom = {
     id: `room-${Date.now()}`,
     name,
@@ -155,15 +154,15 @@ export function ensureSocialSeed() {
 
   const now = new Date();
   const seedFriends: FriendEntry[] = [
-    { id: "seed-1", name: "민준", phone: "01012345678", addedAt: now.toISOString() },
+    { id: "seed-1", name: "민서", phone: "01012345678", addedAt: now.toISOString() },
     { id: "seed-2", name: "서연", phone: "01087654321", addedAt: now.toISOString() },
-    { id: "seed-3", name: "지훈", phone: "01055557777", addedAt: now.toISOString() },
-    { id: "seed-4", name: "유나", phone: "01011112222", addedAt: now.toISOString() },
+    { id: "seed-3", name: "지우", phone: "01055557777", addedAt: now.toISOString() },
+    { id: "seed-4", name: "하나", phone: "01011112222", addedAt: now.toISOString() },
   ];
 
   const directRoom: ChatRoom = {
     id: "room-seed-direct",
-    name: "민준",
+    name: "민서",
     type: "direct",
     memberIds: ["seed-1"],
     createdAt: now.toISOString(),
@@ -171,7 +170,7 @@ export function ensureSocialSeed() {
 
   const groupRoom: ChatRoom = {
     id: "room-seed-group",
-    name: "주말 러닝 크루",
+    name: "주말 러닝 모임",
     type: "group",
     memberIds: ["seed-1", "seed-2", "seed-3"],
     createdAt: now.toISOString(),
@@ -190,8 +189,8 @@ export function ensureSocialSeed() {
       id: "msg-seed-1",
       roomId: directRoom.id,
       senderId: "seed-1",
-      senderName: "민준",
-      content: "오늘 러닝 페이스 좋네. 저녁에는 스트레칭 꼭 해.",
+      senderName: "민서",
+      content: "오늘 러닝 페이스 좋네. 저녁에 스트레칭 같이 할래?",
       createdAt: new Date(now.getTime() - 1000 * 60 * 36).toISOString(),
     },
     {
@@ -199,15 +198,15 @@ export function ensureSocialSeed() {
       roomId: groupRoom.id,
       senderId: "seed-2",
       senderName: "서연",
-      content: "토요일 오전 7시에 한강 러닝 어때?",
+      content: "토요일 아침 7시에 한강 러닝 어때?",
       createdAt: new Date(now.getTime() - 1000 * 60 * 22).toISOString(),
     },
     {
       id: "msg-seed-3",
       roomId: recoveryRoom.id,
       senderId: "seed-4",
-      senderName: "유나",
-      content: "어제 장거리 이후 HRV 흐름 공유해줘.",
+      senderName: "하나",
+      content: "롱런 이후 HRV 흐름 공유해 줘.",
       createdAt: new Date(now.getTime() - 1000 * 60 * 8).toISOString(),
     },
   ];

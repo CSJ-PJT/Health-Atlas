@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { buildSeedRankingData, buildSeedTopFiveData, featuredBadges, miniGames } from "@/components/entertainment/gameCatalog";
 import { GameArena, type PlayableGameId } from "@/components/entertainment/GameArena";
+import { buildRoomScoreboard, buildSystemMessage, parseLatestStart } from "@/components/entertainment/gameRoomState";
 import { awardBadge } from "@/services/achievementStore";
 import {
   getStoredEntertainmentChallenges,
@@ -36,55 +38,8 @@ import {
 const MY_USER_ID = localStorage.getItem("user_id") || "me";
 const MY_USER_NAME = localStorage.getItem("user_nickname") || "사용자";
 const challengeIcons = { run: Footprints, heart: HeartPulse, sleep: Moon, team: Users } as const;
-const miniGames: Array<{ id: PlayableGameId; title: string; summary: string }> = [
-  { id: "tap-sprint", title: "탭 스프린트", summary: "10초 동안 최대한 많이 탭하는 반응 속도 게임입니다." },
-  { id: "reaction-grid", title: "리액션 그리드", summary: "빛나는 칸을 빠르게 눌러 반응 속도를 겨룹니다." },
-  { id: "pace-memory", title: "페이스 메모리", summary: "패턴을 기억해 정확도를 겨루는 기억력 게임입니다." },
-  { id: "tetris", title: "테트리스", summary: "시간이 지날수록 빨라지는 블록 게임입니다." },
-];
-const rankingData: Record<PlayableGameId, Record<RankingRange, RankingRow[]>> = {
-  "tap-sprint": { weekly: [{ name: "민서", userId: "minseo", score: 83, rank: 1 }, { name: MY_USER_NAME, userId: MY_USER_ID, score: 62, rank: 2 }], monthly: [{ name: "민서", userId: "minseo", score: 322, rank: 1 }, { name: MY_USER_NAME, userId: MY_USER_ID, score: 275, rank: 2 }] },
-  "reaction-grid": { weekly: [{ name: "지우", userId: "jiwoo", score: 210, rank: 1 }, { name: MY_USER_NAME, userId: MY_USER_ID, score: 180, rank: 2 }], monthly: [{ name: "지우", userId: "jiwoo", score: 774, rank: 1 }, { name: MY_USER_NAME, userId: MY_USER_ID, score: 708, rank: 2 }] },
-  "pace-memory": { weekly: [{ name: "하나", userId: "hana", score: 168, rank: 1 }, { name: MY_USER_NAME, userId: MY_USER_ID, score: 156, rank: 2 }], monthly: [{ name: "하나", userId: "hana", score: 598, rank: 1 }, { name: MY_USER_NAME, userId: MY_USER_ID, score: 562, rank: 2 }] },
-  tetris: { weekly: [{ name: "윤호", userId: "yunho", score: 230, rank: 1 }, { name: MY_USER_NAME, userId: MY_USER_ID, score: 190, rank: 2 }], monthly: [{ name: "윤호", userId: "yunho", score: 960, rank: 1 }, { name: MY_USER_NAME, userId: MY_USER_ID, score: 821, rank: 2 }] },
-};
-const topFiveData: Record<PlayableGameId, Array<{ name: string; score: number; badge: string }>> = {
-  "tap-sprint": [{ name: "민서", score: 1210, badge: "Lightning" }, { name: "서연", score: 1174, badge: "Fast Hands" }, { name: "윤호", score: 1150, badge: "Pulse Ace" }, { name: "지우", score: 1128, badge: "Sharp Tapper" }, { name: "가온", score: 1110, badge: "Quick Burst" }],
-  "reaction-grid": [{ name: "지우", score: 1850, badge: "Vision Master" }, { name: "민서", score: 1798, badge: "Flash Queen" }, { name: "하나", score: 1722, badge: "Target Hunter" }, { name: "서연", score: 1671, badge: "Reflex Star" }, { name: "가온", score: 1604, badge: "Grid Hero" }],
-  "pace-memory": [{ name: "하나", score: 1480, badge: "Memory Ace" }, { name: MY_USER_NAME, score: 1420, badge: "Pattern Pro" }, { name: "민서", score: 1390, badge: "Focus Mind" }, { name: "지우", score: 1335, badge: "Recall Master" }, { name: "서연", score: 1310, badge: "Rhythm Brain" }],
-  tetris: [{ name: "윤호", score: 2310, badge: "Block Master" }, { name: "민서", score: 2250, badge: "Stack Queen" }, { name: "가온", score: 2188, badge: "Line Breaker" }, { name: MY_USER_NAME, score: 2112, badge: "Drop Expert" }, { name: "서연", score: 2085, badge: "Tower Mind" }],
-};
-const featuredBadges = [
-  { id: "lavender", icon: "✦", name: "라벤더 러너", detail: "균형 잡힌 러닝 루틴을 이어가는 대표 배지입니다." },
-  { id: "sub4", icon: "🏅", name: "Sub4 체이서", detail: "공인 풀코스 기록 목표를 향해 도전하는 배지입니다." },
-  { id: "mountain", icon: "⛰", name: "마운틴 헌터", detail: "누적 상승 고도를 꾸준히 쌓은 러너에게 주어집니다." },
-  { id: "ultra", icon: "⚡", name: "울트라 스피릿", detail: "장거리 훈련을 오래 이어간 러너에게 주어집니다." },
-];
-
-function buildSystemMessage(type: "start" | "score", payload: Record<string, unknown>) {
-  return `__system__:${type}:${JSON.stringify(payload)}`;
-}
-
-function parseLatestStart(room: MultiRoom | null) {
-  if (!room) return null;
-  const startMessage = [...room.chat]
-    .reverse()
-    .find((message) => typeof message.text === "string" && message.text.startsWith("__system__:start:"));
-
-  if (!startMessage) return null;
-
-  try {
-    const payload = JSON.parse(startMessage.text.replace("__system__:start:", "")) as {
-      gameId: PlayableGameId;
-      durationSeconds: 30 | 60;
-      startedAt: string;
-    };
-    if (!payload?.gameId || !payload?.durationSeconds) return null;
-    return payload;
-  } catch {
-    return null;
-  }
-}
+const rankingData = buildSeedRankingData(MY_USER_ID, MY_USER_NAME);
+const topFiveData = buildSeedTopFiveData(MY_USER_NAME);
 
 function getChallenges(): ChallengeEntry[] {
   const data = getStoredEntertainmentChallenges();
@@ -191,6 +146,7 @@ export default function Game() {
 
   const activeRoom = rooms.find((room) => room.id === activeRoomId) || null;
   const activeRoomStart = useMemo(() => parseLatestStart(activeRoom), [activeRoom]);
+  const activeRoomScores = useMemo(() => buildRoomScoreboard(activeRoom), [activeRoom]);
   const currentLeaderboard = liveRanking;
   const myRanking = currentLeaderboard.find((entry) => entry.userId === MY_USER_ID);
   const myChallenges = useMemo(() => challenges.filter((item) => item.joinedUserIds.includes(MY_USER_ID) || item.completedUserIds.includes(MY_USER_ID)), [challenges]);
@@ -397,7 +353,8 @@ export default function Game() {
                     <Card>
                       <CardHeader><CardTitle>방 채팅</CardTitle></CardHeader>
                       <CardContent className="space-y-3">
-                        <ScrollArea className="h-80 rounded-2xl border p-3"><div className="space-y-3">{activeRoom.chat.length === 0 ? <div className="text-sm text-muted-foreground">아직 대화가 없습니다.</div> : activeRoom.chat.map((message) => <div key={message.id} className="rounded-xl bg-muted/30 p-3 text-sm"><div className="font-medium">{message.name}</div><div className="mt-1">{message.text}</div></div>)}</div></ScrollArea>
+                        {activeRoomScores.length > 0 ? <div className="rounded-2xl border p-4"><div className="mb-3 font-medium">현재 세션 점수</div><div className="space-y-2">{activeRoomScores.map((entry) => <div key={entry.userId} className="flex items-center justify-between rounded-xl bg-muted/30 px-3 py-2 text-sm"><span>{entry.rank}위 {entry.name}</span><span className="font-semibold text-primary">{entry.score}</span></div>)}</div></div> : null}
+                        <ScrollArea className="h-80 rounded-2xl border p-3"><div className="space-y-3">{activeRoom.chat.length === 0 ? <div className="text-sm text-muted-foreground">아직 대화가 없습니다.</div> : activeRoom.chat.filter((message) => !message.text.startsWith("__system__:")).map((message) => <div key={message.id} className="rounded-xl bg-muted/30 p-3 text-sm"><div className="font-medium">{message.name}</div><div className="mt-1">{message.text}</div></div>)}</div></ScrollArea>
                         <div className="flex gap-2"><Input value={roomChatInput} onChange={(event) => setRoomChatInput(event.target.value)} placeholder="채팅 입력" /><Button onClick={handleRoomChat}>전송</Button></div>
                         <Button variant="outline" className="w-full" onClick={() => setActiveRoomId(null)}>세션 목록으로</Button>
                       </CardContent>
