@@ -1,3 +1,5 @@
+import { deepRepairLegacyValue, repairLegacyText } from "@/services/textRepair";
+
 function getScopeId() {
   return localStorage.getItem("profile_id") || localStorage.getItem("user_id") || "guest";
 }
@@ -12,9 +14,9 @@ export function readScopedJson<T>(key: string, fallback: T, legacyKeys: string[]
     const stored = localStorage.getItem(candidate);
     if (!stored) continue;
     try {
-      const parsed = JSON.parse(stored) as T;
+      const parsed = deepRepairLegacyValue(JSON.parse(stored) as T);
       if (candidate !== getScopedKey(key)) {
-        localStorage.setItem(getScopedKey(key), stored);
+        localStorage.setItem(getScopedKey(key), JSON.stringify(parsed));
       }
       return parsed;
     } catch {
@@ -33,10 +35,11 @@ export function readScopedValue(key: string, fallback = "", legacyKeys: string[]
   for (const candidate of candidates) {
     const stored = localStorage.getItem(candidate);
     if (stored !== null) {
+      const repaired = repairLegacyText(stored);
       if (candidate !== getScopedKey(key)) {
-        localStorage.setItem(getScopedKey(key), stored);
+        localStorage.setItem(getScopedKey(key), repaired);
       }
-      return stored;
+      return repaired;
     }
   }
   return fallback;

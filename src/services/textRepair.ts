@@ -28,3 +28,21 @@ const legacyTextMap: Array<[string, string]> = [
 export function repairLegacyText(value: string) {
   return legacyTextMap.reduce((current, [broken, repaired]) => current.replaceAll(broken, repaired), value);
 }
+
+export function deepRepairLegacyValue<T>(value: T): T {
+  if (typeof value === "string") {
+    return repairLegacyText(value) as T;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => deepRepairLegacyValue(item)) as T;
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, deepRepairLegacyValue(entry)]),
+    ) as T;
+  }
+
+  return value;
+}

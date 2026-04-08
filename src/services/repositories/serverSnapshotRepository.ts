@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { deepRepairLegacyValue } from "@/services/textRepair";
 
 export type SnapshotScopeKey =
   | "feed_posts"
@@ -36,7 +37,7 @@ export async function loadServerSnapshot<T>(scopeKey: SnapshotScopeKey): Promise
     return null;
   }
 
-  return (data?.payload as T | null) ?? null;
+  return data?.payload ? deepRepairLegacyValue(data.payload as T) : null;
 }
 
 export async function saveServerSnapshot(scopeKey: SnapshotScopeKey, payload: unknown) {
