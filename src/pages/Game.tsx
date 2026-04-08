@@ -42,6 +42,9 @@ import {
   type MultiRoom,
   type RankingRange,
   type RankingRow,
+  type RoomVisibility,
+  type StrategyMapId,
+  type StrategyMatchup,
 } from "@/services/entertainmentTypes";
 
 const MY_USER_ID = localStorage.getItem("user_id") || "me";
@@ -51,6 +54,10 @@ const rankingData = buildSeedRankingData(MY_USER_ID, MY_USER_NAME);
 const topFiveData = buildSeedTopFiveData(MY_USER_NAME);
 
 const BOT_NAMES = ["코멧", "노바", "루프", "픽셀", "제로", "퀵실버"];
+const STRATEGY_MAPS: Array<{ id: StrategyMapId; title: string; summary: string }> = [
+  { id: "frontier-classic-8x8", title: "클래식 프론티어", summary: "중앙 거점 4곳을 두고 점령 경쟁을 벌이는 기본 맵입니다." },
+  { id: "frontier-crossroads-8x8", title: "크로스로드", summary: "대각선과 중앙을 동시에 노려야 하는 확장형 교차 맵입니다." },
+];
 
 function buildBotParticipant(existing: MultiRoom["participants"]) {
   const index = existing.filter((participant) => participant.isBot).length;
@@ -130,6 +137,10 @@ export default function Game() {
   const [roomGameId, setRoomGameId] = useState<PlayableGameId>("tap-sprint");
   const [roomDuration, setRoomDuration] = useState<30 | 60>(30);
   const [teamMode, setTeamMode] = useState(false);
+  const [roomVisibility, setRoomVisibility] = useState<RoomVisibility>("public");
+  const [strategyMapId, setStrategyMapId] = useState<StrategyMapId>("frontier-classic-8x8");
+  const [strategyTurns, setStrategyTurns] = useState<8 | 12 | 16>(12);
+  const [strategyMatchup, setStrategyMatchup] = useState<StrategyMatchup>("1v1");
   const [roomChatInput, setRoomChatInput] = useState("");
 
   useDeviceBackNavigation({
@@ -326,6 +337,7 @@ export default function Game() {
   const handleCreateRoom = () => {
     if (!roomTitle.trim()) return;
     const mode = getGameMode(roomGameId);
+    const maxPlayers = mode === "strategy" ? (strategyMatchup === "2v2" ? 4 : 2) : mode === "sandbox" ? 8 : 30;
     const nextRoom: MultiRoom = {
       id: `room-${Date.now()}`,
       title: roomTitle.trim(),
@@ -334,19 +346,20 @@ export default function Game() {
       gameId: roomGameId,
       mode,
       roomStatus: "lobby",
-      visibility: "public",
+      visibility: roomVisibility,
       editableBy: mode === "sandbox" ? "everyone" : "host",
       durationSeconds: supportsTimedRounds(roomGameId) ? roomDuration : undefined,
-      teamMode,
+      teamMode: mode === "strategy" ? strategyMatchup === "2v2" : teamMode,
       participants: [{ userId: MY_USER_ID, name: MY_USER_NAME, teamId: "alpha", ready: true }],
       chatMessages: [],
       systemEvents: [],
-      maxPlayers: 30,
+      maxPlayers,
+      roomRules: mode === "strategy" ? { mapId: strategyMapId, maxTurns: strategyTurns, matchup: strategyMatchup } : undefined,
       gameState: mode === "sandbox" ? createFitCraftWorld(MY_USER_ID, roomTitle.trim()) : null,
       updatedAt: new Date().toISOString(),
     };
     saveRooms([nextRoom, ...rooms]);
-    setRoomTitle(""); setRoomGameId("tap-sprint"); setRoomDuration(30); setTeamMode(false); setShowRoomCreate(false);
+    setRoomTitle(""); setRoomGameId("tap-sprint"); setRoomDuration(30); setTeamMode(false); setRoomVisibility("public"); setStrategyMapId("frontier-classic-8x8"); setStrategyTurns(12); setStrategyMatchup("1v1"); setShowRoomCreate(false);
   };
   const handleJoinRoom = (roomId: string) => {
     const next = rooms.map((room) =>
@@ -354,7 +367,7 @@ export default function Game() {
         ? room
         : {
             ...room,
-            participants: [...room.participants, { userId: MY_USER_ID, name: MY_USER_NAME, teamId: room.teamMode ? "beta" : "alpha", ready: true }],
+            participants: [...room.participants, { userId: MY_USER_ID, name: MY_USER_NAME, teamId: room.teamMode ? (room.participants.length % 2 === 0 ? "alpha" : "beta") : "alpha", ready: true }],
             updatedAt: new Date().toISOString(),
           },
     );
@@ -371,7 +384,7 @@ export default function Game() {
     });
     saveRooms(next);
   };
-  const handleRoomSetting = (patch: Partial<Pick<MultiRoom, "gameId" | "durationSeconds" | "teamMode">>) => {
+  const handleRoomSetting = (patch: Partial<Pick<MultiRoom, "gameId" | "durationSeconds" | "teamMode" | "visibility" | "roomRules" | "maxPlayers">>) => {
     if (!activeRoom || activeRoom.hostId !== MY_USER_ID) return;
     saveRooms(
       rooms.map((room) =>
@@ -382,6 +395,8 @@ export default function Game() {
               mode: patch.gameId ? getGameMode(patch.gameId) : room.mode,
               editableBy: patch.gameId && getGameMode(patch.gameId) === "sandbox" ? "everyone" : room.editableBy,
               durationSeconds: patch.gameId && !supportsTimedRounds(patch.gameId) ? undefined : patch.durationSeconds ?? room.durationSeconds ?? 30,
+              roomRules: patch.roomRules ?? room.roomRules,
+              maxPlayers: patch.maxPlayers ?? room.maxPlayers,
               gameState:
                 patch.gameId && patch.gameId !== room.gameId
                   ? getGameMode(patch.gameId) === "sandbox"
@@ -452,7 +467,10 @@ export default function Game() {
   const handleStartRoom = () => {
     if (!activeRoom || activeRoom.hostId !== MY_USER_ID) return;
     if (activeRoom.gameId === "pulse-frontier") {
-      const strategyState = createPulseFrontierState(activeRoom.participants, 12);
+      const maxTurns = activeRoom.roomRules?.maxTurns || 12;
+      const mapId = activeRoom.roomRules?.mapId || "frontier-classic-8x8";
+      const matchup = activeRoom.roomRules?.matchup || "1v1";
+      const strategyState = createPulseFrontierState(activeRoom.participants, maxTurns, mapId, matchup);
       saveRooms(
         rooms.map((room) =>
           room.id === activeRoom.id
@@ -683,7 +701,8 @@ export default function Game() {
                               chatMessages: [],
                               systemEvents: [],
                               maxPlayers: 2,
-                              gameState: createPulseFrontierState([{ userId: MY_USER_ID, name: MY_USER_NAME }, buildBotParticipant([])], 12),
+                              roomRules: { mapId: "frontier-classic-8x8", maxTurns: 12, matchup: "1v1" },
+                              gameState: createPulseFrontierState([{ userId: MY_USER_ID, name: MY_USER_NAME, teamId: "alpha" }, { ...buildBotParticipant([]), teamId: "beta" }], 12, "frontier-classic-8x8", "1v1"),
                               updatedAt: new Date().toISOString(),
                             };
                             saveRooms([practiceRoom, ...rooms]);
@@ -771,7 +790,7 @@ export default function Game() {
                           <div className="rounded-xl border p-3 text-sm"><div className="text-muted-foreground">시간</div><div className="font-semibold">{supportsTimedRounds(activeRoom.gameId) ? `${activeRoom.durationSeconds || 30}초` : "턴제 / 자유 편집"}</div></div>
                           <div className="rounded-xl border p-3 text-sm"><div className="text-muted-foreground">모드</div><div className="font-semibold">{activeRoom.mode === "strategy" ? "전략" : activeRoom.mode === "sandbox" ? "창조형" : activeRoom.teamMode ? "팀전" : "개인전"}</div></div>
                         </div>
-                        {activeRoom.hostId === MY_USER_ID ? <div className="space-y-3 rounded-2xl border p-4"><div className="font-medium">방 설정</div><div className="grid gap-2 md:grid-cols-3">{miniGames.map((game) => <Button key={game.id} variant={activeRoom.gameId === game.id ? "default" : "outline"} onClick={() => handleRoomSetting({ gameId: game.id })}>{game.title}</Button>)}</div>{supportsTimedRounds(activeRoom.gameId) ? <div className="grid grid-cols-2 gap-2"><Button variant={activeRoom.durationSeconds === 30 ? "default" : "outline"} onClick={() => handleRoomSetting({ durationSeconds: 30 })}>30초</Button><Button variant={activeRoom.durationSeconds === 60 ? "default" : "outline"} onClick={() => handleRoomSetting({ durationSeconds: 60 })}>60초</Button></div> : <div className="rounded-xl border p-3 text-sm text-muted-foreground">{activeRoom.mode === "strategy" ? "전략 게임은 8 / 12 / 16턴 확장이 다음 단계입니다. 현재는 12턴 기준으로 진행됩니다." : "샌드박스 월드는 시간 제한 없이 자유 편집합니다."}</div>}<div className="flex items-center justify-between rounded-xl border p-3 text-sm"><span>팀전</span><Checkbox checked={activeRoom.teamMode} onCheckedChange={(checked) => handleRoomSetting({ teamMode: checked === true })} /></div><Button variant="outline" className="w-full" onClick={() => handleAddBotToRoom(activeRoom.id)} disabled={activeRoom.participants.length >= activeRoom.maxPlayers}>CPU 참가자 추가</Button><Button className="w-full gap-2" onClick={handleStartRoom}><Swords className="h-4 w-4" />게임 시작</Button></div> : null}
+                        {activeRoom.hostId === MY_USER_ID ? <div className="space-y-3 rounded-2xl border p-4"><div className="font-medium">방 설정</div><div className="grid gap-2 md:grid-cols-3">{miniGames.map((game) => <Button key={game.id} variant={activeRoom.gameId === game.id ? "default" : "outline"} onClick={() => handleRoomSetting({ gameId: game.id })}>{game.title}</Button>)}</div>{supportsTimedRounds(activeRoom.gameId) ? <div className="grid grid-cols-2 gap-2"><Button variant={activeRoom.durationSeconds === 30 ? "default" : "outline"} onClick={() => handleRoomSetting({ durationSeconds: 30 })}>30초</Button><Button variant={activeRoom.durationSeconds === 60 ? "default" : "outline"} onClick={() => handleRoomSetting({ durationSeconds: 60 })}>60초</Button></div> : activeRoom.mode === "strategy" ? <div className="space-y-3"><div className="grid gap-2 md:grid-cols-2">{STRATEGY_MAPS.map((map) => <Button key={map.id} variant={activeRoom.roomRules?.mapId === map.id ? "default" : "outline"} onClick={() => handleRoomSetting({ roomRules: { ...activeRoom.roomRules, mapId: map.id } })}>{map.title}</Button>)}</div><div className="grid grid-cols-3 gap-2">{([8, 12, 16] as const).map((turns) => <Button key={turns} variant={activeRoom.roomRules?.maxTurns === turns ? "default" : "outline"} onClick={() => handleRoomSetting({ roomRules: { ...activeRoom.roomRules, maxTurns: turns } })}>{turns}턴</Button>)}</div><div className="grid grid-cols-2 gap-2"><Button variant={activeRoom.roomRules?.matchup === "1v1" ? "default" : "outline"} onClick={() => handleRoomSetting({ roomRules: { ...activeRoom.roomRules, matchup: "1v1" }, teamMode: false, maxPlayers: 2 })}>1:1</Button><Button variant={activeRoom.roomRules?.matchup === "2v2" ? "default" : "outline"} onClick={() => handleRoomSetting({ roomRules: { ...activeRoom.roomRules, matchup: "2v2" }, teamMode: true, maxPlayers: 4 })}>2:2</Button></div><div className="grid grid-cols-3 gap-2">{(["public", "friends", "private"] as const).map((visibility) => <Button key={visibility} variant={activeRoom.visibility === visibility ? "default" : "outline"} onClick={() => handleRoomSetting({ visibility })}>{visibility === "public" ? "공개" : visibility === "friends" ? "친구만" : "비공개"}</Button>)}</div><div className="rounded-xl border p-3 text-sm text-muted-foreground">건강 보너스 예시: 8,000보 이상 시작 에너지 +10 · 수면 점수 80 이상 첫 3턴 방어 +1</div></div> : <div className="rounded-xl border p-3 text-sm text-muted-foreground">샌드박스 월드는 시간 제한 없이 자유 편집합니다.</div>}<div className="flex items-center justify-between rounded-xl border p-3 text-sm"><span>팀전</span><Checkbox checked={activeRoom.teamMode} onCheckedChange={(checked) => handleRoomSetting({ teamMode: checked === true })} /></div><Button variant="outline" className="w-full" onClick={() => handleAddBotToRoom(activeRoom.id)} disabled={activeRoom.participants.length >= activeRoom.maxPlayers}>CPU 참가자 추가</Button><Button className="w-full gap-2" onClick={handleStartRoom}><Swords className="h-4 w-4" />게임 시작</Button></div> : null}
                         <div className="rounded-2xl border p-4"><div className="mb-3 flex items-center gap-2 font-medium"><Users className="h-4 w-4 text-primary" />참여자</div><div className="grid gap-2">{activeRoom.participants.map((participant) => <div key={participant.userId} className="rounded-xl bg-muted/30 px-3 py-2 text-sm">{participant.name}{participant.isBot ? " · CPU" : ""}</div>)}</div></div>
                         {activeRoomStart ? <div className="rounded-2xl border border-primary/20 bg-primary/8 p-4 text-sm">현재 진행 중: <span className="font-semibold">{miniGames.find((game) => game.id === activeRoomStart.gameId)?.title}</span>{supportsTimedRounds(activeRoomStart.gameId) ? ` · ${activeRoomStart.durationSeconds || 30}초` : activeRoom.mode === "strategy" ? " · 12턴 경기" : " · 자유 편집"}</div> : null}
                       </CardContent>
@@ -789,8 +808,8 @@ export default function Game() {
                 ) : (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">멀티게임</h2><Button onClick={() => setShowRoomCreate((value) => !value)} className="gap-2"><Plus className="h-4 w-4" />세션 열기</Button></div>
-                    {showRoomCreate ? <Card><CardHeader><CardTitle>새 멀티게임 세션</CardTitle></CardHeader><CardContent className="space-y-4"><Input value={roomTitle} onChange={(event) => setRoomTitle(event.target.value)} placeholder="세션 이름" /><div className="grid gap-2 md:grid-cols-3">{miniGames.map((game) => <Button key={game.id} variant={roomGameId === game.id ? "default" : "outline"} onClick={() => setRoomGameId(game.id)}>{game.title}</Button>)}</div>{supportsTimedRounds(roomGameId) ? <div className="grid grid-cols-2 gap-2"><Button variant={roomDuration === 30 ? "default" : "outline"} onClick={() => setRoomDuration(30)}>30초</Button><Button variant={roomDuration === 60 ? "default" : "outline"} onClick={() => setRoomDuration(60)}>60초</Button></div> : roomGameId === "pulse-frontier" ? <div className="rounded-xl border p-3 text-sm text-muted-foreground">Pulse Frontier는 현재 12턴 제한 전략전으로 생성됩니다.</div> : <div className="rounded-xl border p-3 text-sm text-muted-foreground">FitCraft Island는 시간 제한 없이 공유 월드로 생성됩니다.</div>}<div className="flex items-center justify-between rounded-xl border p-3 text-sm"><span>팀전으로 생성</span><Checkbox checked={teamMode} onCheckedChange={(checked) => setTeamMode(checked === true)} /></div><div className="rounded-xl border p-3 text-sm text-muted-foreground">세션을 연 뒤 방장이 CPU 참가자를 추가하면 사람과 컴퓨터가 함께 플레이할 수 있습니다.</div><Button className="w-full" onClick={handleCreateRoom}>세션 생성</Button></CardContent></Card> : null}
-                    <div className="space-y-3">{rooms.length === 0 ? <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">열려 있는 멀티게임 세션이 없습니다.</div> : rooms.map((room) => <Card key={room.id}><CardContent className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between"><div><div className="font-semibold">{room.title}</div><div className="mt-1 text-sm text-muted-foreground">{miniGames.find((game) => game.id === room.gameId)?.title}{supportsTimedRounds(room.gameId) ? ` · ${room.durationSeconds || 30}초` : room.mode === "strategy" ? " · 12턴" : " · 공유 월드"} · {room.teamMode ? "팀전" : "개인전"} · {room.participants.length}/{room.maxPlayers}</div><div className="mt-1 text-xs text-muted-foreground">CPU {room.participants.filter((participant) => participant.isBot).length}명 포함</div></div><div className="flex gap-2"><Button variant="outline" onClick={() => handleJoinRoom(room.id)}>입장</Button>{room.hostId === MY_USER_ID ? <Button variant="outline" onClick={() => handleAddBotToRoom(room.id)} disabled={room.participants.length >= room.maxPlayers}>CPU 추가</Button> : null}</div></CardContent></Card>)}</div>
+                    {showRoomCreate ? <Card><CardHeader><CardTitle>새 멀티게임 세션</CardTitle></CardHeader><CardContent className="space-y-4"><Input value={roomTitle} onChange={(event) => setRoomTitle(event.target.value)} placeholder="세션 이름" /><div className="grid gap-2 md:grid-cols-3">{miniGames.map((game) => <Button key={game.id} variant={roomGameId === game.id ? "default" : "outline"} onClick={() => setRoomGameId(game.id)}>{game.title}</Button>)}</div>{supportsTimedRounds(roomGameId) ? <div className="grid grid-cols-2 gap-2"><Button variant={roomDuration === 30 ? "default" : "outline"} onClick={() => setRoomDuration(30)}>30초</Button><Button variant={roomDuration === 60 ? "default" : "outline"} onClick={() => setRoomDuration(60)}>60초</Button></div> : roomGameId === "pulse-frontier" ? <div className="space-y-3"><div className="grid gap-2 md:grid-cols-2">{STRATEGY_MAPS.map((map) => <Button key={map.id} variant={strategyMapId === map.id ? "default" : "outline"} onClick={() => setStrategyMapId(map.id)}>{map.title}</Button>)}</div><div className="grid grid-cols-3 gap-2">{([8, 12, 16] as const).map((turns) => <Button key={turns} variant={strategyTurns === turns ? "default" : "outline"} onClick={() => setStrategyTurns(turns)}>{turns}턴</Button>)}</div><div className="grid grid-cols-2 gap-2"><Button variant={strategyMatchup === "1v1" ? "default" : "outline"} onClick={() => setStrategyMatchup("1v1")}>1:1</Button><Button variant={strategyMatchup === "2v2" ? "default" : "outline"} onClick={() => setStrategyMatchup("2v2")}>2:2</Button></div><div className="grid grid-cols-3 gap-2">{(["public", "friends", "private"] as const).map((visibility) => <Button key={visibility} variant={roomVisibility === visibility ? "default" : "outline"} onClick={() => setRoomVisibility(visibility)}>{visibility === "public" ? "공개" : visibility === "friends" ? "친구만" : "비공개"}</Button>)}</div><div className="rounded-xl border p-3 text-sm text-muted-foreground">오늘 8,000보 이상이면 시작 에너지 +10, 수면 점수 80 이상이면 첫 3턴 방어 +1 보너스를 받습니다.</div></div> : <div className="space-y-3"><div className="grid grid-cols-3 gap-2">{(["public", "friends", "private"] as const).map((visibility) => <Button key={visibility} variant={roomVisibility === visibility ? "default" : "outline"} onClick={() => setRoomVisibility(visibility)}>{visibility === "public" ? "공개" : visibility === "friends" ? "친구만" : "비공개"}</Button>)}</div><div className="rounded-xl border p-3 text-sm text-muted-foreground">FitCraft Island는 시간 제한 없이 공유 월드로 생성됩니다.</div></div>}<div className="flex items-center justify-between rounded-xl border p-3 text-sm"><span>팀전으로 생성</span><Checkbox checked={roomGameId === "pulse-frontier" ? strategyMatchup === "2v2" : teamMode} onCheckedChange={(checked) => roomGameId === "pulse-frontier" ? setStrategyMatchup(checked === true ? "2v2" : "1v1") : setTeamMode(checked === true)} /></div><div className="rounded-xl border p-3 text-sm text-muted-foreground">세션을 연 뒤 방장이 CPU 참가자를 추가하면 사람과 컴퓨터가 함께 플레이할 수 있습니다.</div><Button className="w-full" onClick={handleCreateRoom}>세션 생성</Button></CardContent></Card> : null}
+                    <div className="space-y-3">{rooms.length === 0 ? <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">열려 있는 멀티게임 세션이 없습니다.</div> : rooms.map((room) => <Card key={room.id}><CardContent className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between"><div><div className="font-semibold">{room.title}</div><div className="mt-1 text-sm text-muted-foreground">{miniGames.find((game) => game.id === room.gameId)?.title}{supportsTimedRounds(room.gameId) ? ` · ${room.durationSeconds || 30}초` : room.mode === "strategy" ? ` · ${room.roomRules?.maxTurns || 12}턴 · ${room.roomRules?.matchup || "1v1"}` : " · 공유 월드"} · {room.teamMode ? "팀전" : "개인전"} · {room.participants.length}/{room.maxPlayers}</div><div className="mt-1 text-xs text-muted-foreground">{room.mode === "strategy" ? `${STRATEGY_MAPS.find((map) => map.id === room.roomRules?.mapId)?.title || "클래식 프론티어"} · ${room.visibility === "public" ? "공개" : room.visibility === "friends" ? "친구만" : "비공개"}` : `CPU ${room.participants.filter((participant) => participant.isBot).length}명 포함`}</div></div><div className="flex gap-2"><Button variant="outline" onClick={() => handleJoinRoom(room.id)}>입장</Button>{room.hostId === MY_USER_ID ? <Button variant="outline" onClick={() => handleAddBotToRoom(room.id)} disabled={room.participants.length >= room.maxPlayers}>CPU 추가</Button> : null}</div></CardContent></Card>)}</div>
                   </div>
                 )}
               </TabsContent>

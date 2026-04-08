@@ -279,6 +279,7 @@ async function syncServerRooms(rooms: MultiRoom[]) {
       chat: room.chatMessages,
       system_events: room.systemEvents,
       max_players: room.maxPlayers,
+      room_rules: room.roomRules,
       game_state: room.gameState,
       updated_at: new Date().toISOString(),
     })),
@@ -378,6 +379,7 @@ async function loadServerRooms() {
         ? (((row as { system_events: unknown[] }).system_events) as MultiRoom["systemEvents"])
         : [],
       maxPlayers: Number(row.max_players || 30),
+      roomRules: ((row as { room_rules?: unknown }).room_rules as MultiRoom["roomRules"]) || undefined,
       gameState: (row.game_state as MultiRoom["gameState"]) || null,
     }),
   );

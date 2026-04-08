@@ -27,9 +27,16 @@ export type RankingRow = {
 export type RoomStatus = "lobby" | "running" | "finished";
 export type RoomVisibility = "public" | "friends" | "private";
 export type RoomEditableBy = "host" | "everyone" | "friends";
+export type StrategyMapId = "frontier-classic-8x8" | "frontier-crossroads-8x8";
+export type StrategyMatchup = "1v1" | "2v2";
 export type RoomParticipant = { userId: string; name: string; isBot?: boolean; teamId?: string; ready?: boolean };
 export type RoomChatMessage = { id: string; name: string; text: string; createdAt: string };
 export type RoomSystemEvent = { id: string; type: string; payload: unknown; createdAt: string };
+export type RoomRules = {
+  mapId?: StrategyMapId;
+  maxTurns?: 8 | 12 | 16;
+  matchup?: StrategyMatchup;
+};
 
 export type MultiRoom = {
   id: string;
@@ -47,6 +54,7 @@ export type MultiRoom = {
   chatMessages: RoomChatMessage[];
   systemEvents: RoomSystemEvent[];
   maxPlayers: number;
+  roomRules?: RoomRules;
   gameState?: StrategyGameState | SandboxWorldState | null;
   updatedAt?: string;
 };

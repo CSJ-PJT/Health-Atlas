@@ -1,6 +1,8 @@
 import type { StrategyGameState, StrategyHealthBonuses, StrategyPlayerState, StrategyTile, StrategyUnit } from "@/components/entertainment/strategy/strategyTypes";
 
-type Participant = { userId: string; name: string; isBot?: boolean };
+import type { StrategyMapId, StrategyMatchup } from "@/services/entertainmentTypes";
+
+type Participant = { userId: string; name: string; isBot?: boolean; teamId?: string };
 
 const BASE_POSITIONS = [
   { x: 0, y: 0 },
@@ -29,7 +31,7 @@ function buildHealthBonuses(participant: Participant): StrategyHealthBonuses {
   };
 }
 
-function buildTiles(participants: Participant[]) {
+function buildTiles(participants: Participant[], mapId: StrategyMapId) {
   const tiles: StrategyTile[] = [];
 
   for (let y = 0; y < 8; y += 1) {
@@ -42,12 +44,21 @@ function buildTiles(participants: Participant[]) {
     }
   }
 
-  const outposts = [
-    { x: 3, y: 3 },
-    { x: 4, y: 4 },
-    { x: 3, y: 4 },
-    { x: 4, y: 3 },
-  ];
+  const outposts =
+    mapId === "frontier-crossroads-8x8"
+      ? [
+          { x: 2, y: 2 },
+          { x: 5, y: 5 },
+          { x: 2, y: 5 },
+          { x: 5, y: 2 },
+          { x: 3, y: 3 },
+        ]
+      : [
+          { x: 3, y: 3 },
+          { x: 4, y: 4 },
+          { x: 3, y: 4 },
+          { x: 4, y: 3 },
+        ];
 
   outposts.forEach((tile, index) => {
     const target = tiles.find((entry) => entry.x === tile.x && entry.y === tile.y);
@@ -78,7 +89,7 @@ function buildPlayers(participants: Participant[]): StrategyPlayerState[] {
     return {
       userId: participant.userId,
       name: participant.name,
-      teamId: index % 2 === 0 ? "alpha" : "beta",
+      teamId: participant.teamId || (index % 2 === 0 ? "alpha" : "beta"),
       energy: 18 + (bonuses.startEnergy || 0),
       material: 12,
       score: 0,
@@ -117,16 +128,21 @@ function buildUnits(participants: Participant[]): StrategyUnit[] {
   });
 }
 
-export function createPulseFrontierState(participants: Participant[], maxTurns = 12): StrategyGameState {
-  const normalized = participants.slice(0, 4);
+export function createPulseFrontierState(
+  participants: Participant[],
+  maxTurns = 12,
+  mapId: StrategyMapId = "frontier-classic-8x8",
+  matchup: StrategyMatchup = "1v1",
+): StrategyGameState {
+  const normalized = participants.slice(0, matchup === "2v2" ? 4 : 2);
 
   return {
-    mapId: "frontier-classic-8x8",
+    mapId,
     turn: 1,
     currentUserTurn: normalized[0]?.userId || "me",
     phase: "running",
     players: buildPlayers(normalized),
-    tiles: buildTiles(normalized),
+    tiles: buildTiles(normalized, mapId),
     units: buildUnits(normalized),
     actionLog: [
       {
