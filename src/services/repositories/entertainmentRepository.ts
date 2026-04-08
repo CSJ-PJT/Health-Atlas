@@ -41,6 +41,8 @@ export function getStoredEntertainmentScores() {
     "tap-sprint": 0,
     "reaction-grid": 0,
     "pace-memory": 0,
+    "resource-rush": 0,
+    "block-builder": 0,
     tetris: 0,
   });
 }
@@ -330,6 +332,8 @@ async function loadServerScores() {
       "tap-sprint": 0,
       "reaction-grid": 0,
       "pace-memory": 0,
+      "resource-rush": 0,
+      "block-builder": 0,
       tetris: 0,
     } as GameScores,
   );

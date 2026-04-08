@@ -1,10 +1,28 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, CornerDownLeft, RotateCw, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  Brush,
+  CornerDownLeft,
+  Crown,
+  Gem,
+  Pickaxe,
+  RotateCw,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
-export type PlayableGameId = "tap-sprint" | "reaction-grid" | "pace-memory" | "tetris";
+export type PlayableGameId =
+  | "tap-sprint"
+  | "reaction-grid"
+  | "pace-memory"
+  | "resource-rush"
+  | "block-builder"
+  | "tetris";
 
 type Props = {
   gameId: PlayableGameId;
@@ -22,8 +40,24 @@ type Piece = {
   y: number;
 };
 
+type ResourceTile = {
+  kind: "coin" | "crystal" | "boost" | "trap";
+  points: number;
+  accent: string;
+  label: string;
+};
+
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 16;
+const BUILDER_SIZE = 8;
+const RESOURCE_TILE_POOL: ResourceTile[] = [
+  { kind: "coin", points: 18, accent: "#f59e0b", label: "골드" },
+  { kind: "coin", points: 20, accent: "#eab308", label: "골드" },
+  { kind: "crystal", points: 28, accent: "#8b5cf6", label: "크리스탈" },
+  { kind: "boost", points: 14, accent: "#22c55e", label: "부스트" },
+  { kind: "trap", points: -6, accent: "#ef4444", label: "함정" },
+];
+const BUILDER_COLORS = ["#8b5cf6", "#06b6d4", "#22c55e", "#f97316", "#f43f5e", "#eab308"];
 
 const PIECES = [
   { color: "#8b5cf6", shape: [[1, 1, 1], [0, 1, 0]] },
@@ -34,6 +68,17 @@ const PIECES = [
 
 function createBoard() {
   return Array.from({ length: BOARD_HEIGHT }, () => Array<TetrisCell>(BOARD_WIDTH).fill(null));
+}
+
+function createBuilderBoard() {
+  return Array.from({ length: BUILDER_SIZE }, () => Array<string | null>(BUILDER_SIZE).fill(null));
+}
+
+function createResourceBoard() {
+  return Array.from({ length: 16 }, () => {
+    const tile = RESOURCE_TILE_POOL[Math.floor(Math.random() * RESOURCE_TILE_POOL.length)];
+    return { ...tile };
+  });
 }
 
 function randomPiece(): Piece {
@@ -91,9 +136,30 @@ function getGameTitle(gameId: PlayableGameId) {
       return "리액션 그리드";
     case "pace-memory":
       return "페이스 메모리";
+    case "resource-rush":
+      return "리소스 러시";
+    case "block-builder":
+      return "블록 빌더";
     case "tetris":
       return "테트리스";
   }
+}
+
+function scoreBuilder(board: Array<Array<string | null>>) {
+  const filled = board.flat().filter(Boolean).length;
+  const uniqueColors = new Set(board.flat().filter(Boolean)).size;
+  const fullRows = board.filter((row) => row.every(Boolean)).length;
+  let symmetry = 0;
+
+  board.forEach((row) => {
+    row.forEach((cell, index) => {
+      if (cell && cell === row[BUILDER_SIZE - 1 - index]) {
+        symmetry += 1;
+      }
+    });
+  });
+
+  return filled * 4 + uniqueColors * 12 + fullRows * 25 + Math.floor(symmetry / 2);
 }
 
 export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds }: Props) {
@@ -115,6 +181,16 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
   const [memoryTimeLeft, setMemoryTimeLeft] = useState(timedDuration);
   const [memoryFinished, setMemoryFinished] = useState(false);
 
+  const [resourceBoard, setResourceBoard] = useState<ResourceTile[]>(createResourceBoard());
+  const [resourceClaimed, setResourceClaimed] = useState<number[]>([]);
+  const [resourceTurns, setResourceTurns] = useState(8);
+  const [resourceScore, setResourceScore] = useState(0);
+  const [resourceBoost, setResourceBoost] = useState(0);
+
+  const [builderBoard, setBuilderBoard] = useState<Array<Array<string | null>>>(createBuilderBoard());
+  const [builderColor, setBuilderColor] = useState(BUILDER_COLORS[0]);
+  const [builderScore, setBuilderScore] = useState(0);
+
   const [board, setBoard] = useState<TetrisCell[][]>(createBoard());
   const [piece, setPiece] = useState<Piece>(randomPiece());
   const [tetrisScore, setTetrisScore] = useState(0);
@@ -127,6 +203,34 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
     setReactionTimeLeft(timedDuration);
     setMemoryTimeLeft(timedDuration);
   }, [timedDuration]);
+
+  useEffect(() => {
+    setTapCount(0);
+    setTapStarted(false);
+    setTapTimeLeft(timedDuration);
+    setReactionStarted(false);
+    setReactionHits(0);
+    setReactionTarget(null);
+    setReactionTimeLeft(timedDuration);
+    setMemorySequence([]);
+    setMemoryInput([]);
+    setMemoryLevel(3);
+    setMemoryShowing(false);
+    setMemoryTimeLeft(timedDuration);
+    setMemoryFinished(false);
+    setResourceBoard(createResourceBoard());
+    setResourceClaimed([]);
+    setResourceTurns(8);
+    setResourceScore(0);
+    setResourceBoost(0);
+    setBuilderBoard(createBuilderBoard());
+    setBuilderColor(BUILDER_COLORS[0]);
+    setBuilderScore(0);
+    setBoard(createBoard());
+    setPiece(randomPiece());
+    setTetrisScore(0);
+    setTetrisRunning(true);
+  }, [gameId, timedDuration]);
 
   const displayBoard = useMemo(() => (gameId === "tetris" ? merge(board, piece) : board), [board, gameId, piece]);
 
@@ -176,7 +280,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
 
   useEffect(() => {
     if (gameId !== "tetris" || !tetrisRunning) return;
-    const speed = Math.max(420, 1150 - Math.floor(tetrisScore / 120) * 35);
+    const speed = Math.max(520, 1400 - Math.floor(tetrisScore / 180) * 40);
     const timer = window.setInterval(() => {
       setPiece((current) => {
         const moved = { ...current, y: current.y + 1 };
@@ -265,6 +369,51 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
       setMemoryInput([]);
       setMemoryFinished(true);
     }
+  };
+
+  const handleResourcePick = (index: number) => {
+    if (resourceClaimed.includes(index) || resourceTurns <= 0) return;
+    const tile = resourceBoard[index];
+    const neighbors = [index - 1, index + 1, index - 4, index + 4].filter((value) => value >= 0 && value < 16);
+    const synergy = neighbors.some((neighbor) => resourceClaimed.includes(neighbor) && resourceBoard[neighbor]?.kind === tile.kind) ? 6 : 0;
+    const boosted = tile.kind === "boost" ? resourceBoost + 1 : resourceBoost;
+    const total = resourceScore + tile.points + synergy + resourceBoost * 4;
+    setResourceClaimed((current) => [...current, index]);
+    setResourceTurns((value) => value - 1);
+    setResourceBoost(boosted);
+    setResourceScore(total);
+    if (resourceTurns - 1 <= 0) {
+      onScore(Math.max(0, total));
+    }
+  };
+
+  const resetResourceRush = () => {
+    setResourceBoard(createResourceBoard());
+    setResourceClaimed([]);
+    setResourceTurns(8);
+    setResourceScore(0);
+    setResourceBoost(0);
+  };
+
+  const handleBuilderPaint = (rowIndex: number, colIndex: number) => {
+    setBuilderBoard((current) => {
+      const next = current.map((row) => [...row]);
+      next[rowIndex][colIndex] = next[rowIndex][colIndex] === builderColor ? null : builderColor;
+      const nextScore = scoreBuilder(next);
+      setBuilderScore(nextScore);
+      return next;
+    });
+  };
+
+  const clearBuilder = () => {
+    setBuilderBoard(createBuilderBoard());
+    setBuilderScore(0);
+  };
+
+  const finishBuilder = () => {
+    const nextScore = scoreBuilder(builderBoard);
+    setBuilderScore(nextScore);
+    onScore(nextScore);
   };
 
   const movePiece = (dx: number, dy: number) => {
@@ -386,6 +535,109 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
           </div>
         ) : null}
 
+        {gameId === "resource-rush" ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-xl border p-4">
+                <div className="text-xs text-muted-foreground">남은 턴</div>
+                <div className="text-2xl font-bold">{resourceTurns}</div>
+              </div>
+              <div className="rounded-xl border p-4">
+                <div className="text-xs text-muted-foreground">현재 점수</div>
+                <div className="text-2xl font-bold">{resourceScore}</div>
+              </div>
+              <div className="rounded-xl border p-4">
+                <div className="text-xs text-muted-foreground">부스트</div>
+                <div className="text-2xl font-bold">x{resourceBoost}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {resourceBoard.map((tile, index) => {
+                const claimed = resourceClaimed.includes(index);
+                return (
+                  <button
+                    key={`${tile.kind}-${index}`}
+                    type="button"
+                    disabled={claimed || resourceTurns <= 0}
+                    onClick={() => handleResourcePick(index)}
+                    className="aspect-square rounded-2xl border p-2 text-left text-xs transition-transform hover:-translate-y-0.5 disabled:opacity-45"
+                    style={{ backgroundColor: claimed ? "rgba(255,255,255,0.08)" : `${tile.accent}1f`, borderColor: `${tile.accent}66` }}
+                  >
+                    <div className="flex items-center gap-1 font-semibold" style={{ color: tile.accent }}>
+                      {tile.kind === "coin" ? <Crown className="h-3.5 w-3.5" /> : null}
+                      {tile.kind === "crystal" ? <Gem className="h-3.5 w-3.5" /> : null}
+                      {tile.kind === "boost" ? <Sparkles className="h-3.5 w-3.5" /> : null}
+                      {tile.kind === "trap" ? <Pickaxe className="h-3.5 w-3.5" /> : null}
+                      {tile.label}
+                    </div>
+                    <div className="mt-2 text-sm font-bold">{tile.points > 0 ? `+${tile.points}` : tile.points}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="rounded-xl border p-4 text-sm text-muted-foreground">
+              같은 종류 자원을 인접해서 모으면 추가 점수를 얻습니다. 부스트 칸을 먼저 잡으면 이후 수집 점수가 더 올라갑니다.
+            </div>
+            <Button variant="outline" className="w-full" onClick={resetResourceRush}>
+              보드 새로 만들기
+            </Button>
+          </div>
+        ) : null}
+
+        {gameId === "block-builder" ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-xl border p-4">
+                <div className="text-xs text-muted-foreground">창작 점수</div>
+                <div className="text-2xl font-bold">{builderScore}</div>
+              </div>
+              <div className="rounded-xl border p-4">
+                <div className="text-xs text-muted-foreground">채운 칸</div>
+                <div className="text-2xl font-bold">{builderBoard.flat().filter(Boolean).length}</div>
+              </div>
+              <div className="rounded-xl border p-4">
+                <div className="text-xs text-muted-foreground">색상 수</div>
+                <div className="text-2xl font-bold">{new Set(builderBoard.flat().filter(Boolean)).size}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-6 gap-2">
+              {BUILDER_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`h-10 rounded-xl border ${builderColor === color ? "ring-2 ring-primary" : ""}`}
+                  style={{ backgroundColor: color }}
+                  onClick={() => setBuilderColor(color)}
+                />
+              ))}
+            </div>
+            <div className="grid grid-cols-8 gap-1 rounded-2xl border bg-muted/20 p-3">
+              {builderBoard.flatMap((row, rowIndex) =>
+                row.map((cell, colIndex) => (
+                  <button
+                    key={`${rowIndex}-${colIndex}`}
+                    type="button"
+                    onClick={() => handleBuilderPaint(rowIndex, colIndex)}
+                    className="aspect-square rounded-md border border-white/10"
+                    style={{ backgroundColor: cell || "rgba(255,255,255,0.08)" }}
+                  />
+                )),
+              )}
+            </div>
+            <div className="rounded-xl border p-4 text-sm text-muted-foreground">
+              블록을 채우고 색을 섞어 자신만의 미니 월드를 만드세요. 완성 후 점수 저장을 누르면 작품 점수가 기록됩니다.
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" onClick={clearBuilder}>
+                캔버스 지우기
+              </Button>
+              <Button onClick={finishBuilder}>
+                작품 점수 저장
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {gameId === "tetris" ? (
           <div className="space-y-4">
             <div className="grid grid-cols-10 gap-1 rounded-2xl border bg-black/80 p-3">
@@ -414,7 +666,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={() => setBoard(createBoard())}>
+              <Button variant="outline" onClick={() => { setBoard(createBoard()); setPiece(randomPiece()); setTetrisScore(0); setTetrisRunning(true); }}>
                 새로고침
               </Button>
               <Button variant="outline" onClick={() => movePiece(0, 1)}>

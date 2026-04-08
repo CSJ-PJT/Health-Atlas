@@ -30,8 +30,7 @@ export type MultiRoom = {
   gameId: PlayableGameId;
   durationSeconds: 30 | 60;
   teamMode: boolean;
-  participants: Array<{ userId: string; name: string }>;
+  participants: Array<{ userId: string; name: string; isBot?: boolean }>;
   chat: Array<{ id: string; name: string; text: string }>;
   maxPlayers: number;
 };
-

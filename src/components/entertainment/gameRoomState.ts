@@ -55,3 +55,19 @@ export function buildRoomScoreboard(room: MultiRoom | null) {
     .sort((left, right) => right.score - left.score)
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
+
+export function hasRoomScore(room: MultiRoom | null, userId: string) {
+  if (!room) return false;
+
+  return room.chat.some((message) => {
+    if (!message.text.startsWith("__system__:score:")) return false;
+    try {
+      const payload = JSON.parse(message.text.replace("__system__:score:", "")) as {
+        userId?: string;
+      };
+      return payload.userId === userId;
+    } catch {
+      return false;
+    }
+  });
+}

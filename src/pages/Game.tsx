@@ -45,6 +45,35 @@ function supportsTimedRounds(gameId: PlayableGameId) {
   return gameId === "tap-sprint" || gameId === "reaction-grid" || gameId === "pace-memory";
 }
 
+const BOT_NAMES = ["코멧", "노바", "루프", "픽셀", "제로", "퀵실버"];
+
+function buildBotParticipant(existing: MultiRoom["participants"]) {
+  const index = existing.filter((participant) => participant.isBot).length;
+  const name = BOT_NAMES[index % BOT_NAMES.length];
+  return {
+    userId: `bot-${index + 1}`,
+    name: `${name} CPU`,
+    isBot: true,
+  };
+}
+
+function generateBotScore(gameId: PlayableGameId, durationSeconds: 30 | 60) {
+  switch (gameId) {
+    case "tap-sprint":
+      return durationSeconds === 60 ? 95 + Math.floor(Math.random() * 35) : 48 + Math.floor(Math.random() * 25);
+    case "reaction-grid":
+      return durationSeconds === 60 ? 320 + Math.floor(Math.random() * 110) : 140 + Math.floor(Math.random() * 70);
+    case "pace-memory":
+      return durationSeconds === 60 ? 180 + Math.floor(Math.random() * 80) : 90 + Math.floor(Math.random() * 50);
+    case "resource-rush":
+      return 140 + Math.floor(Math.random() * 120);
+    case "block-builder":
+      return 100 + Math.floor(Math.random() * 90);
+    case "tetris":
+      return 110 + Math.floor(Math.random() * 140);
+  }
+}
+
 function getChallenges(): ChallengeEntry[] {
   const data = getStoredEntertainmentChallenges();
   if (data.length > 0) return data;
@@ -199,6 +228,16 @@ export default function Game() {
     const next = rooms.map((room) => room.id !== roomId || room.participants.some((p) => p.userId === MY_USER_ID) || room.participants.length >= room.maxPlayers ? room : { ...room, participants: [...room.participants, { userId: MY_USER_ID, name: MY_USER_NAME }] });
     saveRooms(next); setActiveRoomId(roomId);
   };
+  const handleAddBotToRoom = (roomId: string) => {
+    const next = rooms.map((room) => {
+      if (room.id !== roomId || room.participants.length >= room.maxPlayers) return room;
+      return {
+        ...room,
+        participants: [...room.participants, buildBotParticipant(room.participants)],
+      };
+    });
+    saveRooms(next);
+  };
   const handleRoomSetting = (patch: Partial<Pick<MultiRoom, "gameId" | "durationSeconds" | "teamMode">>) => {
     if (!activeRoom || activeRoom.hostId !== MY_USER_ID) return;
     saveRooms(rooms.map((room) => (room.id === activeRoom.id ? { ...room, ...patch } : room)));
@@ -212,6 +251,28 @@ export default function Game() {
     if (!activeRoom || activeRoom.hostId !== MY_USER_ID) return;
     const startedAt = new Date().toISOString();
     const gameTitle = miniGames.find((game) => game.id === activeRoom.gameId)?.title || "게임";
+    const botMessages = activeRoom.participants
+      .filter((participant) => participant.isBot)
+      .flatMap((participant, index) => {
+        const score = generateBotScore(activeRoom.gameId, activeRoom.durationSeconds);
+        return [
+          {
+            id: `system-bot-score-${participant.userId}-${Date.now()}-${index}`,
+            name: "SYSTEM",
+            text: buildSystemMessage("score", {
+              userId: participant.userId,
+              name: participant.name,
+              score,
+              gameId: activeRoom.gameId,
+            }),
+          },
+          {
+            id: `system-bot-result-${participant.userId}-${Date.now()}-${index}`,
+            name: "SYSTEM",
+            text: `${participant.name} 점수 ${score}`,
+          },
+        ];
+      });
     saveRooms(
       rooms.map((room) =>
         room.id === activeRoom.id
@@ -233,6 +294,7 @@ export default function Game() {
                   name: "SYSTEM",
                   text: `${activeRoom.hostName}님이 ${gameTitle} 게임을 시작했습니다.`,
                 },
+                ...botMessages,
               ],
             }
           : room,
@@ -267,6 +329,8 @@ export default function Game() {
     saveStoredEntertainmentScores(next);
     void recordEntertainmentScoreEvent(gameId, score);
     if (gameId === "tetris" && next.tetris >= 180) awardBadge({ id: "badge-tetris-master", name: "블록 마스터", description: "테트리스 180점 이상을 달성했습니다.", icon: "🧱" });
+    if (gameId === "resource-rush" && next["resource-rush"] >= 220) awardBadge({ id: "badge-resource-rush", name: "러시 전략가", description: "리소스 러시에서 220점 이상을 달성했습니다.", icon: "💎" });
+    if (gameId === "block-builder" && next["block-builder"] >= 160) awardBadge({ id: "badge-block-builder", name: "월드 빌더", description: "블록 빌더에서 160점 이상을 달성했습니다.", icon: "🧩" });
   };
 
   return (
@@ -319,7 +383,7 @@ export default function Game() {
                 <Card>
                   <CardHeader><CardTitle>게임 순위</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">{miniGames.map((game) => <Button key={game.id} variant={rankingGame === game.id ? "default" : "outline"} onClick={() => setRankingGame(game.id)}>{game.title}</Button>)}</div>
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-3">{miniGames.map((game) => <Button key={game.id} variant={rankingGame === game.id ? "default" : "outline"} onClick={() => setRankingGame(game.id)}>{game.title}</Button>)}</div>
                     <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
                       <Button variant={rankingMode === "weekly" ? "default" : "outline"} onClick={() => setRankingMode("weekly")}>주간 순위</Button>
                       <Button variant={rankingMode === "monthly" ? "default" : "outline"} onClick={() => setRankingMode("monthly")}>월간 순위</Button>
@@ -349,8 +413,8 @@ export default function Game() {
                           <div className="rounded-xl border p-3 text-sm"><div className="text-muted-foreground">시간</div><div className="font-semibold">{supportsTimedRounds(activeRoom.gameId) ? `${activeRoom.durationSeconds}초` : "제한 없음"}</div></div>
                           <div className="rounded-xl border p-3 text-sm"><div className="text-muted-foreground">모드</div><div className="font-semibold">{activeRoom.teamMode ? "팀전" : "개인전"}</div></div>
                         </div>
-                        {activeRoom.hostId === MY_USER_ID ? <div className="space-y-3 rounded-2xl border p-4"><div className="font-medium">방 설정</div><div className="grid gap-2 md:grid-cols-4">{miniGames.map((game) => <Button key={game.id} variant={activeRoom.gameId === game.id ? "default" : "outline"} onClick={() => handleRoomSetting({ gameId: game.id })}>{game.title}</Button>)}</div>{supportsTimedRounds(activeRoom.gameId) ? <div className="grid grid-cols-2 gap-2"><Button variant={activeRoom.durationSeconds === 30 ? "default" : "outline"} onClick={() => handleRoomSetting({ durationSeconds: 30 })}>30초</Button><Button variant={activeRoom.durationSeconds === 60 ? "default" : "outline"} onClick={() => handleRoomSetting({ durationSeconds: 60 })}>60초</Button></div> : null}<div className="flex items-center justify-between rounded-xl border p-3 text-sm"><span>팀전</span><Checkbox checked={activeRoom.teamMode} onCheckedChange={(checked) => handleRoomSetting({ teamMode: checked === true })} /></div><Button className="w-full gap-2" onClick={handleStartRoom}><Swords className="h-4 w-4" />게임 시작</Button></div> : null}
-                        <div className="rounded-2xl border p-4"><div className="mb-3 flex items-center gap-2 font-medium"><Users className="h-4 w-4 text-primary" />참여자</div><div className="grid gap-2">{activeRoom.participants.map((participant) => <div key={participant.userId} className="rounded-xl bg-muted/30 px-3 py-2 text-sm">{participant.name}</div>)}</div></div>
+                        {activeRoom.hostId === MY_USER_ID ? <div className="space-y-3 rounded-2xl border p-4"><div className="font-medium">방 설정</div><div className="grid gap-2 md:grid-cols-3">{miniGames.map((game) => <Button key={game.id} variant={activeRoom.gameId === game.id ? "default" : "outline"} onClick={() => handleRoomSetting({ gameId: game.id })}>{game.title}</Button>)}</div>{supportsTimedRounds(activeRoom.gameId) ? <div className="grid grid-cols-2 gap-2"><Button variant={activeRoom.durationSeconds === 30 ? "default" : "outline"} onClick={() => handleRoomSetting({ durationSeconds: 30 })}>30초</Button><Button variant={activeRoom.durationSeconds === 60 ? "default" : "outline"} onClick={() => handleRoomSetting({ durationSeconds: 60 })}>60초</Button></div> : null}<div className="flex items-center justify-between rounded-xl border p-3 text-sm"><span>팀전</span><Checkbox checked={activeRoom.teamMode} onCheckedChange={(checked) => handleRoomSetting({ teamMode: checked === true })} /></div><Button variant="outline" className="w-full" onClick={() => handleAddBotToRoom(activeRoom.id)} disabled={activeRoom.participants.length >= activeRoom.maxPlayers}>CPU 참가자 추가</Button><Button className="w-full gap-2" onClick={handleStartRoom}><Swords className="h-4 w-4" />게임 시작</Button></div> : null}
+                        <div className="rounded-2xl border p-4"><div className="mb-3 flex items-center gap-2 font-medium"><Users className="h-4 w-4 text-primary" />참여자</div><div className="grid gap-2">{activeRoom.participants.map((participant) => <div key={participant.userId} className="rounded-xl bg-muted/30 px-3 py-2 text-sm">{participant.name}{participant.isBot ? " · CPU" : ""}</div>)}</div></div>
                         {activeRoomStart ? <div className="rounded-2xl border border-primary/20 bg-primary/8 p-4 text-sm">현재 진행 중: <span className="font-semibold">{miniGames.find((game) => game.id === activeRoomStart.gameId)?.title}</span>{supportsTimedRounds(activeRoomStart.gameId) ? ` · ${activeRoomStart.durationSeconds}초` : ""}</div> : null}
                       </CardContent>
                     </Card>
@@ -367,8 +431,8 @@ export default function Game() {
                 ) : (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">멀티게임</h2><Button onClick={() => setShowRoomCreate((value) => !value)} className="gap-2"><Plus className="h-4 w-4" />세션 열기</Button></div>
-                    {showRoomCreate ? <Card><CardHeader><CardTitle>새 멀티게임 세션</CardTitle></CardHeader><CardContent className="space-y-4"><Input value={roomTitle} onChange={(event) => setRoomTitle(event.target.value)} placeholder="세션 이름" /><div className="grid gap-2 md:grid-cols-4">{miniGames.map((game) => <Button key={game.id} variant={roomGameId === game.id ? "default" : "outline"} onClick={() => setRoomGameId(game.id)}>{game.title}</Button>)}</div>{supportsTimedRounds(roomGameId) ? <div className="grid grid-cols-2 gap-2"><Button variant={roomDuration === 30 ? "default" : "outline"} onClick={() => setRoomDuration(30)}>30초</Button><Button variant={roomDuration === 60 ? "default" : "outline"} onClick={() => setRoomDuration(60)}>60초</Button></div> : null}<div className="flex items-center justify-between rounded-xl border p-3 text-sm"><span>팀전으로 생성</span><Checkbox checked={teamMode} onCheckedChange={(checked) => setTeamMode(checked === true)} /></div><Button className="w-full" onClick={handleCreateRoom}>세션 생성</Button></CardContent></Card> : null}
-                    <div className="space-y-3">{rooms.length === 0 ? <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">열려 있는 멀티게임 세션이 없습니다.</div> : rooms.map((room) => <Card key={room.id}><CardContent className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between"><div><div className="font-semibold">{room.title}</div><div className="mt-1 text-sm text-muted-foreground">{miniGames.find((game) => game.id === room.gameId)?.title}{supportsTimedRounds(room.gameId) ? ` · ${room.durationSeconds}초` : ""} · {room.teamMode ? "팀전" : "개인전"} · {room.participants.length}/{room.maxPlayers}</div></div><Button variant="outline" onClick={() => handleJoinRoom(room.id)}>입장</Button></CardContent></Card>)}</div>
+                    {showRoomCreate ? <Card><CardHeader><CardTitle>새 멀티게임 세션</CardTitle></CardHeader><CardContent className="space-y-4"><Input value={roomTitle} onChange={(event) => setRoomTitle(event.target.value)} placeholder="세션 이름" /><div className="grid gap-2 md:grid-cols-3">{miniGames.map((game) => <Button key={game.id} variant={roomGameId === game.id ? "default" : "outline"} onClick={() => setRoomGameId(game.id)}>{game.title}</Button>)}</div>{supportsTimedRounds(roomGameId) ? <div className="grid grid-cols-2 gap-2"><Button variant={roomDuration === 30 ? "default" : "outline"} onClick={() => setRoomDuration(30)}>30초</Button><Button variant={roomDuration === 60 ? "default" : "outline"} onClick={() => setRoomDuration(60)}>60초</Button></div> : null}<div className="flex items-center justify-between rounded-xl border p-3 text-sm"><span>팀전으로 생성</span><Checkbox checked={teamMode} onCheckedChange={(checked) => setTeamMode(checked === true)} /></div><div className="rounded-xl border p-3 text-sm text-muted-foreground">세션을 연 뒤 방장이 CPU 참가자를 추가하면 사람과 컴퓨터가 함께 플레이할 수 있습니다.</div><Button className="w-full" onClick={handleCreateRoom}>세션 생성</Button></CardContent></Card> : null}
+                    <div className="space-y-3">{rooms.length === 0 ? <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">열려 있는 멀티게임 세션이 없습니다.</div> : rooms.map((room) => <Card key={room.id}><CardContent className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between"><div><div className="font-semibold">{room.title}</div><div className="mt-1 text-sm text-muted-foreground">{miniGames.find((game) => game.id === room.gameId)?.title}{supportsTimedRounds(room.gameId) ? ` · ${room.durationSeconds}초` : ""} · {room.teamMode ? "팀전" : "개인전"} · {room.participants.length}/{room.maxPlayers}</div><div className="mt-1 text-xs text-muted-foreground">CPU {room.participants.filter((participant) => participant.isBot).length}명 포함</div></div><div className="flex gap-2"><Button variant="outline" onClick={() => handleJoinRoom(room.id)}>입장</Button>{room.hostId === MY_USER_ID ? <Button variant="outline" onClick={() => handleAddBotToRoom(room.id)} disabled={room.participants.length >= room.maxPlayers}>CPU 추가</Button> : null}</div></CardContent></Card>)}</div>
                   </div>
                 )}
               </TabsContent>
