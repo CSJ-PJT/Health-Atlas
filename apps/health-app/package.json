@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
-    "@health-sync/game-link-sdk": "workspace:*",
-    "@health-sync/shared-auth": "workspace:*",
-    "@health-sync/shared-types": "workspace:*"
+    "@health-sync/game-link-sdk": "file:../../packages/game-link-sdk",
+    "@health-sync/shared-auth": "file:../../packages/shared-auth",
+    "@health-sync/shared-types": "file:../../packages/shared-types"
   },
   "scripts": {
     "dev": "vite",

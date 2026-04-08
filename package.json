@@ -27,6 +27,8 @@
     "preview:game": "npm run preview -w @health-sync/private-product-game",
     "preview:private-product": "npm run preview:game",
     "mobile:game:build": "npm run build -w @health-sync/private-product-game",
+    "mobile:game:add:android": "npm run cap:add:android -w @health-sync/private-product-game",
+    "mobile:game:add:ios": "npm run cap:add:ios -w @health-sync/private-product-game",
     "mobile:game:copy:android": "npm run cap:copy:android -w @health-sync/private-product-game",
     "mobile:game:sync:android": "npm run cap:sync:android -w @health-sync/private-product-game",
     "mobile:game:open:android": "npm run cap:open:android -w @health-sync/private-product-game",
@@ -87,6 +89,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.4.4",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",
