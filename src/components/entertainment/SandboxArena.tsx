@@ -60,25 +60,38 @@ export function SandboxArena({ state, canEdit, onClose, onAction }: Props) {
   return (
     <GameShell
       title="FitCraft Island"
-      subtitle="건강 활동으로 해금한 재료로 친구와 함께 2D 섬을 꾸미는 협동 창조형 월드입니다."
+      subtitle="건강 활동으로 재료를 모아 친구와 함께 2D 섬을 꾸미는 협동 창조형 월드입니다."
       onClose={onClose}
     >
       <div className="grid gap-4 lg:grid-cols-[0.84fr_1.16fr_0.92fr]">
         <div className="space-y-4">
           <div className="rounded-2xl border p-4">
-            <div className="mb-3 flex items-center gap-2 font-semibold"><Trees className="h-4 w-4 text-primary" />월드 정보</div>
+            <div className="mb-3 flex items-center gap-2 font-semibold">
+              <Trees className="h-4 w-4 text-primary" />
+              월드 정보
+            </div>
             <div className="space-y-2 text-sm">
-              <div>이름: <span className="font-medium">{state.meta.title}</span></div>
-              <div>테마: <span className="font-medium">{state.meta.theme}</span></div>
+              <div>
+                이름: <span className="font-medium">{state.meta.title}</span>
+              </div>
+              <div>
+                테마: <span className="font-medium">{state.meta.theme}</span>
+              </div>
               <div>좋아요 {state.meta.likes} · 방문 {state.meta.visits}</div>
             </div>
           </div>
           <div className="rounded-2xl border p-4">
             <div className="mb-3 font-semibold">도구</div>
             <div className="grid grid-cols-3 gap-2">
-              <Button variant={tool === "paint" ? "default" : "outline"} onClick={() => setTool("paint")}><PaintBucket className="h-4 w-4" /></Button>
-              <Button variant={tool === "place" ? "default" : "outline"} onClick={() => setTool("place")}><Pencil className="h-4 w-4" /></Button>
-              <Button variant={tool === "erase" ? "default" : "outline"} onClick={() => setTool("erase")}><Eraser className="h-4 w-4" /></Button>
+              <Button variant={tool === "paint" ? "default" : "outline"} onClick={() => setTool("paint")}>
+                <PaintBucket className="h-4 w-4" />
+              </Button>
+              <Button variant={tool === "place" ? "default" : "outline"} onClick={() => setTool("place")}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button variant={tool === "erase" ? "default" : "outline"} onClick={() => setTool("erase")}>
+                <Eraser className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </div>
@@ -91,11 +104,15 @@ export function SandboxArena({ state, canEdit, onClose, onAction }: Props) {
             {state.tiles.map((tile) => {
               const object = state.objects.find((item) => item.x === tile.x && item.y === tile.y);
               const color =
-                tile.terrain === "grass" ? "#7cc67a" :
-                tile.terrain === "sand" ? "#f2d091" :
-                tile.terrain === "water" ? "#67b7f7" :
-                tile.terrain === "track" ? "#f97316" :
-                "#94a3b8";
+                tile.terrain === "grass"
+                  ? "#7cc67a"
+                  : tile.terrain === "sand"
+                    ? "#f2d091"
+                    : tile.terrain === "water"
+                      ? "#67b7f7"
+                      : tile.terrain === "track"
+                        ? "#f97316"
+                        : "#94a3b8";
 
               return (
                 <button
@@ -111,16 +128,20 @@ export function SandboxArena({ state, canEdit, onClose, onAction }: Props) {
             })}
           </div>
           <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
-            편집 권한: {canEdit ? "이 방에서는 블록 배치와 지형 칠하기가 가능합니다." : "읽기 전용 월드입니다."}
+            편집 권한: {canEdit ? "이 방에서는 블록 배치와 지형 변경이 가능합니다." : "읽기 전용 월드입니다."}
           </div>
         </div>
 
         <div className="space-y-4">
           <div className="rounded-2xl border p-4">
-            <div className="mb-3 font-semibold">팔레트</div>
+            <div className="mb-3 font-semibold">지형</div>
             <div className="grid grid-cols-2 gap-2">
               {sandboxTerrainPalette.map((entry) => (
-                <Button key={entry.terrain} variant={selectedTerrain === entry.terrain ? "default" : "outline"} onClick={() => setSelectedTerrain(entry.terrain)}>
+                <Button
+                  key={entry.terrain}
+                  variant={selectedTerrain === entry.terrain ? "default" : "outline"}
+                  onClick={() => setSelectedTerrain(entry.terrain)}
+                >
                   {entry.label}
                 </Button>
               ))}
@@ -130,18 +151,28 @@ export function SandboxArena({ state, canEdit, onClose, onAction }: Props) {
             <div className="mb-3 font-semibold">장식</div>
             <div className="grid grid-cols-2 gap-2">
               {sandboxObjectPalette.map((entry) => (
-                <Button key={entry.type} variant={selectedObject === entry.type ? "default" : "outline"} onClick={() => setSelectedObject(entry.type)}>
+                <Button
+                  key={entry.type}
+                  variant={selectedObject === entry.type ? "default" : "outline"}
+                  onClick={() => setSelectedObject(entry.type)}
+                >
                   {entry.emoji} {entry.label}
                 </Button>
               ))}
             </div>
           </div>
-          <div className="rounded-2xl border p-4 space-y-3">
+          <div className="space-y-3 rounded-2xl border p-4">
             <div className="font-semibold">공유</div>
             <Input value={shareName} onChange={(event) => setShareName(event.target.value)} placeholder="편집자 이름 메모" />
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline"><Share2 className="h-4 w-4" />공유</Button>
-              <Button variant="outline"><Save className="h-4 w-4" />저장</Button>
+              <Button variant="outline">
+                <Share2 className="h-4 w-4" />
+                공유
+              </Button>
+              <Button variant="outline">
+                <Save className="h-4 w-4" />
+                저장
+              </Button>
             </div>
           </div>
         </div>

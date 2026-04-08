@@ -126,7 +126,9 @@ export function StrategyArena({
           </div>
           {myPlayer ? (
             <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
-              건강 보너스: 시작 에너지 +{myPlayer.healthBonuses?.startEnergy || 0} · 방어 +{myPlayer.healthBonuses?.defenseBoost || 0} · 스카우트 이동 +{myPlayer.healthBonuses?.scoutRangeBoost || 0}
+              건강 보너스: 시작 에너지 +{myPlayer.healthBonuses?.startEnergy || 0} · 방어 +
+              {myPlayer.healthBonuses?.defenseBoost || 0} · 스카우트 이동 +
+              {myPlayer.healthBonuses?.scoutRangeBoost || 0}
             </div>
           ) : null}
         </div>
@@ -162,7 +164,8 @@ export function StrategyArena({
             ))}
           </div>
           <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
-            승리 조건: 상대 본진을 점령하면 즉시 승리합니다. 12턴이 끝나면 거점 보유, 자원 누적, 적 유닛 제거, 본진 체력 점수를 합산해 승패를 정합니다.
+            승리 조건: 상대 본진을 점령하면 즉시 승리합니다. 제한 턴이 끝나면 거점 보유,
+            자원 누적, 적 유닛 제거, 본진 체력을 합산해 승패를 결정합니다.
           </div>
         </div>
 

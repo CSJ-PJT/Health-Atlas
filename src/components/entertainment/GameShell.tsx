@@ -11,7 +11,7 @@ type Props = {
 
 export function GameShell({ title, subtitle, onClose, children }: Props) {
   return (
-    <div className="rounded-3xl border bg-background/95 shadow-2xl">
+    <div className="flex max-h-[calc(100vh-5rem)] flex-col overflow-hidden rounded-3xl border bg-background/95 shadow-2xl">
       <div className="flex items-start justify-between gap-4 border-b p-5">
         <div>
           <div className="text-xl font-bold">{title}</div>
@@ -21,7 +21,7 @@ export function GameShell({ title, subtitle, onClose, children }: Props) {
           <X className="h-4 w-4" />
         </Button>
       </div>
-      <div className="p-5">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
     </div>
   );
 }
