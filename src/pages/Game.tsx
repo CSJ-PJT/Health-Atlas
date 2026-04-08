@@ -38,8 +38,11 @@ import {
 import {
   appendStrategyEvent,
   loadLatestStrategyState,
+  loadStrategySeasonLeaderboard,
   saveStrategySnapshot,
+  upsertStrategySeasonResults,
   upsertStrategyMatch,
+  type StrategySeasonRow,
 } from "@/services/repositories/strategyRepository";
 import { getFriends, type FriendEntry } from "@/services/socialStore";
 import {
@@ -129,6 +132,7 @@ export default function Game() {
   const [liveRanking, setLiveRanking] = useState<RankingRow[]>(rankingData["tap-sprint"].weekly);
   const [liveTopFive, setLiveTopFive] = useState<Array<{ name: string; score: number; badge: string }>>(topFiveData["tap-sprint"]);
   const [rankingRefreshTick, setRankingRefreshTick] = useState(0);
+  const [strategySeasonRows, setStrategySeasonRows] = useState<StrategySeasonRow[]>([]);
   const [showTopFive, setShowTopFive] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showRoomCreate, setShowRoomCreate] = useState(false);
@@ -210,12 +214,32 @@ export default function Game() {
     };
   }, [rankingGame, rankingMode, scores, rankingRefreshTick]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSeasonRows() {
+      const rows = await loadStrategySeasonLeaderboard();
+      if (!cancelled) {
+        setStrategySeasonRows(rows);
+      }
+    }
+
+    void loadSeasonRows();
+    return () => {
+      cancelled = true;
+    };
+  }, [rankingRefreshTick]);
+
   const activeRoom = rooms.find((room) => room.id === activeRoomId) || null;
   const activeRoomStart = useMemo(() => parseLatestStart(activeRoom), [activeRoom]);
   const activeRoomScores = useMemo(() => buildRoomScoreboard(activeRoom), [activeRoom]);
   const currentLeaderboard = liveRanking;
   const myRanking = currentLeaderboard.find((entry) => entry.userId === MY_USER_ID);
   const myChallenges = useMemo(() => challenges.filter((item) => item.joinedUserIds.includes(MY_USER_ID) || item.completedUserIds.includes(MY_USER_ID)), [challenges]);
+  const myStrategySeason = useMemo(
+    () => strategySeasonRows.find((row) => row.userId === MY_USER_ID) || null,
+    [strategySeasonRows],
+  );
 
   useEffect(() => {
     if (!activeRoomStart || !activeRoomId) return;
@@ -313,48 +337,91 @@ export default function Game() {
   useEffect(() => {
     if (!activeRoom || activeRoom.gameId !== "pulse-frontier" || activeRoom.roomStatus !== "finished" || !activeRoom.gameState) return;
     const strategyState = activeRoom.gameState as ReturnType<typeof createPulseFrontierState>;
-    if (strategyState.players.every((player) => hasRoomScore(activeRoom, player.userId))) return;
+    const scoreAlreadyRecorded = strategyState.players.every((player) => hasRoomScore(activeRoom, player.userId));
+    const seasonAlreadyRecorded = activeRoom.systemEvents.some((event) => {
+      if (event.type !== "resolve") return false;
+      try {
+        return (event.payload as { kind?: string }).kind === "strategy-season-scored";
+      } catch {
+        return false;
+      }
+    });
+    if (scoreAlreadyRecorded && seasonAlreadyRecorded) return;
 
-    const myResult = strategyState.players.find((player) => player.userId === MY_USER_ID);
-    if (myResult) {
-      const nextScores = {
-        ...scores,
-        "pulse-frontier": Math.max(scores["pulse-frontier"] || 0, myResult.score),
-      };
-      setScores(nextScores);
-      saveStoredEntertainmentScores(nextScores);
-      void recordEntertainmentScoreEvent("pulse-frontier", myResult.score);
+    if (!scoreAlreadyRecorded) {
+      const myResult = strategyState.players.find((player) => player.userId === MY_USER_ID);
+      if (myResult) {
+        const nextScores = {
+          ...scores,
+          "pulse-frontier": Math.max(scores["pulse-frontier"] || 0, myResult.score),
+        };
+        setScores(nextScores);
+        saveStoredEntertainmentScores(nextScores);
+        void recordEntertainmentScoreEvent("pulse-frontier", myResult.score);
+      }
+
+      const scoreEvents = strategyState.players.map((player) =>
+        buildSystemMessage("score", {
+          userId: player.userId,
+          name: player.name,
+          score: player.score,
+          gameId: "pulse-frontier",
+        }),
+      );
+      const resultMessages = strategyState.players.map((player) =>
+        createRoomActionMessage(
+          player.name,
+          `${player.score}점으로 경기를 마쳤습니다${strategyState.winnerUserId === player.userId ? " · 승리" : ""}.`,
+        ),
+      );
+
+      saveRooms(
+        rooms.map((room) =>
+          room.id === activeRoom.id
+            ? {
+                ...room,
+                systemEvents: [
+                  ...room.systemEvents,
+                  ...scoreEvents,
+                  ...(seasonAlreadyRecorded
+                    ? []
+                    : [
+                        buildSystemMessage("resolve", {
+                          kind: "strategy-season-scored",
+                          winnerUserId: strategyState.winnerUserId || null,
+                        }),
+                      ]),
+                ],
+                chatMessages: [...room.chatMessages, ...resultMessages],
+                updatedAt: new Date().toISOString(),
+              }
+            : room,
+        ),
+      );
+    } else if (!seasonAlreadyRecorded) {
+      saveRooms(
+        rooms.map((room) =>
+          room.id === activeRoom.id
+            ? {
+                ...room,
+                systemEvents: [
+                  ...room.systemEvents,
+                  buildSystemMessage("resolve", {
+                    kind: "strategy-season-scored",
+                    winnerUserId: strategyState.winnerUserId || null,
+                  }),
+                ],
+                updatedAt: new Date().toISOString(),
+              }
+            : room,
+        ),
+      );
     }
-
-    const scoreEvents = strategyState.players.map((player) =>
-      buildSystemMessage("score", {
-        userId: player.userId,
-        name: player.name,
-        score: player.score,
-        gameId: "pulse-frontier",
-      }),
-    );
-    const resultMessages = strategyState.players.map((player) =>
-      createRoomActionMessage(
-        player.name,
-        `${player.score}점으로 경기를 마쳤습니다${strategyState.winnerUserId === player.userId ? " · 승리" : ""}.`,
-      ),
-    );
-
-    saveRooms(
-      rooms.map((room) =>
-        room.id === activeRoom.id
-          ? {
-              ...room,
-              systemEvents: [...room.systemEvents, ...scoreEvents],
-              chatMessages: [...room.chatMessages, ...resultMessages],
-              updatedAt: new Date().toISOString(),
-            }
-          : room,
-      ),
-    );
     void upsertStrategyMatch(activeRoom, strategyState);
     void saveStrategySnapshot(activeRoom.id, strategyState);
+    if (!seasonAlreadyRecorded) {
+      void upsertStrategySeasonResults(strategyState).then(() => setRankingRefreshTick((value) => value + 1));
+    }
   }, [activeRoom, rooms]);
 
   const saveChallenges = (next: ChallengeEntry[]) => {
@@ -891,6 +958,7 @@ export default function Game() {
                 onAttackUnit={handleStrategyAttack}
                 onCaptureTile={handleStrategyCapture}
                 onEndTurn={handleStrategyEndTurn}
+                seasonSummary={myStrategySeason}
               />
             ) : openedGame === "fitcraft-island" && activeRoom?.gameState ? (
               <SandboxArena

@@ -7,6 +7,7 @@ import type {
 } from "@/components/entertainment/strategy/strategyTypes";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import type { StrategySeasonRow } from "@/services/repositories/strategyRepository";
 
 type Props = {
   state: StrategyGameState;
@@ -17,6 +18,7 @@ type Props = {
   onAttackUnit: (unitId: string, targetUnitId: string) => void;
   onCaptureTile: (unitId: string, x: number, y: number) => void;
   onEndTurn: () => void;
+  seasonSummary?: StrategySeasonRow | null;
 };
 
 function unitIcon(type: StrategyUnitType) {
@@ -39,6 +41,7 @@ export function StrategyArena({
   onAttackUnit,
   onCaptureTile,
   onEndTurn,
+  seasonSummary,
 }: Props) {
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedTileIndex, setSelectedTileIndex] = useState<number | null>(null);
@@ -48,6 +51,8 @@ export function StrategyArena({
   const selectedUnit = state.units.find((unit) => unit.id === selectedUnitId) || null;
   const selectedTile = selectedTileIndex !== null ? state.tiles[selectedTileIndex] || null : null;
   const canAct = state.phase === "running" && state.currentUserTurn === myUserId;
+  const winner = state.players.find((player) => player.userId === state.winnerUserId) || null;
+  const mvp = [...state.players].sort((left, right) => right.score - left.score)[0] || null;
 
   const tiles = useMemo(
     () =>
@@ -93,6 +98,41 @@ export function StrategyArena({
       onClose={onClose}
     >
       <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr_0.95fr]">
+        {state.phase === "finished" ? (
+          <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5 lg:col-span-3">
+            <div className="text-sm text-muted-foreground">경기 결과</div>
+            <div className="mt-1 text-2xl font-bold">
+              {winner?.userId === myUserId ? "승리했습니다" : winner ? `${winner.name} 승리` : "경기 종료"}
+            </div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              승리 조건: {state.victoryReason === "base-capture" ? "상대 본진 점령" : "제한 턴 종료 후 점수 우세"}
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl bg-background/70 p-4">
+                <div className="text-xs text-muted-foreground">MVP</div>
+                <div className="mt-1 font-semibold">{mvp?.name || "미정"}</div>
+                <div className="text-sm text-muted-foreground">{mvp?.score || 0}점</div>
+              </div>
+              <div className="rounded-2xl bg-background/70 p-4">
+                <div className="text-xs text-muted-foreground">내 경기 점수</div>
+                <div className="mt-1 font-semibold">{myPlayer?.score || 0}점</div>
+              </div>
+              <div className="rounded-2xl bg-background/70 p-4">
+                <div className="text-xs text-muted-foreground">시즌 성적</div>
+                {seasonSummary ? (
+                  <>
+                    <div className="mt-1 font-semibold">{seasonSummary.rank}위 · 레이팅 {seasonSummary.rating}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {seasonSummary.wins}승 {seasonSummary.losses}패 · 점령 점수 {seasonSummary.capturePoints}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-1 text-sm text-muted-foreground">시즌 점수 집계 중</div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div className="space-y-4">
           <div className="rounded-2xl border p-4">
             <div className="text-sm text-muted-foreground">현재 턴</div>
