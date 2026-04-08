@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+ï»¿import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChevronsUpDown, ContactRound, MessageCircleMore, Pencil, Plus, Send, Trash2, Users } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ import {
 } from "@/services/socialStore";
 
 const MY_USER_ID = localStorage.getItem("user_id") || "me";
-const MY_USER_NAME = localStorage.getItem("user_nickname") || "»ç¿ëÀÚ";
+const MY_USER_NAME = localStorage.getItem("user_nickname") || "ì‚¬ìš©ì";
 
 type ActionTarget =
   | { kind: "friend"; item: FriendEntry }
@@ -140,7 +140,7 @@ const Chat = () => {
 
   const getRoomPreview = (room: ChatRoom) => {
     const roomMessages = getRoomMessages(room.id);
-    return roomMessages[roomMessages.length - 1]?.content || "´ëÈ­¸¦ ½ÃÀÛÇØ º¸¼¼¿ä.";
+    return roomMessages[roomMessages.length - 1]?.content || "ëŒ€í™”ë¥¼ ì‹œì‘í•´ ë³´ì„¸ìš”.";
   };
 
   const handleLoadContacts = async () => {
@@ -149,8 +149,8 @@ const Chat = () => {
       const granted = permission.granted ? permission : await DeviceContacts.requestContactsPermission();
       if (!granted.granted) {
         toast({
-          title: "¿¬¶ôÃ³ ±ÇÇÑÀÌ ÇÊ¿äÇÕ´Ï´Ù.",
-          description: "¿¬¶ôÃ³ ±â¹İ Ä£±¸ Ãß°¡¸¦ »ç¿ëÇÏ·Á¸é ±ÇÇÑÀ» Çã¿ëÇØ ÁÖ¼¼¿ä.",
+          title: "ì—°ë½ì²˜ ê¶Œí•œì´ í•„ìš”í•©ë‹ˆë‹¤.",
+          description: "ì—°ë½ì²˜ ê¸°ë°˜ ì¹œêµ¬ ì¶”ê°€ë¥¼ ì‚¬ìš©í•˜ë ¤ë©´ ê¶Œí•œì„ í—ˆìš©í•´ ì£¼ì„¸ìš”.",
           variant: "destructive",
         });
         return;
@@ -159,13 +159,13 @@ const Chat = () => {
       const result = await DeviceContacts.getContacts();
       setContacts(result.contacts || []);
       toast({
-        title: "¿¬¶ôÃ³¸¦ ºÒ·¯¿Ô½À´Ï´Ù.",
-        description: `${result.contacts?.length || 0}°³ÀÇ ¿¬¶ôÃ³¸¦ È®ÀÎÇß½À´Ï´Ù.`,
+        title: "ì—°ë½ì²˜ë¥¼ ë¶ˆëŸ¬ì™”ìŠµë‹ˆë‹¤.",
+        description: `${result.contacts?.length || 0}ê°œì˜ ì—°ë½ì²˜ë¥¼ í™•ì¸í–ˆìŠµë‹ˆë‹¤.`,
       });
     } catch (error) {
       console.error("Failed to load contacts:", error);
       toast({
-        title: "¿¬¶ôÃ³¸¦ ºÒ·¯¿ÀÁö ¸øÇß½À´Ï´Ù.",
+        title: "ì—°ë½ì²˜ë¥¼ ë¶ˆëŸ¬ì˜¤ì§€ ëª»í–ˆìŠµë‹ˆë‹¤.",
         variant: "destructive",
       });
     }
@@ -175,8 +175,8 @@ const Chat = () => {
     saveFriend(contact);
     refreshSocialState();
     toast({
-      title: "Ä£±¸¸¦ Ãß°¡Çß½À´Ï´Ù.",
-      description: `${contact.name}´ÔÀ» Ä£±¸ ¸ñ·Ï¿¡ ³Ö¾ú½À´Ï´Ù.`,
+      title: "ì¹œêµ¬ë¥¼ ì¶”ê°€í–ˆìŠµë‹ˆë‹¤.",
+      description: `${contact.name}ë‹˜ì„ ì¹œêµ¬ ëª©ë¡ì— ë„£ì—ˆìŠµë‹ˆë‹¤.`,
     });
   };
 
@@ -203,8 +203,8 @@ const Chat = () => {
     const { data } = await supabase.from("profiles").select("user_id, nickname").eq("user_id", userIdQuery.trim()).maybeSingle();
     if (!data) {
       toast({
-        title: "»ç¿ëÀÚ¸¦ Ã£Áö ¸øÇß½À´Ï´Ù.",
-        description: "ÀÔ·ÂÇÑ ID¸¦ ´Ù½Ã È®ÀÎÇØ ÁÖ¼¼¿ä.",
+        title: "ì‚¬ìš©ìë¥¼ ì°¾ì§€ ëª»í–ˆìŠµë‹ˆë‹¤.",
+        description: "ì…ë ¥í•œ IDë¥¼ ë‹¤ì‹œ í™•ì¸í•´ ì£¼ì„¸ìš”.",
         variant: "destructive",
       });
       return;
@@ -235,8 +235,8 @@ const Chat = () => {
   const handleCreateGroup = () => {
     if (!groupName.trim() || selectedMembers.length < 2) {
       toast({
-        title: "±×·ì Ã¤ÆÃÀ» ¸¸µé ¼ö ¾ø½À´Ï´Ù.",
-        description: "±×·ì ÀÌ¸§°ú Ä£±¸ 2¸í ÀÌ»óÀ» ¼±ÅÃÇØ ÁÖ¼¼¿ä.",
+        title: "ê·¸ë£¹ ì±„íŒ…ì„ ë§Œë“¤ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.",
+        description: "ê·¸ë£¹ ì´ë¦„ê³¼ ì¹œêµ¬ 2ëª… ì´ìƒì„ ì„ íƒí•´ ì£¼ì„¸ìš”.",
         variant: "destructive",
       });
       return;
@@ -340,7 +340,7 @@ const Chat = () => {
     const content = (
       <div className="space-y-3">
         {friends.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Ä£±¸°¡ ¾ø½À´Ï´Ù.</div>
+          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">ì¹œêµ¬ê°€ ì—†ìŠµë‹ˆë‹¤.</div>
         ) : (
           friends.map((friend) => (
             <button
@@ -372,7 +372,7 @@ const Chat = () => {
     const content = (
       <div className="space-y-3">
         {rooms.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">´ëÈ­ ¸ñ·ÏÀÌ ¾ø½À´Ï´Ù.</div>
+          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">ëŒ€í™” ëª©ë¡ì´ ì—†ìŠµë‹ˆë‹¤.</div>
         ) : (
           rooms.map((room) => (
             <button
@@ -424,28 +424,28 @@ const Chat = () => {
                   setComposePanel("none");
                   setListTab("rooms");
                 }}
-                aria-label="µÚ·Î°¡±â"
+                aria-label="ë’¤ë¡œê°€ê¸°"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             ) : null}
-            <h1 className="text-3xl font-bold">Ã¤ÆÃ</h1>
+            <h1 className="text-3xl font-bold">ì±„íŒ…</h1>
           </div>
 
           <div className="flex items-center gap-2" data-no-swipe="true">
-            <Button variant={showLists ? "default" : "outline"} size="icon" onClick={() => setShowLists((value) => !value)} aria-label="¸ñ·Ï Á¢±â">
+            <Button variant={showLists ? "default" : "outline"} size="icon" onClick={() => setShowLists((value) => !value)} aria-label="ëª©ë¡ ì ‘ê¸°">
               <ChevronsUpDown className="h-4 w-4" />
             </Button>
-            <Button variant={listTab === "friends" && showLists ? "default" : "outline"} size="icon" onClick={() => { setShowLists(true); setListTab("friends"); }} aria-label="Ä£±¸ ¸ñ·Ï">
+            <Button variant={listTab === "friends" && showLists ? "default" : "outline"} size="icon" onClick={() => { setShowLists(true); setListTab("friends"); }} aria-label="ì¹œêµ¬ ëª©ë¡">
               <ContactRound className="h-4 w-4" />
             </Button>
-            <Button variant={listTab === "rooms" && showLists ? "default" : "outline"} size="icon" onClick={() => { setShowLists(true); setListTab("rooms"); }} aria-label="´ëÈ­ ¸ñ·Ï">
+            <Button variant={listTab === "rooms" && showLists ? "default" : "outline"} size="icon" onClick={() => { setShowLists(true); setListTab("rooms"); }} aria-label="ëŒ€í™” ëª©ë¡">
               <MessageCircleMore className="h-4 w-4" />
             </Button>
-            <Button variant={composePanel === "friend" ? "default" : "outline"} size="icon" onClick={() => { setComposePanel("friend"); setShowLists(true); setListTab("friends"); }} aria-label="Ä£±¸ Ãß°¡">
+            <Button variant={composePanel === "friend" ? "default" : "outline"} size="icon" onClick={() => { setComposePanel("friend"); setShowLists(true); setListTab("friends"); }} aria-label="ì¹œêµ¬ ì¶”ê°€">
               {renderAddBadge(ContactRound)}
             </Button>
-            <Button variant={composePanel === "room" ? "default" : "outline"} size="icon" onClick={() => { setComposePanel("room"); setShowLists(true); setListTab("rooms"); }} aria-label="´ëÈ­ Ãß°¡">
+            <Button variant={composePanel === "room" ? "default" : "outline"} size="icon" onClick={() => { setComposePanel("room"); setShowLists(true); setListTab("rooms"); }} aria-label="ëŒ€í™” ì¶”ê°€">
               {renderAddBadge(MessageCircleMore)}
             </Button>
           </div>
@@ -458,18 +458,18 @@ const Chat = () => {
                 <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
                   <Card className="border-dashed">
                     <CardHeader>
-                      <CardTitle className="text-base">¿¬¶ôÃ³¿¡¼­ Ä£±¸ Ãß°¡</CardTitle>
+                      <CardTitle className="text-base">ì—°ë½ì²˜ì—ì„œ ì¹œêµ¬ ì¶”ê°€</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <Button variant="outline" onClick={() => void handleLoadContacts()} className="w-full gap-2">
                         <ContactRound className="h-4 w-4" />
-                        ¿¬¶ôÃ³ ºÒ·¯¿À±â
+                        ì—°ë½ì²˜ ë¶ˆëŸ¬ì˜¤ê¸°
                       </Button>
                       {(shouldScrollFriendsList || contacts.length > 5) ? (
                         <ScrollArea className="h-72 pr-3">
                           <div className="space-y-3">
                             {contacts.length === 0 ? (
-                              <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">ºÒ·¯¿Â ¿¬¶ôÃ³°¡ ¾ø½À´Ï´Ù.</div>
+                              <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">ë¶ˆëŸ¬ì˜¨ ì—°ë½ì²˜ê°€ ì—†ìŠµë‹ˆë‹¤.</div>
                             ) : (
                               contacts.map((contact) => (
                                 <div key={`${contact.id}-${contact.phone}`} className="flex items-center justify-between rounded-xl border p-3">
@@ -477,7 +477,7 @@ const Chat = () => {
                                     <div className="font-medium">{contact.name}</div>
                                     <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
                                   </div>
-                                  <Button size="sm" onClick={() => handleAddFriend(contact)}>Ãß°¡</Button>
+                                  <Button size="sm" onClick={() => handleAddFriend(contact)}>ì¶”ê°€</Button>
                                 </div>
                               ))
                             )}
@@ -486,7 +486,7 @@ const Chat = () => {
                       ) : (
                         <div className="space-y-3">
                           {contacts.length === 0 ? (
-                            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">ºÒ·¯¿Â ¿¬¶ôÃ³°¡ ¾ø½À´Ï´Ù.</div>
+                            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">ë¶ˆëŸ¬ì˜¨ ì—°ë½ì²˜ê°€ ì—†ìŠµë‹ˆë‹¤.</div>
                           ) : (
                             contacts.map((contact) => (
                               <div key={`${contact.id}-${contact.phone}`} className="flex items-center justify-between rounded-xl border p-3">
@@ -494,7 +494,7 @@ const Chat = () => {
                                   <div className="font-medium">{contact.name}</div>
                                   <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
                                 </div>
-                                <Button size="sm" onClick={() => handleAddFriend(contact)}>Ãß°¡</Button>
+                                <Button size="sm" onClick={() => handleAddFriend(contact)}>ì¶”ê°€</Button>
                               </div>
                             ))
                           )}
@@ -506,22 +506,22 @@ const Chat = () => {
                   <div className="space-y-4">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-base">Á÷Á¢ Ãß°¡</CardTitle>
+                        <CardTitle className="text-base">ì§ì ‘ ì¶”ê°€</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <Input value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="ÀÌ¸§" />
-                        <Input value={manualPhone} onChange={(event) => setManualPhone(event.target.value)} placeholder="ÀüÈ­¹øÈ£" />
-                        <Button onClick={handleManualAdd} className="w-full">Ä£±¸ Ãß°¡</Button>
+                        <Input value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="ì´ë¦„" />
+                        <Input value={manualPhone} onChange={(event) => setManualPhone(event.target.value)} placeholder="ì „í™”ë²ˆí˜¸" />
+                        <Button onClick={handleManualAdd} className="w-full">ì¹œêµ¬ ì¶”ê°€</Button>
                       </CardContent>
                     </Card>
 
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-base">»ç¿ëÀÚ ID·Î Ãß°¡</CardTitle>
+                        <CardTitle className="text-base">ì‚¬ìš©ì IDë¡œ ì¶”ê°€</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <Input value={userIdQuery} onChange={(event) => setUserIdQuery(event.target.value)} placeholder="»ç¿ëÀÚ ID ÀÔ·Â" />
-                        <Button variant="outline" onClick={() => void handleUserIdAdd()} className="w-full">ID·Î Ä£±¸ Ãß°¡</Button>
+                        <Input value={userIdQuery} onChange={(event) => setUserIdQuery(event.target.value)} placeholder="ì‚¬ìš©ì ID ì…ë ¥" />
+                        <Button variant="outline" onClick={() => void handleUserIdAdd()} className="w-full">IDë¡œ ì¹œêµ¬ ì¶”ê°€</Button>
                       </CardContent>
                     </Card>
                   </div>
@@ -531,13 +531,13 @@ const Chat = () => {
               {composePanel === "room" ? (
                 <Card className="border-dashed">
                   <CardHeader>
-                    <CardTitle className="text-base">»õ ´ëÈ­¹æ ¸¸µé±â</CardTitle>
+                    <CardTitle className="text-base">ìƒˆ ëŒ€í™”ë°© ë§Œë“¤ê¸°</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <Input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="±×·ì Ã¤ÆÃ ÀÌ¸§" />
+                    <Input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="ê·¸ë£¹ ì±„íŒ… ì´ë¦„" />
                     <div className="grid gap-3 md:grid-cols-2">
                       {friends.length === 0 ? (
-                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">¼±ÅÃÇÒ Ä£±¸°¡ ¾ø½À´Ï´Ù.</div>
+                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">ì„ íƒí•  ì¹œêµ¬ê°€ ì—†ìŠµë‹ˆë‹¤.</div>
                       ) : (
                         friends.map((friend) => (
                           <label key={friend.id} className="flex items-center gap-3 rounded-lg border p-3">
@@ -552,7 +552,8 @@ const Chat = () => {
                     </div>
                     <Button onClick={handleCreateGroup} className="w-full gap-2">
                       <Users className="h-4 w-4" />
-                      ±×·ì Ã¤ÆÃ ¸¸µé±â                    </Button>
+                      ê·¸ë£¹ ì±„íŒ… ë§Œë“¤ê¸°
+                    </Button>
                   </CardContent>
                 </Card>
               ) : null}
@@ -564,12 +565,12 @@ const Chat = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>{activeRoom?.name || "´ëÈ­¹æ"}</CardTitle>
+            <CardTitle>{activeRoom?.name || "ëŒ€í™”ë°©"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
               {messages.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">¸Ş½ÃÁö°¡ ¾ø½À´Ï´Ù.</div>
+                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">ë©”ì‹œì§€ê°€ ì—†ìŠµë‹ˆë‹¤.</div>
               ) : (
                 messages.map((message) => (
                   <div
@@ -586,8 +587,8 @@ const Chat = () => {
             </div>
 
             <div className="flex gap-2" data-no-swipe="true">
-              <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="¸Ş½ÃÁö¸¦ ÀÔ·ÂÇØ ÁÖ¼¼¿ä." />
-              <Button onClick={handleSend} size="icon" aria-label="Àü¼Û">
+              <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="ë©”ì‹œì§€ë¥¼ ì…ë ¥í•´ ì£¼ì„¸ìš”." />
+              <Button onClick={handleSend} size="icon" aria-label="ì „ì†¡">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
@@ -597,20 +598,21 @@ const Chat = () => {
         {actionTarget ? (
           <Card>
             <CardHeader>
-              <CardTitle>{actionTarget.kind === "friend" ? "Ä£±¸ °ü¸®" : "´ëÈ­¹æ °ü¸®"}</CardTitle>
+              <CardTitle>{actionTarget.kind === "friend" ? "ì¹œêµ¬ ê´€ë¦¬" : "ëŒ€í™”ë°© ê´€ë¦¬"}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} placeholder="»õ ÀÌ¸§" />
+              <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} placeholder="ìƒˆ ì´ë¦„" />
               <div className="flex flex-wrap gap-2">
                 {actionTarget.kind === "friend" ? (
-                  <Button variant="outline" onClick={handleStartChatFromFriend}>´ëÈ­ ½ÃÀÛ</Button>
+                  <Button variant="outline" onClick={handleStartChatFromFriend}>ëŒ€í™” ì‹œì‘</Button>
                 ) : null}
                 <Button variant="outline" onClick={handleRename} className="gap-2">
                   <Pencil className="h-4 w-4" />
-                  ÀÌ¸§ º¯°æ                </Button>
+                  ì´ë¦„ ë³€ê²½
+                </Button>
                 <Button variant="destructive" onClick={handleDelete} className="gap-2">
                   <Trash2 className="h-4 w-4" />
-                  »èÁ¦
+                  ì‚­ì œ
                 </Button>
               </div>
             </CardContent>
@@ -622,5 +624,6 @@ const Chat = () => {
 };
 
 export default Chat;
+
 
 
