@@ -61,6 +61,31 @@ const featuredBadges = [
   { id: "ultra", icon: "⚡", name: "울트라 스피릿", detail: "장거리 훈련을 오래 이어간 러너에게 주어집니다." },
 ];
 
+function buildSystemMessage(type: "start" | "score", payload: Record<string, unknown>) {
+  return `__system__:${type}:${JSON.stringify(payload)}`;
+}
+
+function parseLatestStart(room: MultiRoom | null) {
+  if (!room) return null;
+  const startMessage = [...room.chat]
+    .reverse()
+    .find((message) => typeof message.text === "string" && message.text.startsWith("__system__:start:"));
+
+  if (!startMessage) return null;
+
+  try {
+    const payload = JSON.parse(startMessage.text.replace("__system__:start:", "")) as {
+      gameId: PlayableGameId;
+      durationSeconds: 30 | 60;
+      startedAt: string;
+    };
+    if (!payload?.gameId || !payload?.durationSeconds) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 function getChallenges(): ChallengeEntry[] {
   const data = getStoredEntertainmentChallenges();
   if (data.length > 0) return data;
@@ -165,9 +190,15 @@ export default function Game() {
   }, [rankingGame, rankingMode, scores, rankingRefreshTick]);
 
   const activeRoom = rooms.find((room) => room.id === activeRoomId) || null;
+  const activeRoomStart = useMemo(() => parseLatestStart(activeRoom), [activeRoom]);
   const currentLeaderboard = liveRanking;
   const myRanking = currentLeaderboard.find((entry) => entry.userId === MY_USER_ID);
   const myChallenges = useMemo(() => challenges.filter((item) => item.joinedUserIds.includes(MY_USER_ID) || item.completedUserIds.includes(MY_USER_ID)), [challenges]);
+
+  useEffect(() => {
+    if (!activeRoomStart || !activeRoomId) return;
+    setOpenedGame((current) => current ?? activeRoomStart.gameId);
+  }, [activeRoomId, activeRoomStart]);
 
   const saveChallenges = (next: ChallengeEntry[]) => {
     setChallenges(next);
@@ -219,11 +250,56 @@ export default function Game() {
   };
   const handleStartRoom = () => {
     if (!activeRoom || activeRoom.hostId !== MY_USER_ID) return;
+    const startedAt = new Date().toISOString();
+    const gameTitle = miniGames.find((game) => game.id === activeRoom.gameId)?.title || "게임";
+    saveRooms(
+      rooms.map((room) =>
+        room.id === activeRoom.id
+          ? {
+              ...room,
+              chat: [
+                ...room.chat,
+                {
+                  id: `system-start-${Date.now()}`,
+                  name: "SYSTEM",
+                  text: buildSystemMessage("start", {
+                    gameId: activeRoom.gameId,
+                    durationSeconds: activeRoom.durationSeconds,
+                    startedAt,
+                  }),
+                },
+                {
+                  id: `system-start-label-${Date.now() + 1}`,
+                  name: "SYSTEM",
+                  text: `${activeRoom.hostName}님이 ${gameTitle} 게임을 시작했습니다.`,
+                },
+              ],
+            }
+          : room,
+      ),
+    );
     setOpenedGame(activeRoom.gameId);
   };
   const handleScore = (gameId: PlayableGameId, score: number) => {
     if (activeRoomId) {
-      saveRooms(rooms.map((room) => room.id === activeRoomId ? { ...room, chat: [...room.chat, { id: `result-${Date.now()}`, name: MY_USER_NAME, text: `${MY_USER_NAME} 점수 ${score}` }] } : room));
+      saveRooms(
+        rooms.map((room) =>
+          room.id === activeRoomId
+            ? {
+                ...room,
+                chat: [
+                  ...room.chat,
+                  {
+                    id: `system-score-${Date.now()}`,
+                    name: "SYSTEM",
+                    text: buildSystemMessage("score", { userId: MY_USER_ID, name: MY_USER_NAME, score, gameId }),
+                  },
+                  { id: `result-${Date.now() + 1}`, name: MY_USER_NAME, text: `${MY_USER_NAME} 점수 ${score}` },
+                ],
+              }
+            : room,
+        ),
+      );
       return;
     }
     const next = { ...scores, [gameId]: Math.max(scores[gameId] || 0, score) };
@@ -315,6 +391,7 @@ export default function Game() {
                         </div>
                         {activeRoom.hostId === MY_USER_ID ? <div className="space-y-3 rounded-2xl border p-4"><div className="font-medium">방 설정</div><div className="grid gap-2 md:grid-cols-4">{miniGames.map((game) => <Button key={game.id} variant={activeRoom.gameId === game.id ? "default" : "outline"} onClick={() => handleRoomSetting({ gameId: game.id })}>{game.title}</Button>)}</div><div className="grid grid-cols-2 gap-2"><Button variant={activeRoom.durationSeconds === 30 ? "default" : "outline"} onClick={() => handleRoomSetting({ durationSeconds: 30 })}>30초</Button><Button variant={activeRoom.durationSeconds === 60 ? "default" : "outline"} onClick={() => handleRoomSetting({ durationSeconds: 60 })}>60초</Button></div><div className="flex items-center justify-between rounded-xl border p-3 text-sm"><span>팀전</span><Checkbox checked={activeRoom.teamMode} onCheckedChange={(checked) => handleRoomSetting({ teamMode: checked === true })} /></div><Button className="w-full gap-2" onClick={handleStartRoom}><Swords className="h-4 w-4" />게임 시작</Button></div> : null}
                         <div className="rounded-2xl border p-4"><div className="mb-3 flex items-center gap-2 font-medium"><Users className="h-4 w-4 text-primary" />참여자</div><div className="grid gap-2">{activeRoom.participants.map((participant) => <div key={participant.userId} className="rounded-xl bg-muted/30 px-3 py-2 text-sm">{participant.name}</div>)}</div></div>
+                        {activeRoomStart ? <div className="rounded-2xl border border-primary/20 bg-primary/8 p-4 text-sm">현재 진행 중: <span className="font-semibold">{miniGames.find((game) => game.id === activeRoomStart.gameId)?.title}</span> · {activeRoomStart.durationSeconds}초</div> : null}
                       </CardContent>
                     </Card>
                     <Card>
@@ -343,7 +420,7 @@ export default function Game() {
           <TabsContent value="mine"><div className="space-y-4">{myChallenges.length === 0 ? <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">참여 중인 챌린지가 없습니다.</div> : myChallenges.map((challenge) => <Card key={challenge.id}><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between"><div className="font-semibold">{challenge.title}</div><div className="text-sm text-primary">{challenge.completedUserIds.includes(MY_USER_ID) ? "완료" : "진행 중"}</div></div><div className="text-sm text-muted-foreground">{challenge.description}</div><div className="h-2 rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${challenge.progress}%` }} /></div></CardContent></Card>)}</div></TabsContent>
         </Tabs>
       </div>
-      {openedGame ? <div className="fixed inset-0 z-[90] bg-black/55 px-4 py-10"><div className="mx-auto max-w-xl"><GameArena gameId={openedGame} bestScore={scores[openedGame] || 0} durationSeconds={activeRoom?.durationSeconds} onClose={() => setOpenedGame(null)} onScore={(score) => handleScore(openedGame, score)} /></div></div> : null}
+      {openedGame ? <div className="fixed inset-0 z-[90] bg-black/55 px-4 py-10"><div className="mx-auto max-w-xl"><GameArena gameId={openedGame} bestScore={scores[openedGame] || 0} durationSeconds={activeRoomStart?.durationSeconds || activeRoom?.durationSeconds} onClose={() => setOpenedGame(null)} onScore={(score) => handleScore(openedGame, score)} /></div></div> : null}
       {expandedBadge ? <div className="fixed inset-0 z-[91] bg-black/45 px-4 py-20" onClick={() => setExpandedBadge(null)}><div className="mx-auto max-w-md rounded-3xl bg-background p-6" onClick={(event) => event.stopPropagation()}>{(() => { const badge = featuredBadges.find((item) => item.id === expandedBadge); return badge ? <div className="space-y-4 text-center"><div className="text-6xl">{badge.icon}</div><div className="text-2xl font-bold">{badge.name}</div><div className="text-sm text-muted-foreground">{badge.detail}</div><Button className="w-full" onClick={() => setExpandedBadge(null)}>닫기</Button></div> : null; })()}</div></div> : null}
       {expandedChallenge ? <div className="fixed inset-0 z-[91] bg-black/45 px-4 py-20" onClick={() => setExpandedChallenge(null)}><div className="mx-auto max-w-lg rounded-3xl bg-background p-6" onClick={(event) => event.stopPropagation()}>{(() => { const challenge = challenges.find((item) => item.id === expandedChallenge); if (!challenge) return null; const Icon = challengeIcons[challenge.icon]; return <div className="space-y-4"><div className="flex items-center gap-3"><div className="rounded-2xl bg-primary/12 p-3 text-primary"><Icon className="h-5 w-5" /></div><div><div className="text-xl font-bold">{challenge.title}</div><div className="text-sm text-muted-foreground">{challenge.description}</div></div></div><div className="rounded-2xl border p-4 text-sm text-muted-foreground">{challenge.details}</div><div className="rounded-2xl border p-4 text-sm">보상: <span className="font-semibold text-primary">{challenge.reward}</span></div><Button className="w-full" onClick={() => setExpandedChallenge(null)}>닫기</Button></div>; })()}</div></div> : null}
     </div>

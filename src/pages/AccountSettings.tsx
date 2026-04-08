@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
@@ -55,37 +55,41 @@ const permissionOptions = {
     { key: "readSteps", label: "걸음 수 읽기" },
     { key: "readHeartRate", label: "심박수 읽기" },
     { key: "readSleep", label: "수면 읽기" },
-    { key: "readExercise", label: "운동 읽기" },
-    { key: "readNutrition", label: "영양 읽기" },
+    { key: "readExercise", label: "운동 기록 읽기" },
+    { key: "readNutrition", label: "영양 기록 읽기" },
     { key: "readBodyComposition", label: "체성분 읽기" },
-    { key: "backgroundRead", label: "백그라운드 읽기" },
+    { key: "backgroundRead", label: "백그라운드 동기화" },
   ],
   garmin: [
     { key: "dailySummary", label: "일일 요약" },
-    { key: "activities", label: "운동 기록" },
-    { key: "sleep", label: "수면 기록" },
-    { key: "nutrition", label: "영양 기록" },
-    { key: "hydration", label: "수분 기록" },
-    { key: "bodyComposition", label: "체성분 기록" },
-    { key: "heartRate", label: "심박수 기록" },
+    { key: "activities", label: "활동 세션" },
+    { key: "sleep", label: "수면" },
+    { key: "nutrition", label: "영양" },
+    { key: "hydration", label: "수분" },
+    { key: "bodyComposition", label: "체성분" },
+    { key: "heartRate", label: "심박수" },
   ],
   "apple-health": [
-    { key: "workouts", label: "운동 기록" },
+    { key: "workouts", label: "운동 세션" },
     { key: "activitySummary", label: "활동 요약" },
-    { key: "heartRate", label: "심박수 읽기" },
-    { key: "sleep", label: "수면 읽기" },
-    { key: "bodyComposition", label: "체성분 읽기" },
-    { key: "nutrition", label: "영양 읽기" },
+    { key: "heartRate", label: "심박수" },
+    { key: "sleep", label: "수면" },
+    { key: "bodyComposition", label: "체성분" },
+    { key: "nutrition", label: "영양" },
   ],
   strava: [
-    { key: "readActivities", label: "활동 읽기" },
+    { key: "readActivities", label: "공개 활동 읽기" },
     { key: "readAllActivities", label: "비공개 활동 읽기" },
-    { key: "readAthlete", label: "선수 프로필 읽기" },
+    { key: "readAthlete", label: "선수 정보 읽기" },
     { key: "readRoutes", label: "경로 읽기" },
   ],
 } as const;
 
 type PermissionTab = keyof typeof permissionOptions;
+
+function createPasswordSalt() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function generateTemporaryPassword() {
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -96,18 +100,13 @@ function generateTemporaryPassword() {
 
 async function hashPassword(password: string, salt: string) {
   const encoder = new TextEncoder();
-  const data = encoder.encode(`${salt}:${password}`);
-  const digest = await crypto.subtle.digest("SHA-256", data);
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(`${salt}:${password}`));
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
 }
 
-function createPasswordSalt() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-const AccountSettings = () => {
+export default function AccountSettings() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -124,10 +123,10 @@ const AccountSettings = () => {
 
   const [profileId, setProfileId] = useState<string | null>(localStorage.getItem("profile_id"));
   const [userId, setUserId] = useState(localStorage.getItem("user_id") || "");
-  const [newUserId, setNewUserId] = useState("");
-  const [showUserIdEditor, setShowUserIdEditor] = useState(false);
   const [nickname, setNickname] = useState(localStorage.getItem("user_nickname") || "");
   const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem("user_avatar") || "");
+  const [newUserId, setNewUserId] = useState("");
+  const [showUserIdEditor, setShowUserIdEditor] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -194,6 +193,8 @@ const AccountSettings = () => {
     }
 
     setUserId(storedUserId);
+    setNickname(localStorage.getItem("user_nickname") || "");
+    setAvatarUrl(localStorage.getItem("user_avatar") || "");
 
     try {
       if (storedProfileId) {
@@ -204,9 +205,7 @@ const AccountSettings = () => {
           setUserId(byId.data.user_id);
           setNickname(byId.data.nickname || localStorage.getItem("user_nickname") || "");
           localStorage.setItem("user_id", byId.data.user_id);
-          if (byId.data.nickname) {
-            localStorage.setItem("user_nickname", byId.data.nickname);
-          }
+          if (byId.data.nickname) localStorage.setItem("user_nickname", byId.data.nickname);
           return;
         }
       }
@@ -215,9 +214,9 @@ const AccountSettings = () => {
       if (byUserId.error) throw byUserId.error;
       if (byUserId.data) {
         setProfileId(byUserId.data.id);
-        setNickname(byUserId.data.nickname || localStorage.getItem("user_nickname") || "");
         localStorage.setItem("profile_id", byUserId.data.id);
         if (byUserId.data.nickname) {
+          setNickname(byUserId.data.nickname);
           localStorage.setItem("user_nickname", byUserId.data.nickname);
         }
       }
@@ -239,7 +238,7 @@ const AccountSettings = () => {
           .maybeSingle();
 
         if (existingError) throw existingError;
-        if (existingUser) {
+        if (existingUser && existingUser.user_id !== userId) {
           toast({ title: "이미 사용 중인 사용자 ID입니다.", variant: "destructive" });
           return;
         }
@@ -253,12 +252,43 @@ const AccountSettings = () => {
 
       localStorage.setItem("user_id", validated);
       setUserId(validated);
-      setShowUserIdEditor(false);
       setNewUserId("");
+      setShowUserIdEditor(false);
       toast({ title: "사용자 ID를 저장했습니다." });
     } catch (error: any) {
       toast({
-        title: "사용자 ID 저장 실패",
+        title: "사용자 ID 저장에 실패했습니다.",
+        description: error?.errors?.[0]?.message || error?.message || "잠시 후 다시 시도해 주세요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleNicknameSave = async () => {
+    const storedUserId = localStorage.getItem("user_id");
+
+    try {
+      const validated = nicknameSchema.parse(nickname);
+      if (!storedUserId) {
+        throw new Error("사용자 정보가 없습니다.");
+      }
+
+      setIsLoading(true);
+      try {
+        const ensuredProfileId = await ensureProfile(storedUserId, validated);
+        const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", ensuredProfileId);
+        if (error) throw error;
+      } catch (databaseError) {
+        console.error("Falling back to local nickname save:", databaseError);
+      }
+
+      localStorage.setItem("user_nickname", validated);
+      toast({ title: "닉네임을 저장했습니다." });
+    } catch (error: any) {
+      toast({
+        title: "닉네임 저장에 실패했습니다.",
         description: error?.errors?.[0]?.message || error?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
@@ -270,8 +300,8 @@ const AccountSettings = () => {
   const handlePasswordChange = async () => {
     if (password !== confirmPassword) {
       toast({
-        title: "비밀번호가 일치하지 않습니다.",
-        description: "입력값을 다시 확인해 주세요.",
+        title: "비밀번호가 서로 다릅니다.",
+        description: "입력한 값을 다시 확인해 주세요.",
         variant: "destructive",
       });
       return;
@@ -281,7 +311,7 @@ const AccountSettings = () => {
       const currentHash = await hashPassword(currentPassword, storedPasswordSalt);
       if (currentHash !== storedPassword) {
         toast({
-          title: "기존 비밀번호가 올바르지 않습니다.",
+          title: "기존 비밀번호가 일치하지 않습니다.",
           variant: "destructive",
         });
         return;
@@ -302,7 +332,7 @@ const AccountSettings = () => {
       toast({ title: "비밀번호를 저장했습니다." });
     } catch (error: any) {
       toast({
-        title: "비밀번호 저장 실패",
+        title: "비밀번호 저장에 실패했습니다.",
         description: error?.errors?.[0]?.message || error?.message || "잠시 후 다시 시도해 주세요.",
         variant: "destructive",
       });
@@ -320,45 +350,13 @@ const AccountSettings = () => {
     setShowPasswordEditor(true);
     setCurrentPassword(temporaryPassword);
     toast({
-      title: `${channel === "kakao" ? "카카오톡" : "LINE"}으로 임시 비밀번호를 보냈습니다.`,
-      description: `프로토타입 기준 임시 비밀번호: ${temporaryPassword}`,
+      title: `${channel === "kakao" ? "카카오톡" : "LINE"}으로 임시 비밀번호를 준비했습니다.`,
+      description: `프로토타입 임시 비밀번호: ${temporaryPassword}`,
     });
-  };
-
-  const handleNicknameSave = async () => {
-    const storedUserId = localStorage.getItem("user_id");
-
-    try {
-      const validated = nicknameSchema.parse(nickname);
-      if (!storedUserId) {
-        throw new Error("사용자 정보가 없습니다.");
-      }
-
-      setIsLoading(true);
-      const ensuredProfileId = await ensureProfile(storedUserId, validated);
-      const { error } = await supabase.from("profiles").update({ nickname: validated }).eq("id", ensuredProfileId);
-      if (error) throw error;
-
-      localStorage.setItem("user_nickname", validated);
-      toast({ title: "닉네임을 저장했습니다." });
-    } catch (error: any) {
-      toast({
-        title: "닉네임 저장 실패",
-        description: error?.errors?.[0]?.message || error?.message || "잠시 후 다시 시도해 주세요.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const savePermissionState = (storageKey: string, next: Record<string, boolean>) => {
-    localStorage.setItem(storageKey, JSON.stringify(next));
   };
 
   const handleAvatarFile = (file: File | null) => {
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = () => {
       const result = String(reader.result || "");
@@ -369,13 +367,43 @@ const AccountSettings = () => {
     reader.readAsDataURL(file);
   };
 
+  const savePermissionState = (storageKey: string, next: Record<string, boolean>) => {
+    localStorage.setItem(storageKey, JSON.stringify(next));
+  };
+
+  const permissionStateByTab = useMemo(
+    () => ({
+      "health-connect": {
+        current: healthConnectPermissions,
+        setCurrent: setHealthConnectPermissions,
+        storageKey: "health_connect_permissions",
+      },
+      garmin: {
+        current: garminPermissions,
+        setCurrent: setGarminPermissions,
+        storageKey: "garmin_permissions",
+      },
+      "apple-health": {
+        current: applePermissions,
+        setCurrent: setApplePermissions,
+        storageKey: "apple_health_permissions",
+      },
+      strava: {
+        current: stravaPermissions,
+        setCurrent: setStravaPermissions,
+        storageKey: "strava_permissions",
+      },
+    }),
+    [applePermissions, garminPermissions, healthConnectPermissions, stravaPermissions],
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
       <ScrollToTop />
 
       <div className="mx-auto max-w-3xl space-y-4 px-3 py-4 pb-24">
-        <div className="flex items-center justify-between">
+        <div className="sticky top-[calc(env(safe-area-inset-top)+84px)] z-20 flex items-center justify-between rounded-2xl bg-background/95 py-1 backdrop-blur">
           <h1 className="text-3xl font-bold">사용자 계정 설정</h1>
           <Button variant="outline" onClick={() => navigate(backTarget, { replace: true })}>
             설정으로 돌아가기
@@ -409,7 +437,7 @@ const AccountSettings = () => {
             <div className="space-y-2">
               <Label htmlFor="nickname">닉네임</Label>
               <div className="flex gap-2">
-                <Input id="nickname" value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="닉네임을 입력해 주세요" />
+                <Input id="nickname" value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="닉네임을 입력해 주세요." />
                 <Button onClick={() => void handleNicknameSave()} disabled={isLoading}>
                   저장
                 </Button>
@@ -435,7 +463,7 @@ const AccountSettings = () => {
                     id="new-user-id"
                     value={newUserId}
                     onChange={(event) => setNewUserId(event.target.value)}
-                    placeholder="영문, 숫자, 밑줄 사용"
+                    placeholder="영문, 숫자, 밑줄(_)만 사용할 수 있습니다."
                     disabled={isLoading}
                   />
                 </div>
@@ -533,58 +561,31 @@ const AccountSettings = () => {
                 <TabsTrigger value="strava">Strava</TabsTrigger>
               </TabsList>
 
-              {(["health-connect", "garmin", "apple-health", "strava"] as const).map((tabKey) => (
-                <TabsContent key={tabKey} value={tabKey} className="space-y-3 pt-4">
-                  {permissionOptions[tabKey].map((option) => {
-                    const currentPermissions =
-                      tabKey === "health-connect"
-                        ? healthConnectPermissions
-                        : tabKey === "garmin"
-                          ? garminPermissions
-                          : tabKey === "apple-health"
-                            ? applePermissions
-                            : stravaPermissions;
+              {(["health-connect", "garmin", "apple-health", "strava"] as const).map((tabKey) => {
+                const target = permissionStateByTab[tabKey];
 
-                    const setPermissions =
-                      tabKey === "health-connect"
-                        ? setHealthConnectPermissions
-                        : tabKey === "garmin"
-                          ? setGarminPermissions
-                          : tabKey === "apple-health"
-                            ? setApplePermissions
-                            : setStravaPermissions;
-
-                    const storageKey =
-                      tabKey === "health-connect"
-                        ? "health_connect_permissions"
-                        : tabKey === "garmin"
-                          ? "garmin_permissions"
-                          : tabKey === "apple-health"
-                            ? "apple_health_permissions"
-                            : "strava_permissions";
-
-                    return (
+                return (
+                  <TabsContent key={tabKey} value={tabKey} className="space-y-3 pt-4">
+                    {permissionOptions[tabKey].map((option) => (
                       <div key={option.key} className="flex items-center justify-between rounded-xl border px-4 py-3">
                         <span className="text-sm">{option.label}</span>
                         <Switch
-                          checked={Boolean(currentPermissions[option.key as keyof typeof currentPermissions])}
+                          checked={Boolean(target.current[option.key as keyof typeof target.current])}
                           onCheckedChange={(checked) => {
-                            const next = { ...currentPermissions, [option.key]: checked };
-                            setPermissions(next as typeof currentPermissions);
-                            savePermissionState(storageKey, next as Record<string, boolean>);
+                            const next = { ...target.current, [option.key]: checked };
+                            target.setCurrent(next as typeof target.current);
+                            savePermissionState(target.storageKey, next as Record<string, boolean>);
                           }}
                         />
                       </div>
-                    );
-                  })}
-                </TabsContent>
-              ))}
+                    ))}
+                  </TabsContent>
+                );
+              })}
             </Tabs>
           </CardContent>
         </Card>
       </div>
     </div>
   );
-};
-
-export default AccountSettings;
+}

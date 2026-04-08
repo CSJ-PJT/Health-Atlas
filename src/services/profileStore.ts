@@ -52,8 +52,7 @@ export function getProfileSettings(
     return all[userId];
   }
 
-  const safeName =
-    nickname || (options?.isCurrentUser ? localStorage.getItem("user_nickname") || "사용자" : userId || "사용자");
+  const safeName = nickname || (options?.isCurrentUser ? localStorage.getItem("user_nickname") || "사용자" : userId || "사용자");
   const safeAvatar =
     avatarUrl ||
     (options?.isCurrentUser ? localStorage.getItem("user_avatar") || "" : buildPlaceholderAvatar(safeName, userId));

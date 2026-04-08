@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Award, BarChart3, Camera, HeartPulse, ImagePlus, Plus, Save, Trophy, UserRound } from "lucide-react";
+import { ArrowLeft, Award, BarChart3, Camera, HeartPulse, Plus, Save, Trophy, UserRound } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
@@ -7,7 +7,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -74,7 +73,7 @@ function resizeImageFile(file: File) {
   });
 }
 
-const Profile = () => {
+export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
@@ -85,7 +84,11 @@ const Profile = () => {
   const feedInputRef = useRef<HTMLInputElement | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const [photoOpen, setPhotoOpen] = useState(false);
-  const [personalCaption, setPersonalCaption] = useState("");
+  const [bioDraft, setBioDraft] = useState("");
+  const [captionDraft, setCaptionDraft] = useState("");
+  const [showSummary, setShowSummary] = useState(true);
+  const [showBadges, setShowBadges] = useState(true);
+  const [showPersonalFeed, setShowPersonalFeed] = useState(true);
 
   useDeviceBackNavigation({
     fallback: backTarget,
@@ -105,25 +108,6 @@ const Profile = () => {
   const isMyProfile = !params.profileName;
   const viewedUserId = isMyProfile ? myUserId : state.profile?.userId || decodeURIComponent(params.profileName || "user");
 
-  const settings = getProfileSettings(
-    viewedUserId,
-    isMyProfile ? myNickname : state.profile?.name,
-    isMyProfile ? myAvatarUrl : state.profile?.avatarUrl,
-    { isCurrentUser: isMyProfile },
-  );
-
-  const [bio, setBio] = useState(settings.bio);
-  const [showSummary, setShowSummary] = useState(settings.showSummary);
-  const [showBadges, setShowBadges] = useState(settings.showBadges);
-  const [showPersonalFeed, setShowPersonalFeed] = useState(settings.showPersonalFeed);
-
-  useEffect(() => {
-    setBio(settings.bio);
-    setShowSummary(settings.showSummary);
-    setShowBadges(settings.showBadges);
-    setShowPersonalFeed(settings.showPersonalFeed);
-  }, [settings.bio, settings.showBadges, settings.showPersonalFeed, settings.showSummary, reloadTick]);
-
   useEffect(() => {
     void (async () => {
       const [profileChanged, recordChanged, feedChanged] = await Promise.all([
@@ -140,13 +124,29 @@ const Profile = () => {
       setReloadTick((value) => value + 1);
     });
 
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
-  const earnedBadges = useMemo(() => getEarnedBadges(), [reloadTick]);
-  const displayedRecord = findDisplayedRecord();
+  const settings = useMemo(
+    () =>
+      getProfileSettings(
+        viewedUserId,
+        isMyProfile ? myNickname : state.profile?.name,
+        isMyProfile ? myAvatarUrl : state.profile?.avatarUrl,
+        { isCurrentUser: isMyProfile },
+      ),
+    [isMyProfile, myAvatarUrl, myNickname, reloadTick, state.profile?.avatarUrl, state.profile?.name, viewedUserId],
+  );
+
+  useEffect(() => {
+    setBioDraft(settings.bio);
+    setShowSummary(settings.showSummary);
+    setShowBadges(settings.showBadges);
+    setShowPersonalFeed(settings.showPersonalFeed);
+  }, [settings.bio, settings.showBadges, settings.showPersonalFeed, settings.showSummary]);
+
+  const currentUserBadges = useMemo(() => getEarnedBadges(), [reloadTick]);
+  const displayedRecord = useMemo(() => (isMyProfile ? findDisplayedRecord() : null), [isMyProfile, reloadTick]);
   const recordTag = buildRecordTag(displayedRecord);
   const allPosts = useMemo(() => getFeedPosts(), [reloadTick]);
   const personalFeed = useMemo(
@@ -161,7 +161,7 @@ const Profile = () => {
         userId: myUserId,
         subtitle: "나의 프로필",
         score: "나의 활동",
-        rank: undefined,
+        rank: undefined as number | undefined,
         avatarUrl: localStorage.getItem("user_avatar") || myAvatarUrl,
       };
     }
@@ -172,28 +172,28 @@ const Profile = () => {
       subtitle: state.profile?.subtitle || "커뮤니티 멤버",
       score: state.profile?.score || "활동 사용자",
       rank: state.profile?.rank,
-      avatarUrl: settings.avatarUrl,
+      avatarUrl: settings.avatarUrl || state.profile?.avatarUrl || "",
     };
   }, [isMyProfile, myAvatarUrl, myNickname, myUserId, params.profileName, settings.avatarUrl, state.profile, viewedUserId]);
 
-  const visibleSummary = (isMyProfile ? showSummary : settings.showSummary) && (profile.score || recordTag || profile.rank);
-  const visibleBadges = (isMyProfile ? showBadges : settings.showBadges) && earnedBadges.length > 0;
-  const visiblePersonalFeed = (isMyProfile ? showPersonalFeed : settings.showPersonalFeed) && personalFeed.length > 0;
-  const visibleBio = Boolean((isMyProfile ? bio : settings.bio).trim());
-
-  const statCards = [
+  const summaryCards = [
     { label: "활동 상태", value: profile.score, icon: Trophy },
     { label: "연동 공급자", value: providerLabel, icon: HeartPulse },
     { label: "프로필 유형", value: profile.subtitle, icon: UserRound },
-    { label: "주간 순위", value: profile.rank ? `${profile.rank}위` : "개인 프로필", icon: Award },
+    { label: "주간 순위", value: profile.rank ? `${profile.rank}위` : isMyProfile ? "내 프로필" : "", icon: Award },
   ].filter((item) => Boolean(item.value));
 
-  const handleSave = () => {
+  const canShowSummary = (isMyProfile ? showSummary : settings.showSummary) && (summaryCards.length > 0 || recordTag);
+  const canShowBadges = isMyProfile && showBadges && currentUserBadges.length > 0;
+  const canShowPersonalFeed = (isMyProfile ? showPersonalFeed : settings.showPersonalFeed) && personalFeed.length > 0;
+  const canShowBio = Boolean((isMyProfile ? bioDraft : settings.bio).trim());
+
+  const handleSaveProfile = () => {
     saveProfileSettings({
       userId: myUserId,
       nickname: myNickname,
       avatarUrl: localStorage.getItem("user_avatar") || myAvatarUrl,
-      bio,
+      bio: bioDraft.trim(),
       showSummary,
       showBadges,
       showPersonalFeed,
@@ -206,7 +206,17 @@ const Profile = () => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      localStorage.setItem("user_avatar", String(reader.result || ""));
+      const nextUrl = String(reader.result || "");
+      localStorage.setItem("user_avatar", nextUrl);
+      saveProfileSettings({
+        userId: myUserId,
+        nickname: myNickname,
+        avatarUrl: nextUrl,
+        bio: bioDraft.trim(),
+        showSummary,
+        showBadges,
+        showPersonalFeed,
+      });
       setReloadTick((value) => value + 1);
       toast({ title: "프로필 사진을 변경했습니다." });
     };
@@ -215,16 +225,20 @@ const Profile = () => {
 
   const handlePersonalFeedUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const nextMedia: FeedMedia[] = [];
-    for (const file of Array.from(files)) {
-      if (file.type.startsWith("video/")) {
-        nextMedia.push({
-          id: `profile-video-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          type: "video",
-          url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-          thumbnailUrl: buildVideoThumb(file.name),
-        });
-      } else {
+
+    try {
+      const nextMedia: FeedMedia[] = [];
+      for (const file of Array.from(files)) {
+        if (file.type.startsWith("video/")) {
+          nextMedia.push({
+            id: `profile-video-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            type: "video",
+            url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            thumbnailUrl: buildVideoThumb(file.name),
+          });
+          continue;
+        }
+
         const resized = await resizeImageFile(file);
         nextMedia.push({
           id: `profile-image-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -233,16 +247,23 @@ const Profile = () => {
           thumbnailUrl: resized,
         });
       }
-    }
 
-    const success = createScopedFeedPost(myUserId, myNickname, personalCaption.trim(), nextMedia, "profile");
-    if (!success) {
-      toast({ title: "개인 피드 업로드에 실패했습니다.", variant: "destructive" });
-      return;
+      const success = createScopedFeedPost(myUserId, myNickname, captionDraft.trim(), nextMedia, "profile");
+      if (!success) {
+        toast({ title: "개인 피드를 업로드하지 못했습니다.", variant: "destructive" });
+        return;
+      }
+
+      setCaptionDraft("");
+      setReloadTick((value) => value + 1);
+      toast({ title: "개인 피드를 게시했습니다." });
+    } catch (error) {
+      toast({
+        title: "개인 피드 업로드에 실패했습니다.",
+        description: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
+        variant: "destructive",
+      });
     }
-    setPersonalCaption("");
-    setReloadTick((value) => value + 1);
-    toast({ title: "개인 피드에 게시했습니다." });
   };
 
   return (
@@ -251,7 +272,7 @@ const Profile = () => {
       <div className="mx-auto max-w-4xl space-y-4 p-4">
         <Button variant="outline" onClick={() => navigate(backTarget, { replace: true })} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
-          뒤로가기
+          돌아가기
         </Button>
 
         <input
@@ -284,7 +305,11 @@ const Profile = () => {
                   <div className="text-2xl font-bold">{profile.name}</div>
                   <div className="text-sm text-muted-foreground">@{profile.userId}</div>
                   <div className="text-sm text-primary">{profile.subtitle}</div>
-                  {recordTag ? <div className="inline-flex rounded-full bg-primary/12 px-3 py-1 text-xs font-semibold text-primary">{recordTag}</div> : null}
+                  {recordTag ? (
+                    <div className="inline-flex rounded-full bg-primary/12 px-3 py-1 text-xs font-semibold text-primary">
+                      {recordTag}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -300,36 +325,7 @@ const Profile = () => {
               ) : null}
             </div>
 
-            {isMyProfile ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                <Textarea
-                  value={personalCaption}
-                  onChange={(event) => setPersonalCaption(event.target.value)}
-                  placeholder="개인 피드에 함께 남길 문구를 입력하세요"
-                  className="min-h-24 bg-background/90"
-                />
-                <div className="space-y-3 rounded-2xl border bg-background/80 p-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>프로필 요약 공개</span>
-                    <Switch checked={showSummary} onCheckedChange={setShowSummary} />
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>나의 배지 공개</span>
-                    <Switch checked={showBadges} onCheckedChange={setShowBadges} />
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>개인 피드 공개</span>
-                    <Switch checked={showPersonalFeed} onCheckedChange={setShowPersonalFeed} />
-                  </div>
-                  <Button onClick={handleSave} className="w-full gap-2">
-                    <Save className="h-4 w-4" />
-                    저장
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            {visiblePersonalFeed ? (
+            {canShowPersonalFeed ? (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 {personalFeed.map((post) => {
                   const first = post.media?.[0];
@@ -348,10 +344,36 @@ const Profile = () => {
                 })}
               </div>
             ) : null}
+
+            {isMyProfile ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <Textarea
+                  value={captionDraft}
+                  onChange={(event) => setCaptionDraft(event.target.value)}
+                  placeholder="개인 피드에 함께 올릴 문구를 입력해 주세요."
+                  className="min-h-24 bg-background/90"
+                />
+                <div className="space-y-3 rounded-2xl border bg-background/80 p-4">
+                  <div className="text-sm font-medium">공개 설정</div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>프로필 요약 공개</span>
+                    <Switch checked={showSummary} onCheckedChange={setShowSummary} />
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>나의 배지 공개</span>
+                    <Switch checked={showBadges} onCheckedChange={setShowBadges} />
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>개인 피드 공개</span>
+                    <Switch checked={showPersonalFeed} onCheckedChange={setShowPersonalFeed} />
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
-        {visibleSummary ? (
+        {canShowSummary ? (
           <Card>
             <CardContent className="space-y-4 p-6">
               <div className="flex items-center gap-2 text-lg font-semibold">
@@ -359,7 +381,7 @@ const Profile = () => {
                 프로필 요약
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                {statCards.map((card) => {
+                {summaryCards.map((card) => {
                   const Icon = card.icon;
                   return (
                     <div key={card.label} className="rounded-xl border p-4">
@@ -376,13 +398,53 @@ const Profile = () => {
           </Card>
         ) : null}
 
-        {visibleBio ? (
-          <div className="px-1 text-sm leading-7 text-muted-foreground">
-            {isMyProfile ? bio : settings.bio}
-          </div>
+        {canShowBio ? (
+          <Card>
+            <CardContent className="space-y-4 p-6">
+              <div className="flex items-center gap-2 text-lg font-semibold">
+                <UserRound className="h-5 w-5 text-primary" />
+                소개
+              </div>
+              {isMyProfile ? (
+                <>
+                  <Textarea
+                    value={bioDraft}
+                    onChange={(event) => setBioDraft(event.target.value)}
+                    placeholder="나를 소개하는 문구를 입력해 주세요."
+                    className="min-h-28"
+                  />
+                  <Button onClick={handleSaveProfile} className="gap-2">
+                    <Save className="h-4 w-4" />
+                    프로필 저장
+                  </Button>
+                </>
+              ) : (
+                <div className="text-sm leading-7 text-muted-foreground">{settings.bio}</div>
+              )}
+            </CardContent>
+          </Card>
+        ) : isMyProfile ? (
+          <Card>
+            <CardContent className="space-y-4 p-6">
+              <div className="flex items-center gap-2 text-lg font-semibold">
+                <UserRound className="h-5 w-5 text-primary" />
+                소개
+              </div>
+              <Textarea
+                value={bioDraft}
+                onChange={(event) => setBioDraft(event.target.value)}
+                placeholder="나를 소개하는 문구를 입력해 주세요."
+                className="min-h-28"
+              />
+              <Button onClick={handleSaveProfile} className="gap-2">
+                <Save className="h-4 w-4" />
+                프로필 저장
+              </Button>
+            </CardContent>
+          </Card>
         ) : null}
 
-        {visibleBadges ? (
+        {canShowBadges ? (
           <Card>
             <CardContent className="space-y-4 p-6">
               <div className="flex items-center gap-2 text-lg font-semibold">
@@ -390,7 +452,7 @@ const Profile = () => {
                 나의 배지
               </div>
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                {earnedBadges.map((badge) => (
+                {currentUserBadges.map((badge) => (
                   <div key={badge.id} className="rounded-2xl border p-4">
                     <div className="text-lg font-semibold">{badge.icon}</div>
                     <div className="mt-2 font-medium">{badge.name}</div>
@@ -426,6 +488,4 @@ const Profile = () => {
       </Dialog>
     </div>
   );
-};
-
-export default Profile;
+}

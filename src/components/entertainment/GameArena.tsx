@@ -115,6 +115,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
   const [memoryLevel, setMemoryLevel] = useState(3);
   const [memoryShowing, setMemoryShowing] = useState(false);
   const [memoryTimeLeft, setMemoryTimeLeft] = useState(memoryDuration);
+  const [memoryFinished, setMemoryFinished] = useState(false);
 
   const [board, setBoard] = useState<TetrisCell[][]>(createBoard());
   const [piece, setPiece] = useState<Piece>(randomPiece());
@@ -155,7 +156,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
     const timer = window.setTimeout(() => {
       setReactionTimeLeft((value) => value - 1);
       setReactionTarget(Math.floor(Math.random() * 9));
-    }, 800);
+    }, 900);
     return () => window.clearTimeout(timer);
   }, [gameId, reactionStarted, reactionTimeLeft]);
 
@@ -167,22 +168,23 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
   }, [gameId, onScore, reactionHits, reactionStarted, reactionTimeLeft]);
 
   useEffect(() => {
-    if (gameId !== "pace-memory" || memoryShowing || memorySequence.length === 0 || memoryTimeLeft <= 0) return;
+    if (gameId !== "pace-memory" || memoryShowing || memorySequence.length === 0 || memoryTimeLeft <= 0 || memoryFinished) return;
     const timer = window.setTimeout(() => setMemoryTimeLeft((value) => value - 1), 1000);
     return () => window.clearTimeout(timer);
-  }, [gameId, memorySequence.length, memoryShowing, memoryTimeLeft]);
+  }, [gameId, memoryFinished, memorySequence.length, memoryShowing, memoryTimeLeft]);
 
   useEffect(() => {
-    if (gameId === "pace-memory" && memoryTimeLeft === 0) {
+    if (gameId === "pace-memory" && memoryTimeLeft === 0 && !memoryFinished) {
       onScore(Math.max(0, (memoryLevel - 3) * 15));
+      setMemoryFinished(true);
       setMemorySequence([]);
       setMemoryInput([]);
     }
-  }, [gameId, memoryLevel, memoryTimeLeft, onScore]);
+  }, [gameId, memoryFinished, memoryLevel, memoryTimeLeft, onScore]);
 
   useEffect(() => {
     if (gameId !== "tetris" || !tetrisRunning) return;
-    const speed = Math.max(140, 650 - Math.floor(tetrisScore / 30) * 40);
+    const speed = Math.max(280, 920 - Math.floor(tetrisScore / 80) * 45);
     const timer = window.setInterval(() => {
       setPiece((current) => {
         const moved = { ...current, y: current.y + 1 };
@@ -248,15 +250,17 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
     setMemoryInput([]);
     setMemoryShowing(true);
     setMemoryTimeLeft(memoryDuration);
+    setMemoryFinished(false);
     memoryTimeout.current = window.setTimeout(() => setMemoryShowing(false), 1800);
   };
 
   const handleMemoryPick = (value: number) => {
-    if (memoryShowing || memorySequence.length === 0) return;
+    if (memoryShowing || memorySequence.length === 0 || memoryFinished) return;
     const nextInput = [...memoryInput, value];
     setMemoryInput(nextInput);
     if (memorySequence[nextInput.length - 1] !== value) {
       onScore(Math.max(0, (memoryLevel - 3) * 10));
+      setMemoryFinished(true);
       setMemorySequence([]);
       setMemoryInput([]);
       return;
@@ -267,6 +271,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
       setMemoryLevel((level) => level + 1);
       setMemorySequence([]);
       setMemoryInput([]);
+      setMemoryFinished(true);
     }
   };
 
@@ -286,11 +291,20 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
     }
   };
 
+  const hardDrop = () => {
+    if (gameId !== "tetris" || !tetrisRunning) return;
+    let nextPiece = { ...piece };
+    while (!collides(board, { ...nextPiece, y: nextPiece.y + 1 })) {
+      nextPiece = { ...nextPiece, y: nextPiece.y + 1 };
+    }
+    setPiece(nextPiece);
+  };
+
   return (
     <Card className="border-primary/30 bg-background/95">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>{getGameTitle(gameId)}</CardTitle>
-        <Button size="icon" variant="ghost" onClick={onClose}>
+        <Button size="icon" variant="ghost" onClick={onClose} aria-label="게임 닫기">
           <X className="h-4 w-4" />
         </Button>
       </CardHeader>
@@ -360,7 +374,11 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
               <div className="text-2xl font-bold">{memoryLevel}</div>
               <div className="mt-2 text-sm text-muted-foreground">남은 시간 {memoryTimeLeft}s</div>
               <div className="mt-3 text-lg font-semibold">
-                {memoryShowing ? memorySequence.join(" - ") : memorySequence.length > 0 ? "순서를 입력하세요" : "시작 버튼을 눌러 주세요"}
+                {memoryShowing
+                  ? memorySequence.join(" - ")
+                  : memorySequence.length > 0
+                    ? "순서를 입력해 주세요."
+                    : "시작 버튼을 눌러 주세요."}
               </div>
             </div>
             <div className="grid grid-cols-4 gap-2">
@@ -371,7 +389,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
               ))}
             </div>
             <Button className="w-full" onClick={startMemoryGame}>
-              패턴 시작
+              게임 시작
             </Button>
           </div>
         ) : null}
@@ -399,16 +417,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
               <Button variant="outline" onClick={() => movePiece(1, 0)}>
                 <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  let nextPiece = { ...piece };
-                  while (!collides(board, { ...nextPiece, y: nextPiece.y + 1 })) {
-                    nextPiece = { ...nextPiece, y: nextPiece.y + 1 };
-                  }
-                  setPiece(nextPiece);
-                }}
-              >
+              <Button variant="outline" onClick={hardDrop}>
                 <CornerDownLeft className="h-4 w-4" />
               </Button>
             </div>
@@ -428,9 +437,7 @@ export function GameArena({ gameId, bestScore, onClose, onScore, durationSeconds
               >
                 다시 시작
               </Button>
-            ) : (
-              <div className="text-sm text-muted-foreground">점수: {tetrisScore}</div>
-            )}
+            ) : null}
           </div>
         ) : null}
       </CardContent>

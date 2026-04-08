@@ -4,8 +4,6 @@ import {
   getStoredFeedComments,
   getStoredFeedPosts,
   hydrateFeedRepositoryFromServer,
-  saveStoredFeedComments,
-  saveStoredFeedPosts,
   subscribeFeedRepositoryChanges,
   upsertStoredFeedComment,
   upsertStoredFeedPost,
@@ -43,24 +41,6 @@ export interface FeedPost {
 }
 
 const SAMPLE_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
-
-function savePosts(posts: FeedPost[]) {
-  try {
-    saveStoredFeedPosts(posts);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function saveComments(comments: FeedComment[]) {
-  try {
-    saveStoredFeedComments(comments);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function sanitizeMediaForStorage(media: FeedMedia[]) {
   return media.map((item) =>
@@ -133,6 +113,17 @@ function normalizeComment(comment: Omit<FeedComment, "likedUserIds"> & { likedUs
   };
 }
 
+function fallbackPost(post: FeedPost): FeedPost {
+  return {
+    ...post,
+    media: post.media.slice(0, 1).map((item) => ({
+      ...item,
+      url: item.thumbnailUrl || item.url,
+      thumbnailUrl: item.thumbnailUrl || item.url,
+    })),
+  };
+}
+
 export function getFeedPosts() {
   return getStoredFeedPosts().sort(
     (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
@@ -158,16 +149,16 @@ export function ensureFeedSeed() {
 
   const authorNames = ["민서", "서연", "지우", "하나", "시온"];
   const captions = [
-    "오늘 러닝 후 회복 스트레칭까지 마무리했습니다.",
-    "인터벌 훈련 덕분에 페이스가 안정적이었어요.",
-    "주말 장거리 러닝을 앞두고 수면과 수분을 먼저 챙겼습니다.",
-    "비 오는 날이라 실내 러닝으로 루틴을 유지했어요.",
-    "회복 주간이라 강도보다 자세를 더 신경 썼습니다.",
-    "아침 러닝 때 체감 회복이 꽤 만족스러웠습니다.",
-    "HRV 흐름이 좋아서 오늘은 페이스를 조금 올렸어요.",
-    "실내 운동으로 대체했지만 루틴은 그대로 가져갑니다.",
-    "조깅 전에 15분 종아리 컨디셔닝도 챙겼습니다.",
-    "장거리 전 다음 주를 위해 가볍게 정리했습니다.",
+    "오늘은 회복 런 다음에 스트레칭까지 마무리했습니다.",
+    "인터벌 훈련 덕분에 페이스가 안정적으로 올라왔어요.",
+    "주말 롱런을 앞두고 수분과 영양을 미리 챙겼습니다.",
+    "비 오는 날이라 실내 러닝으로 루틴을 이어갔어요.",
+    "회복 주간이라 강도보다 자세와 호흡에 집중했습니다.",
+    "아침 러닝 후 컨디션 회복이 꽤 만족스럽네요.",
+    "HRV 흐름이 좋아서 오늘은 페이스를 조금 올려봤어요.",
+    "실내 이동으로 대체했지만 루틴은 그대로 가져갑니다.",
+    "출근 전에 15분 종아리 컨디셔닝까지 챙겼습니다.",
+    "롱런 다음 주를 위해 가볍게 정리했습니다.",
   ];
 
   const seeded: FeedPost[] = captions.map((content, index) => ({
@@ -178,9 +169,10 @@ export function ensureFeedSeed() {
     createdAt: new Date(Date.now() - index * 1000 * 60 * 43).toISOString(),
     media: buildSeedMedia(index + 1),
     tags: ["러닝", "회복", "기록"].slice(0, (index % 3) + 1),
+    visibility: "public",
   }));
 
-  savePosts(seeded);
+  seeded.forEach((post) => upsertStoredFeedPost(post));
   seedComments(seeded);
 }
 
@@ -211,7 +203,7 @@ function seedComments(posts: FeedPost[]) {
     ];
   });
 
-  saveComments(seededComments);
+  seededComments.forEach((comment) => upsertStoredFeedComment(comment));
 }
 
 export function createFeedPost(authorId: string, authorName: string, content: string, media: FeedMedia[], tags: string[] = []) {
@@ -226,12 +218,17 @@ export function createFeedPost(authorId: string, authorName: string, content: st
     visibility: "public",
   };
 
-  if (upsertStoredFeedPost(post)) {
+  try {
+    upsertStoredFeedPost(post);
     return true;
+  } catch {
+    try {
+      upsertStoredFeedPost(fallbackPost(post));
+      return true;
+    } catch {
+      return false;
+    }
   }
-
-  const fallback = { ...post, media: post.media.slice(0, 1).map((item) => ({ ...item, url: item.thumbnailUrl || item.url })) };
-  return Boolean(upsertStoredFeedPost(fallback));
 }
 
 export function createScopedFeedPost(
@@ -253,14 +250,22 @@ export function createScopedFeedPost(
     visibility,
   };
 
-  return Boolean(upsertStoredFeedPost(post));
+  try {
+    upsertStoredFeedPost(post);
+    return true;
+  } catch {
+    try {
+      upsertStoredFeedPost(fallbackPost(post));
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 export function updateFeedPost(id: string, content: string, media?: FeedMedia[], tags?: string[]) {
   const target = getFeedPosts().find((post) => post.id === id);
-  if (!target) {
-    return false;
-  }
+  if (!target) return false;
 
   const nextPost: FeedPost = {
     ...target,
@@ -269,19 +274,17 @@ export function updateFeedPost(id: string, content: string, media?: FeedMedia[],
     tags: tags ?? target.tags ?? [],
   };
 
-  if (upsertStoredFeedPost(nextPost)) {
+  try {
+    upsertStoredFeedPost(nextPost);
     return true;
+  } catch {
+    try {
+      upsertStoredFeedPost(fallbackPost(nextPost));
+      return true;
+    } catch {
+      return false;
+    }
   }
-
-  const fallback = {
-    ...nextPost,
-    media: nextPost.media.slice(0, 1).map((item) => ({
-      ...item,
-      url: item.thumbnailUrl || item.url,
-    })),
-  };
-
-  return Boolean(upsertStoredFeedPost(fallback));
 }
 
 export function deleteFeedPost(id: string) {
@@ -311,9 +314,8 @@ export function addFeedComment(
 
 export function toggleFeedCommentLike(commentId: string, userId: string) {
   const target = getFeedComments().find((comment) => comment.id === commentId);
-  if (!target) {
-    return false;
-  }
+  if (!target) return false;
+
   const likedUserIds = target.likedUserIds.includes(userId)
     ? target.likedUserIds.filter((item) => item !== userId)
     : [...target.likedUserIds, userId];

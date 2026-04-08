@@ -26,7 +26,7 @@ import {
 } from "@/services/feedStore";
 
 const MY_USER_ID = localStorage.getItem("user_id") || "me";
-const MY_USER_NAME = localStorage.getItem("user_nickname") || "ÏÇ¨Ïö©Ïûê";
+const MY_USER_NAME = localStorage.getItem("user_nickname") || "ªÁøÎ¿⁄";
 const SAMPLE_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 const PAGE_SIZE = 8;
 
@@ -62,16 +62,16 @@ function resizeImageFile(file: File) {
         canvas.height = Math.max(1, Math.round(image.height * scale));
         const context = canvas.getContext("2d");
         if (!context) {
-          reject(new Error("Ïù¥ÎØ∏ÏßÄÎ•º Ï≤òÎ¶¨Ìï† Ïàò ÏóÜÏäµÎãàÎã§."));
+          reject(new Error("¿ÃπÃ¡ˆ∏¶ √≥∏Æ«“ ºˆ æ¯Ω¿¥œ¥Ÿ."));
           return;
         }
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/jpeg", 0.82));
       };
-      image.onerror = () => reject(new Error("Ïù¥ÎØ∏ÏßÄÎ•º Î∂àÎü¨Ïò¨ Ïàò ÏóÜÏäµÎãàÎã§."));
+      image.onerror = () => reject(new Error("¿ÃπÃ¡ˆ∏¶ ∫“∑Øø√ ºˆ æ¯Ω¿¥œ¥Ÿ."));
       image.src = String(reader.result || "");
     };
-    reader.onerror = () => reject(new Error("ÌååÏùºÏùÑ ÏùΩÏùÑ Ïàò ÏóÜÏäµÎãàÎã§."));
+    reader.onerror = () => reject(new Error("∆ƒ¿œ¿ª ¿–¿ª ºˆ æ¯Ω¿¥œ¥Ÿ."));
     reader.readAsDataURL(file);
   });
 }
@@ -232,8 +232,8 @@ export default function Feed() {
       setMedia((previous) => [...previous, ...nextMedia]);
     } catch (error) {
       toast({
-        title: "ÎØ∏ÎîîÏñ¥ Ï∂îÍ∞Ä Ïã§Ìå®",
-        description: error instanceof Error ? error.message : "ÌååÏùºÏùÑ Ï≤òÎ¶¨ÌïòÏßÄ Î™ªÌñàÏäµÎãàÎã§.",
+        title: "πÃµæÓ √ﬂ∞°ø° Ω«∆–«ﬂΩ¿¥œ¥Ÿ.",
+        description: error instanceof Error ? error.message : "∆ƒ¿œ¿ª √≥∏Æ«œ¡ˆ ∏¯«ﬂΩ¿¥œ¥Ÿ.",
         variant: "destructive",
       });
     } finally {
@@ -243,7 +243,7 @@ export default function Feed() {
 
   const handleSave = () => {
     if (!caption.trim() && media.length === 0) {
-      toast({ title: "ÎÇ¥Ïö©Ïù¥ÎÇò ÎØ∏ÎîîÏñ¥Î•º Ï∂îÍ∞ÄÌï¥ Ï£ºÏÑ∏Ïöî.", variant: "destructive" });
+      toast({ title: "≥ªøÎ¿Ã≥™ πÃµæÓ∏¶ √ﬂ∞°«ÿ ¡÷ººø‰.", variant: "destructive" });
       return;
     }
 
@@ -257,14 +257,14 @@ export default function Feed() {
       : createScopedFeedPost(MY_USER_ID, MY_USER_NAME, caption.trim(), media, "public", parsedTags);
 
     if (!success) {
-      toast({ title: "ÌîºÎìú ÏóÖÎ°úÎìú Ïã§Ìå®", variant: "destructive" });
+      toast({ title: "««µÂ æ˜∑ŒµÂø° Ω«∆–«ﬂΩ¿¥œ¥Ÿ.", variant: "destructive" });
       return;
     }
 
     setTick((value) => value + 1);
     setComposerOpen(false);
     resetComposer();
-    toast({ title: editingPostId ? "Í≤åÏãúÍ∏ÄÏùÑ ÏàòÏ†ïÌñàÏäµÎãàÎã§." : "Í≤åÏãúÍ∏ÄÏùÑ Ïò¨Î†∏ÏäµÎãàÎã§." });
+    toast({ title: editingPostId ? "∞‘Ω√±€¿ª ºˆ¡§«ﬂΩ¿¥œ¥Ÿ." : "∞‘Ω√±€¿ª ø√∑»Ω¿¥œ¥Ÿ." });
   };
 
   const handleEdit = (post: FeedPost) => {
@@ -278,7 +278,7 @@ export default function Feed() {
   const handleDelete = (postId: string) => {
     const success = deleteFeedPost(postId);
     if (!success) {
-      toast({ title: "Í≤åÏãúÍ∏Ä ÏÇ≠Ï†ú Ïã§Ìå®", variant: "destructive" });
+      toast({ title: "∞‘Ω√±€ ªË¡¶ø° Ω«∆–«ﬂΩ¿¥œ¥Ÿ.", variant: "destructive" });
       return;
     }
     setTick((value) => value + 1);
@@ -289,13 +289,13 @@ export default function Feed() {
 
   const handleAddComment = () => {
     if (!detailPost || !commentDraft.trim()) {
-      toast({ title: "ÎåìÍ∏Ä ÎÇ¥Ïö©ÏùÑ ÏûÖÎ†•Ìï¥ Ï£ºÏÑ∏Ïöî.", variant: "destructive" });
+      toast({ title: "¥Ò±€ ≥ªøÎ¿ª ¿‘∑¬«ÿ ¡÷ººø‰.", variant: "destructive" });
       return;
     }
 
     const success = addFeedComment(detailPost.id, MY_USER_ID, MY_USER_NAME, commentDraft.trim(), replyTarget?.id || null);
     if (!success) {
-      toast({ title: "ÎåìÍ∏Ä Îì±Î°ù Ïã§Ìå®", variant: "destructive" });
+      toast({ title: "¥Ò±€ µÓ∑œø° Ω«∆–«ﬂΩ¿¥œ¥Ÿ.", variant: "destructive" });
       return;
     }
 
@@ -347,7 +347,7 @@ export default function Feed() {
                 }}
               >
                 <Heart className={`h-3.5 w-3.5 ${comment.likedUserIds.includes(MY_USER_ID) ? "fill-current text-primary" : ""}`} />
-                Ï¢ãÏïÑÏöî {comment.likedUserIds.length}
+                ¡¡æ∆ø‰ {comment.likedUserIds.length}
               </button>
               <button type="button" className="flex items-center gap-1 font-medium text-primary" onClick={() => {
                 setReplyTarget(comment);
@@ -355,7 +355,7 @@ export default function Feed() {
                 setShowCommentComposer(true);
               }}>
                 <MessageCircle className="h-3.5 w-3.5" />
-                ÎãµÍ∏Ä
+                ¥‰±€
               </button>
             </div>
           </div>
@@ -368,12 +368,12 @@ export default function Feed() {
       <Header showNav />
       <div className="mx-auto max-w-6xl space-y-4 p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="text-3xl font-bold">ÌîºÎìú</h1>
+          <h1 className="text-3xl font-bold">««µÂ</h1>
 
           <div className="flex w-full gap-2 lg:w-auto">
             <div className="relative flex-1 lg:w-80">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ÌîºÎìúÎ•º Í≤ÄÏÉâÌï¥ Î≥¥ÏÑ∏Ïöî" className="pl-9" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="««µÂ∏¶ ∞Àªˆ«ÿ ∫∏ººø‰." className="pl-9" />
             </div>
 
             <Dialog
@@ -390,19 +390,19 @@ export default function Feed() {
               </DialogTrigger>
               <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>{editingPostId ? "Í≤åÏãúÍ∏Ä ÏàòÏ†ï" : "ÏÉà Í≤åÏãúÍ∏Ä"}</DialogTitle>
+                  <DialogTitle>{editingPostId ? "∞‘Ω√±€ ºˆ¡§" : "ªı ∞‘Ω√±€"}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <Textarea value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="ÎÇ¥Ïö©ÏùÑ ÏûÖÎ†•Ìï¥ Ï£ºÏÑ∏Ïöî" className="min-h-32" />
+                  <Textarea value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="≥ªøÎ¿ª ¿‘∑¬«ÿ ¡÷ººø‰." className="min-h-32" />
                   <div className="relative">
                     <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="ÌÉúÍ∑∏Î•º ÏâºÌëúÎ°ú ÏûÖÎ†•Ìï¥ Ï£ºÏÑ∏Ïöî" className="pl-9" />
+                    <Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="≈¬±◊∏¶ Ω∞«•∑Œ ¿‘∑¬«ÿ ¡÷ººø‰." className="pl-9" />
                   </div>
                   <div className="space-y-3 rounded-2xl border border-dashed p-4">
                     <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={(event) => void handleFiles(event.target.files)} />
                     <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2">
                       <Upload className="h-4 w-4" />
-                      ÏÇ¨ÏßÑ / ÎèôÏòÅÏÉÅ Ï∂îÍ∞Ä
+                      ªÁ¡¯ / µøøµªÛ √ﬂ∞°
                     </Button>
                     <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                       {media.map((item, index) => (
@@ -436,8 +436,8 @@ export default function Feed() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setComposerOpen(false)}>Ï∑®ÏÜå</Button>
-                  <Button onClick={handleSave}>{editingPostId ? "Ï†ÄÏû•" : "ÏóÖÎ°úÎìú"}</Button>
+                  <Button variant="outline" onClick={() => setComposerOpen(false)}>√Îº“</Button>
+                  <Button onClick={handleSave}>{editingPostId ? "¿˙¿Â" : "æ˜∑ŒµÂ"}</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -455,11 +455,11 @@ export default function Feed() {
                     <div className="relative aspect-square bg-muted/40">
                       {cover?.type === "video" ? (
                         <>
-                          <img src={cover.thumbnailUrl} alt={post.content || "ÌîºÎìú ÎπÑÎîîÏò§"} className="h-full w-full object-cover" />
+                          <img src={cover.thumbnailUrl} alt={post.content || "««µÂ ∫Òµø¿"} className="h-full w-full object-cover" />
                           <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">VIDEO</div>
                         </>
                       ) : cover?.url ? (
-                        <img src={cover.url} alt={post.content || "ÌîºÎìú Ïù¥ÎØ∏ÏßÄ"} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                        <img src={cover.url} alt={post.content || "««µÂ ¿ÃπÃ¡ˆ"} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
                       ) : (
                         <div className="flex h-full items-center justify-center text-muted-foreground">
                           <ImagePlus className="h-8 w-8" />
@@ -467,13 +467,13 @@ export default function Feed() {
                       )}
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white">
                         <div className="truncate text-sm font-semibold">{post.authorName}</div>
-                        <div className="line-clamp-2 text-xs text-white/80">{post.content || "ÎØ∏ÎîîÏñ¥ Í≤åÏãúÎ¨º"}</div>
+                        <div className="line-clamp-2 text-xs text-white/80">{post.content || "πÃµæÓ ∞‘Ω√π∞"}</div>
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-2 p-3">
                       <div className="min-w-0">
                         <div className="truncate text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleString("ko-KR")}</div>
-                        <div className="text-xs text-muted-foreground">{post.media.length}Í∞ú ÎØ∏ÎîîÏñ¥</div>
+                        <div className="text-xs text-muted-foreground">{post.media.length}∞≥ πÃµæÓ</div>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
@@ -562,7 +562,7 @@ export default function Feed() {
                   <Card className="flex h-full flex-col">
                     <CardContent className="flex min-h-0 flex-1 flex-col gap-4 pt-6">
                       <div className="flex items-center justify-between">
-                        <div className="text-lg font-semibold">ÎåìÍ∏Ä</div>
+                        <div className="text-lg font-semibold">¥Ò±€</div>
                         <Button
                           variant={showCommentComposer ? "default" : "outline"}
                           size="sm"
@@ -576,13 +576,13 @@ export default function Feed() {
                           }}
                         >
                           <MessageCircle className="h-4 w-4" />
-                          ÎåìÍ∏Ä Ïì∞Í∏∞
+                          ¥Ò±€ æ≤±‚
                         </Button>
                       </div>
 
                       <div className="min-h-0 flex-1 overflow-y-auto pr-2">
                         <div className="space-y-3">
-                          {comments.length > 0 ? renderCommentTree(null) : <div className="text-sm text-muted-foreground">Ï≤´ ÎåìÍ∏ÄÏùÑ ÎÇ®Í≤® Î≥¥ÏÑ∏Ïöî.</div>}
+                          {comments.length > 0 ? renderCommentTree(null) : <div className="text-sm text-muted-foreground">√π ¥Ò±€¿ª ≥≤∞‹ ∫∏ººø‰.</div>}
                         </div>
                       </div>
 
@@ -590,7 +590,7 @@ export default function Feed() {
                         <div className="space-y-3 border-t pt-3">
                           {replyTarget ? (
                             <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
-                              <div className="font-medium">{replyTarget.authorName}ÎãòÏóêÍ≤å ÎãµÍ∏Ä ÏûëÏÑ± Ï§ë</div>
+                              <div className="font-medium">{replyTarget.authorName}¥‘ø°∞‘ ¥‰±€ ¿€º∫ ¡ﬂ</div>
                               <button
                                 type="button"
                                 className="mt-1 text-primary"
@@ -599,12 +599,12 @@ export default function Feed() {
                                   setCommentDraft("");
                                 }}
                               >
-                                ÎãµÍ∏Ä Ï∑®ÏÜå
+                                ¥‰±€ √Îº“
                               </button>
                             </div>
                           ) : null}
-                          <Textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="ÎåìÍ∏ÄÏù¥ÎÇò @id ÌÉúÍ∑∏Î•º ÏûÖÎ†•Ìï¥ Ï£ºÏÑ∏Ïöî" className="min-h-24" />
-                          <Button onClick={handleAddComment} className="w-full">ÎåìÍ∏Ä Îì±Î°ù</Button>
+                          <Textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="¥Ò±€¿Ã≥™ @id ≈¬±◊∏¶ ¿‘∑¬«ÿ ¡÷ººø‰." className="min-h-24" />
+                          <Button onClick={handleAddComment} className="w-full">¥Ò±€ µÓ∑œ</Button>
                         </div>
                       ) : null}
                     </CardContent>
@@ -618,9 +618,12 @@ export default function Feed() {
 
       {showSpinner ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-background/70 backdrop-blur-sm">
-          <div className="rounded-2xl border bg-background px-6 py-4 text-sm font-medium text-muted-foreground">Î∂àÎü¨Ïò§Îäî Ï§ë...</div>
+          <div className="rounded-2xl border bg-background px-6 py-4 text-sm font-medium text-muted-foreground">∫“∑Øø¿¥¬ ¡ﬂ...</div>
         </div>
       ) : null}
     </div>
   );
 }
+
+
+
