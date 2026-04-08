@@ -10,7 +10,10 @@ import type {
 function cloneState(state: StrategyGameState): StrategyGameState {
   return {
     ...state,
-    players: state.players.map((player) => ({ ...player, healthBonuses: player.healthBonuses ? { ...player.healthBonuses } : undefined })),
+    players: state.players.map((player) => ({
+      ...player,
+      healthBonuses: player.healthBonuses ? { ...player.healthBonuses } : undefined,
+    })),
     tiles: state.tiles.map((tile) => ({ ...tile })),
     units: state.units.map((unit) => ({ ...unit })),
     actionLog: state.actionLog.map((entry) => ({ ...entry })),
@@ -68,16 +71,25 @@ function nextPlayer(state: StrategyGameState) {
 
 function collectResources(player: StrategyPlayerState, tiles: StrategyTile[]) {
   const owned = tiles.filter((tile) => tile.ownerUserId === player.userId);
+  const outpostScore = owned.filter((tile) => tile.type === "outpost").length * 8;
+  const resourceScore = owned.filter((tile) => tile.type === "resource").length * 6;
   const energyGain = owned.filter((tile) => tile.resourceType === "energy").length * 3 + 4;
   const materialGain = owned.filter((tile) => tile.resourceType === "material").length * 2 + 3;
+
   player.energy += energyGain;
   player.material += materialGain;
-  player.score += owned.length * 2 + Math.floor((player.baseHp || 0) / 3);
+  player.score += outpostScore + resourceScore + Math.floor(player.baseHp / 3);
 }
 
 function evaluateVictory(state: StrategyGameState) {
-  const activeBases = state.tiles.filter((tile) => tile.type === "base");
-  const capturedBase = activeBases.find((tile) => tile.baseOwnerUserId && tile.ownerUserId && tile.baseOwnerUserId !== tile.ownerUserId);
+  const capturedBase = state.tiles.find(
+    (tile) =>
+      tile.type === "base" &&
+      tile.baseOwnerUserId &&
+      tile.ownerUserId &&
+      tile.baseOwnerUserId !== tile.ownerUserId,
+  );
+
   if (capturedBase?.ownerUserId) {
     state.phase = "finished";
     state.victoryReason = "base-capture";
@@ -111,8 +123,10 @@ export function reduceStrategyState(state: StrategyGameState, action: StrategyAc
       if (next.units.some((unit) => unit.x === action.x && unit.y === action.y)) return next;
       const cost = unitCost(action.unitType);
       if (player.energy < cost.energy || player.material < cost.material) return next;
+
       player.energy -= cost.energy;
       player.material -= cost.material;
+
       const stats = unitStats(action.unitType);
       next.units.push({
         id: `unit-${action.userId}-${Date.now()}`,
@@ -134,10 +148,13 @@ export function reduceStrategyState(state: StrategyGameState, action: StrategyAc
       if (!unit || unit.ownerUserId !== action.userId || unit.moved) return next;
       const stats = unitStats(unit.type);
       const distance = Math.abs(unit.x - action.toX) + Math.abs(unit.y - action.toY);
-      const moveAllowance = stats.move + (unit.type === "scout" ? getPlayer(next, action.userId)?.healthBonuses?.scoutRangeBoost || 0 : 0);
+      const moveAllowance =
+        stats.move +
+        (unit.type === "scout" ? getPlayer(next, action.userId)?.healthBonuses?.scoutRangeBoost || 0 : 0);
       if (distance > moveAllowance) return next;
       if (next.units.some((entry) => entry.id !== unit.id && entry.x === action.toX && entry.y === action.toY)) return next;
       if (!getTile(next, action.toX, action.toY)) return next;
+
       unit.x = action.toX;
       unit.y = action.toY;
       unit.moved = true;
@@ -151,16 +168,16 @@ export function reduceStrategyState(state: StrategyGameState, action: StrategyAc
       if (!unit || !target || unit.ownerUserId !== action.userId || unit.acted) return next;
       const distance = Math.abs(unit.x - target.x) + Math.abs(unit.y - target.y);
       if (distance > 1) return next;
+
       const attacker = unitStats(unit.type);
-      const defender = getPlayer(next, target.ownerUserId)?.healthBonuses?.defenseBoost || 0;
-      target.hp -= Math.max(1, attacker.attack - defender);
+      const defenseBoost = getPlayer(next, target.ownerUserId)?.healthBonuses?.defenseBoost || 0;
+      target.hp -= Math.max(1, attacker.attack - defenseBoost);
       unit.acted = true;
+
       if (target.hp <= 0) {
         next.units = next.units.filter((entry) => entry.id !== target.id);
         const player = getPlayer(next, action.userId);
-        if (player) {
-          player.score += 18;
-        }
+        if (player) player.score += 18;
         pushLog(next, `${getPlayer(next, action.userId)?.name || "플레이어"}이(가) 적 유닛을 제거했습니다.`);
       } else {
         pushLog(next, `${getPlayer(next, action.userId)?.name || "플레이어"}이(가) 적 유닛을 공격했습니다.`);
@@ -173,19 +190,21 @@ export function reduceStrategyState(state: StrategyGameState, action: StrategyAc
       const tile = getTile(next, action.x, action.y);
       if (!unit || !tile || unit.ownerUserId !== action.userId || unit.acted) return next;
       if (unit.x !== action.x || unit.y !== action.y) return next;
+
       tile.ownerUserId = action.userId;
       tile.durability = Math.max(1, (tile.durability || 1) - 1);
       unit.acted = true;
+
       const player = getPlayer(next, action.userId);
       if (player) {
         player.score += tile.type === "base" ? 40 : tile.type === "outpost" ? 14 : 10;
       }
+
       if (tile.type === "base" && tile.baseOwnerUserId && tile.baseOwnerUserId !== action.userId) {
         const defender = getPlayer(next, tile.baseOwnerUserId);
-        if (defender) {
-          defender.baseHp = Math.max(0, defender.baseHp - 4);
-        }
+        if (defender) defender.baseHp = Math.max(0, defender.baseHp - 4);
       }
+
       pushLog(next, `${getPlayer(next, action.userId)?.name || "플레이어"}이(가) 타일을 점령했습니다.`);
       evaluateVictory(next);
       return next;
@@ -197,9 +216,7 @@ export function reduceStrategyState(state: StrategyGameState, action: StrategyAc
         collectResources(player, next.tiles);
       }
       next.units = next.units.map((unit) =>
-        unit.ownerUserId === action.userId
-          ? { ...unit, moved: false, acted: false }
-          : unit,
+        unit.ownerUserId === action.userId ? { ...unit, moved: false, acted: false } : unit,
       );
       next.turn += 1;
       nextPlayer(next);

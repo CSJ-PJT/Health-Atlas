@@ -35,6 +35,12 @@ import {
   saveStoredEntertainmentScores,
   subscribeEntertainmentRepositoryChanges,
 } from "@/services/repositories/entertainmentRepository";
+import {
+  appendStrategyEvent,
+  loadLatestStrategyState,
+  saveStrategySnapshot,
+  upsertStrategyMatch,
+} from "@/services/repositories/strategyRepository";
 import { getFriends, type FriendEntry } from "@/services/socialStore";
 import {
   type ChallengeEntry,
@@ -217,6 +223,33 @@ export default function Game() {
   }, [activeRoomId, activeRoomStart]);
 
   useEffect(() => {
+    if (!activeRoom || activeRoom.gameId !== "pulse-frontier" || activeRoom.gameState) return;
+    let cancelled = false;
+
+    async function hydrateStrategyRoom() {
+      const state = await loadLatestStrategyState(activeRoom.id);
+      if (cancelled || !state) return;
+      saveRooms(
+        rooms.map((room) =>
+          room.id === activeRoom.id
+            ? {
+                ...room,
+                gameState: state,
+                roomStatus: state.phase === "finished" ? "finished" : "running",
+                updatedAt: new Date().toISOString(),
+              }
+            : room,
+        ),
+      );
+    }
+
+    void hydrateStrategyRoom();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRoom, rooms]);
+
+  useEffect(() => {
     if (!activeRoom || activeRoom.gameId !== "pulse-frontier" || activeRoom.roomStatus !== "running" || !activeRoom.gameState) return;
     const strategyState = activeRoom.gameState as ReturnType<typeof createPulseFrontierState>;
     const currentPlayer = strategyState.players.find((player) => player.userId === strategyState.currentUserTurn);
@@ -254,6 +287,23 @@ export default function Game() {
               : room,
           ),
         );
+        void upsertStrategyMatch(
+          {
+            ...activeRoom,
+            roomStatus: ended.phase === "finished" ? "finished" : "running",
+            gameState: ended,
+          },
+          ended,
+        );
+        void appendStrategyEvent(activeRoom.id, currentPlayer.userId, {
+          type: "move-unit",
+          userId: currentPlayer.userId,
+          unitId: unit.id,
+          toX: nextX,
+          toY: nextY,
+        });
+        void appendStrategyEvent(activeRoom.id, currentPlayer.userId, { type: "end-turn", userId: currentPlayer.userId });
+        void saveStrategySnapshot(activeRoom.id, ended);
       }
     }, 900);
 
@@ -303,6 +353,8 @@ export default function Game() {
           : room,
       ),
     );
+    void upsertStrategyMatch(activeRoom, strategyState);
+    void saveStrategySnapshot(activeRoom.id, strategyState);
   }, [activeRoom, rooms]);
 
   const saveChallenges = (next: ChallengeEntry[]) => {
@@ -435,34 +487,36 @@ export default function Game() {
   const commitStrategyAction = (action: StrategyAction, summary: string) => {
     if (!activeRoom || !activeRoom.gameState || activeRoom.gameId !== "pulse-frontier") return;
     const nextState = reduceStrategyState(activeRoom.gameState as ReturnType<typeof createPulseFrontierState>, action);
+    const nextRoom: MultiRoom = {
+      ...activeRoom,
+      roomStatus: nextState.phase === "finished" ? "finished" : "running",
+      gameState: nextState,
+      systemEvents: [
+        ...activeRoom.systemEvents,
+        buildSystemMessage(
+          action.type === "end-turn"
+            ? "turn"
+            : action.type === "move-unit"
+              ? "move"
+              : action.type === "spawn-unit"
+                ? "spawn"
+                : action.type === "capture-tile"
+                  ? "capture"
+                  : "resolve",
+          { ...action, turn: nextState.turn },
+        ),
+      ],
+      chatMessages: [...activeRoom.chatMessages, createRoomActionMessage(MY_USER_NAME, summary)],
+      updatedAt: new Date().toISOString(),
+    };
     saveRooms(
       rooms.map((room) =>
-        room.id === activeRoom.id
-          ? {
-              ...room,
-              roomStatus: nextState.phase === "finished" ? "finished" : "running",
-              gameState: nextState,
-              systemEvents: [
-                ...room.systemEvents,
-                buildSystemMessage(
-                  action.type === "end-turn"
-                    ? "turn"
-                    : action.type === "move-unit"
-                      ? "move"
-                      : action.type === "spawn-unit"
-                        ? "spawn"
-                        : action.type === "capture-tile"
-                          ? "capture"
-                          : "resolve",
-                  { ...action, turn: nextState.turn },
-                ),
-              ],
-              chatMessages: [...room.chatMessages, createRoomActionMessage(MY_USER_NAME, summary)],
-              updatedAt: new Date().toISOString(),
-            }
-          : room,
+        room.id === activeRoom.id ? nextRoom : room,
       ),
     );
+    void upsertStrategyMatch(nextRoom, nextState);
+    void appendStrategyEvent(activeRoom.id, MY_USER_ID, action);
+    void saveStrategySnapshot(activeRoom.id, nextState);
   };
   const handleStartRoom = () => {
     if (!activeRoom || activeRoom.hostId !== MY_USER_ID) return;
@@ -471,28 +525,30 @@ export default function Game() {
       const mapId = activeRoom.roomRules?.mapId || "frontier-classic-8x8";
       const matchup = activeRoom.roomRules?.matchup || "1v1";
       const strategyState = createPulseFrontierState(activeRoom.participants, maxTurns, mapId, matchup);
+      const nextRoom: MultiRoom = {
+        ...activeRoom,
+        roomStatus: "running",
+        gameState: strategyState,
+        systemEvents: [
+          ...activeRoom.systemEvents,
+          buildSystemMessage("start", {
+            gameId: activeRoom.gameId,
+            mode: "strategy",
+            turn: 1,
+            startedAt: new Date().toISOString(),
+          }),
+        ],
+        chatMessages: [...activeRoom.chatMessages, createRoomActionMessage(activeRoom.hostName, "Pulse Frontier 경기를 시작했습니다.")],
+        updatedAt: new Date().toISOString(),
+      };
       saveRooms(
         rooms.map((room) =>
-          room.id === activeRoom.id
-            ? {
-                ...room,
-                roomStatus: "running",
-                gameState: strategyState,
-                systemEvents: [
-                  ...room.systemEvents,
-                  buildSystemMessage("start", {
-                    gameId: activeRoom.gameId,
-                    mode: "strategy",
-                    turn: 1,
-                    startedAt: new Date().toISOString(),
-                  }),
-                ],
-                chatMessages: [...room.chatMessages, createRoomActionMessage(activeRoom.hostName, "Pulse Frontier 경기를 시작했습니다.")],
-                updatedAt: new Date().toISOString(),
-              }
-            : room,
+          room.id === activeRoom.id ? nextRoom : room,
         ),
       );
+      void upsertStrategyMatch(nextRoom, strategyState);
+      void appendStrategyEvent(activeRoom.id, MY_USER_ID, { type: "start-match", startedBy: MY_USER_ID });
+      void saveStrategySnapshot(activeRoom.id, strategyState);
       setOpenedGame(activeRoom.gameId);
       return;
     }
