@@ -67,12 +67,12 @@ const permissionOptions = {
     { key: "nutrition", label: "영양" },
     { key: "hydration", label: "수분" },
     { key: "bodyComposition", label: "체성분" },
-    { key: "heartRate", label: "심박수" },
+    { key: "heartRate", label: "심박" },
   ],
   "apple-health": [
     { key: "workouts", label: "운동 세션" },
     { key: "activitySummary", label: "활동 요약" },
-    { key: "heartRate", label: "심박수" },
+    { key: "heartRate", label: "심박" },
     { key: "sleep", label: "수면" },
     { key: "bodyComposition", label: "체성분" },
     { key: "nutrition", label: "영양" },
@@ -111,6 +111,7 @@ export default function AccountSettings() {
   const location = useLocation();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const backTarget =
     typeof location.state === "object" &&
     location.state !== null &&
@@ -144,6 +145,7 @@ export default function AccountSettings() {
 
   useEffect(() => {
     void loadProfileData();
+
     const storedHealthConnectPermissions = localStorage.getItem("health_connect_permissions");
     const storedGarminPermissions = localStorage.getItem("garmin_permissions");
     const storedApplePermissions = localStorage.getItem("apple_health_permissions");
@@ -244,7 +246,10 @@ export default function AccountSettings() {
         }
 
         const ensuredProfileId = await ensureProfile(userId || validated, nickname || "사용자");
-        const { error } = await supabase.from("profiles").update({ user_id: validated, user_id_changed: true }).eq("id", ensuredProfileId);
+        const { error } = await supabase
+          .from("profiles")
+          .update({ user_id: validated, user_id_changed: true })
+          .eq("id", ensuredProfileId);
         if (error) throw error;
       } catch (databaseError) {
         console.error("Falling back to local ID save:", databaseError);
@@ -271,9 +276,7 @@ export default function AccountSettings() {
 
     try {
       const validated = nicknameSchema.parse(nickname);
-      if (!storedUserId) {
-        throw new Error("사용자 정보가 없습니다.");
-      }
+      if (!storedUserId) throw new Error("사용자 정보가 없습니다.");
 
       setIsLoading(true);
       try {
@@ -350,7 +353,7 @@ export default function AccountSettings() {
     setShowPasswordEditor(true);
     setCurrentPassword(temporaryPassword);
     toast({
-      title: `${channel === "kakao" ? "카카오톡" : "LINE"}으로 임시 비밀번호를 준비했습니다.`,
+      title: `${channel === "kakao" ? "카카오톡" : "LINE"}용 임시 비밀번호를 준비했습니다.`,
       description: `프로토타입 임시 비밀번호: ${temporaryPassword}`,
     });
   };
@@ -437,7 +440,12 @@ export default function AccountSettings() {
             <div className="space-y-2">
               <Label htmlFor="nickname">닉네임</Label>
               <div className="flex gap-2">
-                <Input id="nickname" value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="닉네임을 입력해 주세요." />
+                <Input
+                  id="nickname"
+                  value={nickname}
+                  onChange={(event) => setNickname(event.target.value)}
+                  placeholder="닉네임을 입력해 주세요."
+                />
                 <Button onClick={() => void handleNicknameSave()} disabled={isLoading}>
                   저장
                 </Button>

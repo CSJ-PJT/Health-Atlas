@@ -6,14 +6,18 @@ export const userIdSchema = z
   .string()
   .min(4, { message: "ID는 최소 4자 이상이어야 합니다." })
   .max(20, { message: "ID는 최대 20자까지 가능합니다." })
-  .regex(/^[a-zA-Z0-9_]+$/, { message: "ID는 영문, 숫자, 밑줄(_)만 사용할 수 있습니다." })
+  .regex(/^[a-zA-Z0-9_]+$/, {
+    message: "ID는 영문, 숫자, 밑줄(_)만 사용할 수 있습니다.",
+  })
   .transform(sanitizeString);
 
 export const passwordSchema = z
   .string()
   .min(9, { message: "비밀번호는 최소 9자 이상이어야 합니다." })
   .regex(/[a-zA-Z]/, { message: "비밀번호에는 영문이 포함되어야 합니다." })
-  .regex(/[!@#$%^&*(),.?":{}|<>_\-+=/\\[\]~`]/, { message: "비밀번호에는 특수문자가 포함되어야 합니다." })
+  .regex(/[!@#$%^&*(),.?":{}|<>_\-+=/\\[\]~`]/, {
+    message: "비밀번호에는 특수문자가 포함되어야 합니다.",
+  })
   .regex(/^[a-zA-Z0-9!@#$%^&*(),.?":{}|<>_\-+=/\\[\]~`]+$/, {
     message: "비밀번호는 영문, 숫자, 특수문자만 사용할 수 있습니다.",
   });

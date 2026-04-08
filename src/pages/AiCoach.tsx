@@ -38,9 +38,7 @@ const AiCoach = () => {
   );
 
   const handleSend = async () => {
-    if (!draft.trim()) {
-      return;
-    }
+    if (!draft.trim()) return;
 
     const userMessage = draft.trim();
     setConversation((previous) => [...previous, { role: "user", content: userMessage }]);
@@ -71,7 +69,7 @@ const AiCoach = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <div className="mx-auto max-w-3xl space-y-4 p-3">
+      <div className="mx-auto max-w-3xl space-y-4 p-3 pb-24">
         <div className="flex items-center justify-between gap-3">
           <Button variant="outline" onClick={() => navigate(backTarget, { replace: true })} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
@@ -89,6 +87,7 @@ const AiCoach = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border p-4 text-sm text-muted-foreground">{summary}</div>
+
             <div className="space-y-3">
               {conversation.map((message, index) => (
                 <div
@@ -104,12 +103,14 @@ const AiCoach = () => {
                 </div>
               ))}
             </div>
+
             <Textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder="질문을 입력해 주세요."
               className="min-h-32"
             />
+
             <Button onClick={() => void handleSend()} disabled={isLoading} className="w-full">
               {isLoading ? "응답 생성 중..." : "질문 보내기"}
             </Button>
