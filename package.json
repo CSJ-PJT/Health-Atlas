@@ -31,6 +31,12 @@
     "mobile:game:add:ios": "npm run cap:add:ios -w @health-sync/private-product-game",
     "mobile:game:copy:android": "npm run cap:copy:android -w @health-sync/private-product-game",
     "mobile:game:sync:android": "npm run cap:sync:android -w @health-sync/private-product-game",
+    "mobile:game:assemble:android": "npm run android:assemble:debug -w @health-sync/private-product-game",
+    "mobile:game:install:android": "npm run android:install:debug -w @health-sync/private-product-game",
+    "mobile:game:install:android:info": "npm run android:install:debug:info -w @health-sync/private-product-game",
+    "mobile:game:install:android:stacktrace": "npm run android:install:debug:stacktrace -w @health-sync/private-product-game",
+    "mobile:game:adb:devices": "npm run android:adb:devices -w @health-sync/private-product-game",
+    "mobile:game:gradle:stop": "npm run android:gradle:stop -w @health-sync/private-product-game",
     "mobile:game:open:android": "npm run cap:open:android -w @health-sync/private-product-game",
     "test": "node scripts/run-service-tests.mjs"
   },

@@ -23,3 +23,35 @@ dist-ssr
 *.sln
 *.sw?
 supabase/.temp/
+.gradle-local*/
+.gradle-local/
+
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Ll]ogs/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Keep Unity source and settings, ignore generated artifacts
+unity/**/[Ll]ibrary/
+unity/**/[Tt]emp/
+unity/**/[Ll]ogs/
+unity/**/[Uu]ser[Ss]ettings/
