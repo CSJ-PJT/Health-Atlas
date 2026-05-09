@@ -1,0 +1,29 @@
+﻿diff --git a/unity/DeepStake3D/Assets/Scripts/Boot/DeepStakeDevLaunchOptions.cs b/unity/DeepStake3D/Assets/Scripts/Boot/DeepStakeDevLaunchOptions.cs
+index 2e51478..93b9772 100644
+--- a/unity/DeepStake3D/Assets/Scripts/Boot/DeepStakeDevLaunchOptions.cs
++++ b/unity/DeepStake3D/Assets/Scripts/Boot/DeepStakeDevLaunchOptions.cs
+@@ -35,6 +35,7 @@ namespace DeepStake.Boot
+         private const string EditorQuitAfterScreenshotOverrideKey = "DeepStake.DevLaunch.QuitAfterScreenshot";
+         private const string EditorVerificationTagOverrideKey = "DeepStake.DevLaunch.VerificationTag";
+         private const string EditorScreenshotDirectoryOverrideKey = "DeepStake.DevLaunch.ScreenshotDirectory";
++        private const string EditorValidationCaptureModeKey = "DeepStake.DevLaunch.EditorValidationCaptureMode";
+ 
+         private static bool editorAutorunOverride;
+         private static bool editorForceMobileControlsOverride;
+@@ -315,6 +316,16 @@ namespace DeepStake.Boot
+             initialized = false;
+         }
+ 
++        public static bool EditorValidationCaptureMode
++        {
++            get => SessionState.GetBool(EditorValidationCaptureModeKey, false);
++        }
++
++        public static void SetEditorValidationCaptureMode(bool active)
++        {
++            SessionState.SetBool(EditorValidationCaptureModeKey, active);
++        }
++
+         private static void LoadPersistedEditorOverrides()
+         {
+             editorAutorunOverride = SessionState.GetBool(EditorAutorunOverrideKey, editorAutorunOverride);

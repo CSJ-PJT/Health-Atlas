@@ -1,0 +1,2004 @@
+﻿diff --git a/unity/DeepStake3D/Assets/Scripts/Editor/DeepStakeScreenshotCapture.cs b/unity/DeepStake3D/Assets/Scripts/Editor/DeepStakeScreenshotCapture.cs
+index 59ac328..e5af82d 100644
+--- a/unity/DeepStake3D/Assets/Scripts/Editor/DeepStakeScreenshotCapture.cs
++++ b/unity/DeepStake3D/Assets/Scripts/Editor/DeepStakeScreenshotCapture.cs
+@@ -19,6 +19,13 @@ namespace DeepStake.EditorTools
+         private const string WorldScenePath = "Assets/Scenes/WorldPrototype3D.unity";
+         private const string MeshyFirstAppliedScreenshotPath = "Pictures/Screenshot/local-meshy-first-applied-pass.png";
+         private const string MeshyFirstAppliedCleanScreenshotPath = "Pictures/Screenshot/local-meshy-first-applied-clean.png";
++        private const string CurrentCleanBaselineScreenshotPath = "Pictures/Screenshot/local-current-clean-baseline.png";
++        private const string MeshyVisualDressingRootName = "MeshyVisualDressing";
++        private const string FirstScreenVisualDressingRootName = "FirstScreenVisualDressing";
++        private const string MeshyRegistryPath = "Assets/Resources/Meshy/deepstake_meshy_model_registry.json";
++        private const string SerializedMeshyCaptureDiagnosticsPath = "TestResults/serialized-meshy-capture-diagnostics.txt";
++        private const string EditorCaptureRequestPath = "TestResults/editor-capture-request.json";
++        private const string EditorCaptureResponsePath = "TestResults/editor-capture-response.json";
+         private const string ScreenshotRequestRelativePath = "Library/DeepStakeAutomation/screenshot_request.json";
+         private const string ScreenshotDirArgPrefix = "-deepstakeScreenshotDir=";
+         private const string ScreenshotTimeoutArgPrefix = "-deepstakeScreenshotTimeoutSeconds=";
+@@ -34,10 +41,21 @@ namespace DeepStake.EditorTools
+         private static bool editorPlayCaptureSucceeded;
+         private static bool editorPlayCleanSceneCapture;
+         private static bool startupCaptureQueued;
++        private static double nextEditorCaptureRequestPollTime;
++        private static string lastEditorCaptureRequestPayload = string.Empty;
++        private static readonly string[] RequiredAppliedMeshyAssetNames =
++        {
++            "door_wood_old",
++            "window_dark_frame",
++            "prop_notice_board",
++            "prop_lamp_post"
++        };
+ 
+         static DeepStakeScreenshotCapture()
+         {
+             TryQueueStartupCapture();
++            EditorApplication.update -= PollEditorCaptureRequest;
++            EditorApplication.update += PollEditorCaptureRequest;
+         }
+ 
+         [MenuItem("DeepStake/Validation/Capture Meshy First Applied Screenshot")]
+@@ -75,6 +93,41 @@ namespace DeepStake.EditorTools
+             }
+         }
+ 
++        [MenuItem("DeepStake/Validation/Capture Current Open Editor View Clean")]
++        public static void CaptureCurrentOpenEditorViewCleanMenu()
++        {
++            try
++            {
++                var screenshotPath = NormalizeOutputPath(CurrentCleanBaselineScreenshotPath);
++                CaptureSerializedMeshySceneOnlyInternal(screenshotPath);
++                Debug.Log("[DeepStakeCapture] Current clean editor view captured: " + screenshotPath);
++                EditorUtility.RevealInFinder(screenshotPath);
++            }
++            catch (Exception exception)
++            {
++                Debug.LogError("[DeepStakeCapture] Current clean editor view capture failed: " + exception);
++                throw;
++            }
++        }
++
++        [MenuItem("DeepStake/Validation/Capture Serialized Meshy Scene Only")]
++        public static void CaptureSerializedMeshySceneOnlyMenu()
++        {
++            try
++            {
++                Debug.Log("[DeepStakeCapture] STRICT_SERIALIZED_MESHY_CAPTURE_ENTERED");
++                var screenshotPath = NormalizeOutputPath(CurrentCleanBaselineScreenshotPath);
++                CaptureSerializedMeshySceneOnlyInternal(screenshotPath);
++                Debug.Log("[DeepStakeCapture] Serialized Meshy scene-only capture succeeded: " + screenshotPath);
++                EditorUtility.RevealInFinder(screenshotPath);
++            }
++            catch (Exception exception)
++            {
++                Debug.LogError("[DeepStakeCapture] Serialized Meshy scene-only capture failed: " + exception);
++                throw;
++            }
++        }
++
+         private static void TryQueueStartupCapture()
+         {
+             if (startupCaptureQueued)
+@@ -144,6 +197,25 @@ namespace DeepStake.EditorTools
+             }
+         }
+ 
++        public static void CaptureSerializedMeshyEditorCli()
++        {
++            try
++            {
++                Debug.Log("[DeepStakeCapture] STRICT_SERIALIZED_MESHY_CAPTURE_CLI_ENTERED");
++                var screenshotPath = RequireScreenshotPath();
++                var diagnostics = CaptureSerializedMeshySceneOnlyInternal(screenshotPath);
++                Debug.Log("[DeepStakeCapture] Serialized Meshy editor capture succeeded: " + screenshotPath +
++                          " captureId=" + diagnostics.CaptureId +
++                          " meshyRendererCount=" + diagnostics.MeshyRendererCount);
++                EditorApplication.Exit(0);
++            }
++            catch (Exception exception)
++            {
++                Debug.LogError("[DeepStakeCapture] Serialized Meshy editor capture failed: " + exception);
++                EditorApplication.Exit(1);
++            }
++        }
++
+         public static void CaptureEditorPlayCli()
+         {
+             try
+@@ -462,241 +534,1599 @@ namespace DeepStake.EditorTools
+             RenderCameraToPng(captureCamera, screenshotPath, DefaultRenderWidth, DefaultRenderHeight);
+         }
+ 
+-        private static void ApplyQuarterViewCameraFrame(Transform cameraTransform, Transform target, Vector3 requestedOffset)
++        private static void PollEditorCaptureRequest()
+         {
+-            if (cameraTransform == null || target == null)
++            if (EditorApplication.timeSinceStartup < nextEditorCaptureRequestPollTime)
+             {
+                 return;
+             }
+ 
+-            var planar = new Vector3(requestedOffset.x, 0f, requestedOffset.z);
+-            if (planar.sqrMagnitude < 0.01f)
++            nextEditorCaptureRequestPollTime = EditorApplication.timeSinceStartup + 0.5d;
++            if (EditorApplication.isCompiling || EditorApplication.isUpdating || EditorApplication.isPlayingOrWillChangePlaymode)
+             {
+-                planar = new Vector3(1f, 0f, -1f);
++                return;
+             }
+ 
+-            var clampedDistance = Mathf.Clamp(planar.magnitude, 4.95f, 5.95f);
+-            var readableHeight = Mathf.Clamp(requestedOffset.y, 4.2f, 5.2f);
+-            var normalizedPlanar = planar.normalized * clampedDistance;
+-            var effectiveOffset = new Vector3(normalizedPlanar.x, readableHeight, normalizedPlanar.z);
+-            cameraTransform.position = target.position + effectiveOffset;
+-            cameraTransform.LookAt(target.position + Vector3.up * 1.16f);
+-        }
+-
+-        private static void RenderCameraToPng(Camera captureCamera, string outputPath, int width, int height)
+-        {
+-            var directory = Path.GetDirectoryName(outputPath);
+-            if (!string.IsNullOrWhiteSpace(directory))
++            var requestPath = NormalizeOutputPath(EditorCaptureRequestPath);
++            if (!File.Exists(requestPath))
+             {
+-                Directory.CreateDirectory(directory);
++                return;
+             }
+ 
+-            var previousTargetTexture = captureCamera.targetTexture;
+-            var previousActive = RenderTexture.active;
+-            var renderTexture = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+-            var texture = new Texture2D(width, height, TextureFormat.RGB24, false);
+-
++            string payload;
+             try
+             {
+-                captureCamera.targetTexture = renderTexture;
+-                RenderTexture.active = renderTexture;
+-                captureCamera.Render();
+-                texture.ReadPixels(new Rect(0f, 0f, width, height), 0, 0, false);
+-                texture.Apply(false, false);
+-                File.WriteAllBytes(outputPath, texture.EncodeToPNG());
+-            }
+-            finally
+-            {
+-                captureCamera.targetTexture = previousTargetTexture;
+-                RenderTexture.active = previousActive;
+-                UnityEngine.Object.DestroyImmediate(renderTexture);
+-                UnityEngine.Object.DestroyImmediate(texture);
++                payload = File.ReadAllText(requestPath);
+             }
+-        }
+-
+-        private static void OnEditorPlayStateChanged(PlayModeStateChange change)
+-        {
+-            if (change == PlayModeStateChange.EnteredEditMode)
++            catch (Exception exception)
+             {
+-                if (editorPlayCaptureSucceeded)
+-                {
+-                    CleanupEditorPlayCapture(0);
+-                    return;
+-                }
+-
+-                if (string.IsNullOrWhiteSpace(editorPlayScreenshotPath) || !File.Exists(editorPlayScreenshotPath))
+-                {
+-                    Debug.LogError("[DeepStakeCapture] EditorPlay returned to edit mode without producing screenshot.");
+-                    CleanupEditorPlayCapture(1);
+-                }
++                Debug.LogWarning("[DeepStakeCapture] Could not read editor capture request. " + exception.Message);
++                return;
+             }
+-        }
+ 
+-        private static void PollEditorPlayCapture()
+-        {
+-            if (editorPlayCleanSceneCapture && TryCaptureCleanSceneWhilePlaying())
++            if (string.IsNullOrWhiteSpace(payload) || string.Equals(payload, lastEditorCaptureRequestPayload, StringComparison.Ordinal))
+             {
+                 return;
+             }
+ 
+-            if (!string.IsNullOrWhiteSpace(editorPlayScreenshotPath) && File.Exists(editorPlayScreenshotPath))
++            lastEditorCaptureRequestPayload = payload;
++            try
+             {
+-                editorPlayCaptureSucceeded = true;
+-                Debug.Log("[DeepStakeCapture] EditorPlay screenshot capture succeeded: " + editorPlayScreenshotPath);
+-                if (EditorApplication.isPlaying)
+-                {
+-                    EditorApplication.isPlaying = false;
+-                }
+-                else
+-                {
+-                    CleanupEditorPlayCapture(0);
+-                }
+-                return;
++                File.Delete(requestPath);
+             }
+-
+-            if (EditorApplication.timeSinceStartup < editorPlayDeadline)
++            catch (Exception exception)
+             {
+-                return;
++                Debug.LogWarning("[DeepStakeCapture] Could not delete consumed editor capture request. " + exception.Message);
+             }
+ 
+-            Debug.LogError("[DeepStakeCapture] EditorPlay screenshot capture timed out. expected=" + editorPlayScreenshotPath);
+-            CleanupEditorPlayCapture(1);
++            HandleEditorCaptureRequest(payload);
+         }
+ 
+-        private static bool TryCaptureCleanSceneWhilePlaying()
++        private static void HandleEditorCaptureRequest(string payload)
+         {
+-            if (!EditorApplication.isPlaying)
++            var responsePath = NormalizeOutputPath(EditorCaptureResponsePath);
++            DeleteIfExists(responsePath);
++            var request = JsonUtility.FromJson<EditorCaptureRequest>(payload);
++            if (request == null || !string.Equals(request.command, "capture_serialized_meshy_scene", StringComparison.OrdinalIgnoreCase))
+             {
+-                return false;
++                WriteEditorCaptureResponse(responsePath, EditorCaptureResponse.FromFailure("unsupported_or_missing_command", string.Empty));
++                return;
+             }
+ 
+-            var activeScene = SceneManager.GetActiveScene();
+-            if (!activeScene.IsValid() || !string.Equals(activeScene.path, WorldScenePath, StringComparison.OrdinalIgnoreCase))
++            var screenshotPath = NormalizeOutputPath(CurrentCleanBaselineScreenshotPath);
++            try
+             {
+-                return false;
++                Debug.Log("[DeepStakeCapture] EDITOR_CAPTURE_REQUEST_RECEIVED command=" + request.command + " tag=" + request.tag);
++                var diagnostics = CaptureSerializedMeshySceneOnlyInternal(screenshotPath);
++                WriteEditorCaptureResponse(responsePath, EditorCaptureResponse.FromDiagnostics(diagnostics));
+             }
+-
+-            if (editorPlayCaptureReadyTime <= 0d)
++            catch (Exception exception)
+             {
+-                editorPlayCaptureReadyTime = EditorApplication.timeSinceStartup + 1.0d;
+-                return false;
++                var diagnostics = ReadSerializedMeshyCaptureDiagnosticsFallback(screenshotPath, exception.Message);
++                WriteEditorCaptureResponse(responsePath, EditorCaptureResponse.FromDiagnostics(diagnostics));
+             }
++        }
+ 
+-            if (EditorApplication.timeSinceStartup < editorPlayCaptureReadyTime)
+-            {
+-                return false;
+-            }
++        private static SerializedMeshyCaptureDiagnostics CaptureSerializedMeshySceneOnlyInternal(string screenshotPath)
++        {
++            ValidateScenes();
+ 
+-            var controller = UnityEngine.Object.FindFirstObjectByType<WorldPrototype3DController>();
+-            if (controller == null || !controller.isActiveAndEnabled)
++            var diagnostics = new SerializedMeshyCaptureDiagnostics
+             {
+-                return false;
+-            }
++                Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
++                CaptureId = Guid.NewGuid().ToString("N"),
++                OutputScreenshotPath = screenshotPath
++            };
+ 
+-            var captureCamera = ResolveCaptureCamera(controller);
+-            if (captureCamera == null)
++            GameObject temporaryCameraObject = null;
++            var temporaryScreenshotPath = screenshotPath + ".tmp";
++            var sidecarPath = Path.ChangeExtension(screenshotPath, ".txt");
++            List<CanvasSnapshot> canvasSnapshots = null;
++            List<CameraSnapshot> cameraSnapshots = null;
++            List<RendererSnapshot> rendererSnapshots = null;
++
++            try
+             {
+-                return false;
+-            }
++                MoveExistingScreenshotAside(screenshotPath, diagnostics.CaptureId);
++                DeleteIfExists(sidecarPath);
++                var activeScene = SceneManager.GetActiveScene();
++                diagnostics.InitialScenePath = activeScene.path;
++                diagnostics.InitialSceneDirty = activeScene.isDirty;
++                Debug.Log("[DeepStakeCapture] Serialized Meshy capture requested. initialScene=" + activeScene.name +
++                          " path=" + activeScene.path + " isLoaded=" + activeScene.isLoaded +
++                          " isDirty=" + activeScene.isDirty);
++
++                if (activeScene.isDirty)
++                {
++                    throw new InvalidOperationException(
++                        "Active scene has unsaved changes. Refusing serialized Meshy capture because it must not save or discard scene edits.");
++                }
+ 
+-            RenderCameraToPng(captureCamera, editorPlayScreenshotPath, DefaultRenderWidth, DefaultRenderHeight);
+-            editorPlayCaptureSucceeded = true;
+-            Debug.Log("[DeepStakeCapture] Clean EditorPlay scene capture succeeded: " + editorPlayScreenshotPath);
+-            EditorApplication.isPlaying = false;
+-            return true;
+-        }
++                DeepStakeDevLaunchOptions.ClearEditorOverrides();
++                DeepStakeDevLaunchOptions.SetEditorValidationCaptureMode(true);
++                SessionState.EraseString(StartupCaptureStateKey);
++                startupCaptureQueued = false;
++                Debug.Log("[DeepStakeCapture] Serialized Meshy capture uses scene-only path. EditorRender, EditorPlay, autorun, and visual rebuild are bypassed.");
+ 
+-        private static void CleanupEditorPlayCapture(int exitCode)
+-        {
+-            EditorApplication.playModeStateChanged -= OnEditorPlayStateChanged;
+-            EditorApplication.update -= PollEditorPlayCapture;
+-            SessionState.EraseString(StartupCaptureStateKey);
++                EditorSceneManager.OpenScene(WorldScenePath, OpenSceneMode.Single);
++                activeScene = SceneManager.GetActiveScene();
++                diagnostics.ActiveScenePath = activeScene.path;
++                diagnostics.ActiveSceneLoaded = activeScene.isLoaded;
++                diagnostics.RootObjectNames = GetSceneRootNames(activeScene);
+ 
+-            if (EditorApplication.isPlaying)
+-            {
+-                EditorApplication.isPlaying = false;
+-            }
++                if (!string.Equals(activeScene.path, WorldScenePath, StringComparison.OrdinalIgnoreCase))
++                {
++                    throw new InvalidOperationException("Wrong active scene for serialized Meshy capture: " + activeScene.path);
++                }
+ 
+-            DeepStakeDevLaunchOptions.ClearEditorOverrides();
+-            editorPlayDeadline = 0d;
+-            editorPlayCaptureReadyTime = 0d;
+-            editorPlayScreenshotPath = string.Empty;
+-            editorPlayCaptureSucceeded = false;
+-            editorPlayCleanSceneCapture = false;
+-            EditorApplication.Exit(exitCode);
+-        }
++                var meshyRoot = FindSceneRootOrChild(activeScene, MeshyVisualDressingRootName);
++                diagnostics.MeshyVisualDressingFound = meshyRoot != null;
++                if (meshyRoot == null)
++                {
++                    throw new InvalidOperationException(
++                        "MeshyVisualDressing missing in active editor scene; open committed WorldPrototype3D scene state or instantiate/apply dressing before capture.");
++                }
+ 
+-        private static void ValidateScenes()
+-        {
+-            if (!File.Exists(BootScenePath))
+-            {
+-                throw new FileNotFoundException("Boot scene is missing: " + BootScenePath);
+-            }
++                var meshyRenderers = CollectSceneRenderers(meshyRoot.transform);
++                diagnostics.MeshyRendererCount = meshyRenderers.Count;
++                if (meshyRenderers.Count == 0)
++                {
++                    throw new InvalidOperationException(
++                        "MeshyVisualDressing exists but has zero visible renderers in active editor scene; refusing primitive fallback capture.");
++                }
+ 
+-            if (!File.Exists(WorldScenePath))
+-            {
+-                throw new FileNotFoundException("World scene is missing: " + WorldScenePath);
+-            }
+-        }
++                diagnostics.MatchedAppliedAssetObjectNames = FindRequiredAppliedMeshyNames(meshyRoot.transform);
++                if (diagnostics.MatchedAppliedAssetObjectNames.Count == 0)
++                {
++                    throw new InvalidOperationException(
++                        "MeshyVisualDressing exists, but none of the required applied Meshy asset names were found under it.");
++                }
+ 
+-        private static string RequireScreenshotPath()
+-        {
+-            var screenshotPath = GetCommandLineValue(ScreenshotDirArgPrefix);
+-            if (string.IsNullOrWhiteSpace(screenshotPath))
+-            {
+-                throw new InvalidOperationException("Screenshot capture requires -deepstakeScreenshotDir=<absolute png path>.");
+-            }
++                diagnostics.PrimitiveFallbackDetected = DetectPrimitiveFallbackObjects(activeScene, out var primitiveFallbackObjects);
++                diagnostics.PrimitiveFallbackObjectNames = primitiveFallbackObjects;
+ 
+-            var normalizedPath = NormalizeOutputPath(screenshotPath);
+-            var screenshotDirectory = Path.GetDirectoryName(normalizedPath);
+-            if (!string.IsNullOrWhiteSpace(screenshotDirectory))
++                if (!TryGetRendererBounds(meshyRenderers, out var meshyBounds))
++                {
++                    throw new InvalidOperationException("Could not calculate MeshyVisualDressing renderer bounds.");
++                }
++
++                diagnostics.RendererBounds = "center=" + meshyBounds.center + " size=" + meshyBounds.size;
++                canvasSnapshots = CaptureCanvasSnapshots();
++                cameraSnapshots = CaptureCameraSnapshots();
++                SetCanvasEnabled(canvasSnapshots, enabled: false);
++                rendererSnapshots = CaptureNonMeshyRendererSnapshots(meshyRoot.transform);
++                SetRendererSnapshotsEnabled(rendererSnapshots, enabled: false);
++
++                temporaryCameraObject = CreateSerializedMeshyCaptureCamera(meshyBounds, out var captureCamera);
++                diagnostics.SelectedCameraMode = "temporary-serialized-meshy-camera";
++                LogCaptureCamera("serialized-meshy-only", captureCamera);
++
++                if (!CameraHasMeshyContent(captureCamera, meshyRenderers))
++                {
++                    throw new InvalidOperationException(
++                        "Temporary serialized Meshy capture camera does not see MeshyVisualDressing renderers.");
++                }
++
++                DeleteIfExists(temporaryScreenshotPath);
++                var hasVisiblePixels = RenderCameraToPng(captureCamera, temporaryScreenshotPath, DefaultRenderWidth, DefaultRenderHeight);
++                if (!hasVisiblePixels)
++                {
++                    throw new InvalidOperationException("Serialized Meshy capture rendered only background.");
++                }
++
++                File.Copy(temporaryScreenshotPath, screenshotPath, overwrite: true);
++                WriteScreenshotSidecar(sidecarPath, diagnostics);
++                diagnostics.Success = true;
++                diagnostics.ResultReason = "success";
++            }
++            catch (Exception exception)
+             {
+-                Directory.CreateDirectory(screenshotDirectory);
++                diagnostics.Success = false;
++                diagnostics.ResultReason = exception.Message;
++                DeleteIfExists(screenshotPath);
++                Debug.LogError("[DeepStakeCapture] Serialized Meshy capture failed. " + exception.Message);
++                throw;
+             }
++            finally
++            {
++                DeleteIfExists(temporaryScreenshotPath);
++                DeepStakeDevLaunchOptions.SetEditorValidationCaptureMode(false);
++                if (canvasSnapshots != null)
++                {
++                    RestoreCanvasSnapshots(canvasSnapshots);
++                }
+ 
+-            return normalizedPath;
+-        }
++                if (cameraSnapshots != null)
++                {
++                    RestoreCameraSnapshots(cameraSnapshots);
++                }
+ 
+-        private static T GetObjectReference<T>(SerializedObject serializedObject, string propertyName) where T : UnityEngine.Object
+-        {
+-            return serializedObject.FindProperty(propertyName)?.objectReferenceValue as T;
+-        }
++                if (rendererSnapshots != null)
++                {
++                    RestoreRendererSnapshots(rendererSnapshots);
++                }
+ 
+-        private static string GetCommandLineValue(string prefix)
+-        {
+-            var args = System.Environment.GetCommandLineArgs();
+-            for (var index = 0; index < args.Length; index++)
+-            {
+-                var value = args[index];
+-                if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
++                if (temporaryCameraObject != null)
+                 {
+-                    return value.Substring(prefix.Length);
++                    UnityEngine.Object.DestroyImmediate(temporaryCameraObject);
+                 }
++
++                WriteSerializedMeshyCaptureDiagnostics(diagnostics);
++                SceneView.RepaintAll();
+             }
+ 
+-            return string.Empty;
++            return diagnostics;
+         }
+ 
+-        private static int GetCommandLineIntValue(string prefix, int defaultValue)
++        private static void CaptureCurrentOpenEditorViewCleanInternal(string screenshotPath)
+         {
+-            var rawValue = GetCommandLineValue(prefix);
+-            if (int.TryParse(rawValue, out var parsedValue))
++            ValidateScenes();
++            DeleteIfExists(screenshotPath);
++
++            var activeScene = SceneManager.GetActiveScene();
++            Debug.Log("[DeepStakeCapture] Current clean capture requested. initialScene=" + activeScene.name +
++                      " path=" + activeScene.path + " isLoaded=" + activeScene.isLoaded +
++                      " isDirty=" + activeScene.isDirty);
++
++            if (activeScene.isDirty)
+             {
+-                return parsedValue;
++                throw new InvalidOperationException(
++                    "Active scene has unsaved changes. Refusing to reload or capture because clean validation must not save or discard scene edits.");
+             }
+ 
+-            return defaultValue;
+-        }
++            // Always reload from disk for this menu path. The open editor can hold a stale bootstrap/fallback scene
++            // with the same scene path, which produces misleading primitive-only captures.
++            EditorSceneManager.OpenScene(WorldScenePath, OpenSceneMode.Single);
++            activeScene = SceneManager.GetActiveScene();
++            LogActiveSceneDiagnostics(activeScene);
++            LogMeshyRegistryState();
+ 
+-        private static string NormalizeOutputPath(string outputPath)
+-        {
+-            if (Path.IsPathRooted(outputPath))
++            var controller = UnityEngine.Object.FindFirstObjectByType<WorldPrototype3DController>();
++            if (controller == null)
+             {
+-                return outputPath;
++                throw new InvalidOperationException("WorldPrototype3DController not found in WorldPrototype3D scene.");
+             }
+ 
+-            return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), outputPath));
+-        }
++            var sceneState = InspectCommittedMeshySceneState(activeScene, controller);
++            var cameraSnapshots = CaptureCameraSnapshots();
++            var canvasSnapshots = CaptureCanvasSnapshots();
++            GameObject temporaryCameraObject = null;
++            var temporaryScreenshotPath = screenshotPath + ".tmp";
++
++            try
++            {
++                DeepStakeDevLaunchOptions.ClearEditorOverrides();
++                DeepStakeDevLaunchOptions.SetEditorValidationCaptureMode(true);
++                SessionState.EraseString(StartupCaptureStateKey);
++                startupCaptureQueued = false;
++                Debug.Log("[DeepStakeCapture] Open-editor validation capture mode armed. Cleared dev autorun/editor screenshot overrides.");
++
++                DeleteIfExists(screenshotPath);
++                if (File.Exists(temporaryScreenshotPath))
++                {
++                    File.Delete(temporaryScreenshotPath);
++                }
++
++                SetCanvasEnabled(canvasSnapshots, enabled: false);
++                var captureCamera = ResolveOpenEditorCaptureCamera(controller);
++                if (captureCamera == null)
++                {
++                    throw new InvalidOperationException("Gameplay camera not found for current editor view capture.");
++                }
++
++                FrameOpenEditorCaptureCamera(captureCamera, controller, sceneState);
++                LogCaptureCamera("selected", captureCamera);
++
++                if (!CameraHasRenderableContent(captureCamera) || !CameraHasMeshyContent(captureCamera, sceneState.MeshyRenderers))
++                {
++                    Debug.LogWarning("[DeepStakeCapture] Selected camera does not see committed Meshy dressing; trying temporary validation camera fallback.");
++                    temporaryCameraObject = CreateTemporaryValidationCamera(controller, out captureCamera);
++                    FrameOpenEditorCaptureCamera(captureCamera, controller, sceneState);
++                    LogCaptureCamera("temporary-fallback", captureCamera);
++                }
++
++                if (!CameraHasRenderableContent(captureCamera))
++                {
++                    throw new InvalidOperationException("No scene renderers are visible to the selected or fallback capture camera.");
++                }
++
++                if (!CameraHasMeshyContent(captureCamera, sceneState.MeshyRenderers))
++                {
++                    DeleteIfExists(screenshotPath);
++                    throw new InvalidOperationException("Committed Meshy dressing is not visible to the capture camera; refusing primitive fallback capture.");
++                }
++
++                var hasVisiblePixels = RenderCameraToPng(captureCamera, temporaryScreenshotPath, DefaultRenderWidth, DefaultRenderHeight);
++                if (!hasVisiblePixels)
++                {
++                    Debug.LogWarning("[DeepStakeCapture] Capture looked blank after rendering; trying temporary validation camera fallback.");
++                    if (temporaryCameraObject == null)
++                    {
++                        temporaryCameraObject = CreateTemporaryValidationCamera(controller, out captureCamera);
++                    }
++
++                    FrameOpenEditorCaptureCamera(captureCamera, controller, sceneState);
++                    LogCaptureCamera("blank-retry-fallback", captureCamera);
++                    hasVisiblePixels = CameraHasMeshyContent(captureCamera, sceneState.MeshyRenderers) &&
++                                       RenderCameraToPng(captureCamera, temporaryScreenshotPath, DefaultRenderWidth, DefaultRenderHeight);
++                }
++
++                if (!hasVisiblePixels)
++                {
++                    DeleteIfExists(screenshotPath);
++                    throw new InvalidOperationException("Capture rendered only background; screenshot was not accepted as a valid scene capture.");
++                }
++
++                File.Copy(temporaryScreenshotPath, screenshotPath, overwrite: true);
++            }
++            finally
++            {
++                DeleteIfExists(temporaryScreenshotPath);
++                DeepStakeDevLaunchOptions.SetEditorValidationCaptureMode(false);
++                RestoreCanvasSnapshots(canvasSnapshots);
++                RestoreCameraSnapshots(cameraSnapshots);
++                if (temporaryCameraObject != null)
++                {
++                    UnityEngine.Object.DestroyImmediate(temporaryCameraObject);
++                }
++
++                SceneView.RepaintAll();
++            }
++        }
++
++        private static Camera ResolveOpenEditorCaptureCamera(WorldPrototype3DController controller)
++        {
++            var serializedController = new SerializedObject(controller);
++            var quarterViewCameraRig = GetObjectReference<QuarterViewCameraRig>(serializedController, "quarterViewCameraRig");
++            Camera captureCamera = null;
++            if (quarterViewCameraRig != null)
++            {
++                captureCamera = quarterViewCameraRig.GetComponent<Camera>();
++                if (captureCamera == null)
++                {
++                    captureCamera = quarterViewCameraRig.GetComponentInChildren<Camera>();
++                }
++            }
++
++            if (captureCamera == null)
++            {
++                captureCamera = Camera.main;
++            }
++
++            if (captureCamera == null)
++            {
++                var activeCameras = UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
++                for (var index = 0; index < activeCameras.Length; index++)
++                {
++                    if (activeCameras[index] != null && activeCameras[index].enabled)
++                    {
++                        captureCamera = activeCameras[index];
++                        break;
++                    }
++                }
++            }
++
++            if (captureCamera != null)
++            {
++                captureCamera.enabled = true;
++                captureCamera.clearFlags = CameraClearFlags.SolidColor;
++                captureCamera.backgroundColor = new Color(0.66f, 0.71f, 0.72f);
++                captureCamera.fieldOfView = Mathf.Clamp(captureCamera.fieldOfView, 49f, 56f);
++                captureCamera.cullingMask = ~0;
++            }
++
++            return captureCamera;
++        }
++
++        private static GameObject CreateTemporaryValidationCamera(WorldPrototype3DController controller, out Camera captureCamera)
++        {
++            var cameraObject = new GameObject("DeepStakeTemporaryValidationCamera");
++            cameraObject.hideFlags = HideFlags.HideAndDontSave;
++            captureCamera = cameraObject.AddComponent<Camera>();
++            captureCamera.clearFlags = CameraClearFlags.SolidColor;
++            captureCamera.backgroundColor = new Color(0.66f, 0.71f, 0.72f);
++            captureCamera.fieldOfView = 52f;
++            captureCamera.nearClipPlane = 0.1f;
++            captureCamera.farClipPlane = 250f;
++            captureCamera.cullingMask = ~0;
++            return cameraObject;
++        }
++
++        private static GameObject CreateSerializedMeshyCaptureCamera(Bounds targetBounds, out Camera captureCamera)
++        {
++            var cameraObject = new GameObject("DeepStakeSerializedMeshyCaptureCamera");
++            cameraObject.hideFlags = HideFlags.HideAndDontSave;
++            captureCamera = cameraObject.AddComponent<Camera>();
++            captureCamera.clearFlags = CameraClearFlags.SolidColor;
++            captureCamera.backgroundColor = new Color(0.66f, 0.71f, 0.72f);
++            captureCamera.fieldOfView = 52f;
++            captureCamera.nearClipPlane = 0.1f;
++            captureCamera.farClipPlane = 300f;
++            captureCamera.cullingMask = ~0;
++
++            var targetCenter = targetBounds.center + Vector3.up * Mathf.Clamp(targetBounds.extents.y * 0.25f, 0.4f, 1.2f);
++            var planarDirection = new Vector3(1f, 0f, -1f).normalized;
++            var extentMagnitude = Mathf.Max(targetBounds.extents.magnitude, 4f);
++            var distance = Mathf.Clamp(extentMagnitude * 1.55f, 8f, 18f);
++            var height = Mathf.Clamp(extentMagnitude * 0.85f, 5.5f, 11f);
++            captureCamera.transform.position = targetCenter + planarDirection * distance + Vector3.up * height;
++            captureCamera.transform.rotation = Quaternion.LookRotation((targetCenter - captureCamera.transform.position).normalized, Vector3.up);
++            return cameraObject;
++        }
++
++        private static List<string> GetSceneRootNames(Scene scene)
++        {
++            var roots = scene.GetRootGameObjects();
++            var rootNames = new List<string>(roots.Length);
++            for (var index = 0; index < roots.Length; index++)
++            {
++                if (roots[index] != null)
++                {
++                    rootNames.Add(roots[index].name);
++                }
++            }
++
++            return rootNames;
++        }
++
++        private static GameObject FindSceneRootOrChild(Scene scene, string objectName)
++        {
++            var roots = scene.GetRootGameObjects();
++            for (var index = 0; index < roots.Length; index++)
++            {
++                var root = roots[index];
++                if (root == null)
++                {
++                    continue;
++                }
++
++                if (string.Equals(root.name, objectName, StringComparison.Ordinal))
++                {
++                    return root;
++                }
++
++                var children = root.GetComponentsInChildren<Transform>(includeInactive: true);
++                for (var childIndex = 0; childIndex < children.Length; childIndex++)
++                {
++                    var child = children[childIndex];
++                    if (child != null && string.Equals(child.name, objectName, StringComparison.Ordinal))
++                    {
++                        return child.gameObject;
++                    }
++                }
++            }
++
++            return null;
++        }
++
++        private static List<string> FindRequiredAppliedMeshyNames(Transform meshyRoot)
++        {
++            var matches = new List<string>();
++            if (meshyRoot == null)
++            {
++                return matches;
++            }
++
++            var children = meshyRoot.GetComponentsInChildren<Transform>(includeInactive: true);
++            for (var requiredIndex = 0; requiredIndex < RequiredAppliedMeshyAssetNames.Length; requiredIndex++)
++            {
++                var requiredName = RequiredAppliedMeshyAssetNames[requiredIndex];
++                for (var childIndex = 0; childIndex < children.Length; childIndex++)
++                {
++                    var child = children[childIndex];
++                    if (child != null && child.name.IndexOf(requiredName, StringComparison.OrdinalIgnoreCase) >= 0)
++                    {
++                        matches.Add(child.name);
++                        break;
++                    }
++                }
++            }
++
++            return matches;
++        }
++
++        private static bool DetectPrimitiveFallbackObjects(Scene scene, out List<string> primitiveFallbackObjects)
++        {
++            primitiveFallbackObjects = new List<string>();
++            var roots = scene.GetRootGameObjects();
++            for (var rootIndex = 0; rootIndex < roots.Length; rootIndex++)
++            {
++                var root = roots[rootIndex];
++                if (root == null)
++                {
++                    continue;
++                }
++
++                var filters = root.GetComponentsInChildren<MeshFilter>(includeInactive: true);
++                for (var filterIndex = 0; filterIndex < filters.Length; filterIndex++)
++                {
++                    var meshFilter = filters[filterIndex];
++                    if (meshFilter == null || meshFilter.sharedMesh == null)
++                    {
++                        continue;
++                    }
++
++                    var meshName = meshFilter.sharedMesh.name;
++                    if (meshName.IndexOf("Capsule", StringComparison.OrdinalIgnoreCase) >= 0 ||
++                        meshName.IndexOf("Cylinder", StringComparison.OrdinalIgnoreCase) >= 0 ||
++                        meshName.IndexOf("Plane", StringComparison.OrdinalIgnoreCase) >= 0)
++                    {
++                        primitiveFallbackObjects.Add(meshFilter.name + "(" + meshName + ")");
++                    }
++                }
++            }
++
++            return primitiveFallbackObjects.Count > 0;
++        }
++
++        private static List<RendererSnapshot> CaptureNonMeshyRendererSnapshots(Transform meshyRoot)
++        {
++            var renderers = UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
++            var snapshots = new List<RendererSnapshot>();
++            for (var index = 0; index < renderers.Length; index++)
++            {
++                var renderer = renderers[index];
++                if (renderer == null || meshyRoot == null)
++                {
++                    continue;
++                }
++
++                if (renderer.transform == meshyRoot || renderer.transform.IsChildOf(meshyRoot))
++                {
++                    continue;
++                }
++
++                snapshots.Add(new RendererSnapshot
++                {
++                    Renderer = renderer,
++                    Enabled = renderer.enabled
++                });
++            }
++
++            return snapshots;
++        }
++
++        private static void SetRendererSnapshotsEnabled(IReadOnlyList<RendererSnapshot> snapshots, bool enabled)
++        {
++            for (var index = 0; index < snapshots.Count; index++)
++            {
++                var renderer = snapshots[index].Renderer;
++                if (renderer != null)
++                {
++                    renderer.enabled = enabled;
++                }
++            }
++        }
++
++        private static void RestoreRendererSnapshots(IReadOnlyList<RendererSnapshot> snapshots)
++        {
++            for (var index = 0; index < snapshots.Count; index++)
++            {
++                var snapshot = snapshots[index];
++                if (snapshot.Renderer != null)
++                {
++                    snapshot.Renderer.enabled = snapshot.Enabled;
++                }
++            }
++        }
++
++        private static MeshySceneState InspectCommittedMeshySceneState(Scene activeScene, WorldPrototype3DController controller)
++        {
++            var meshyRoot = FindSceneGameObject(MeshyVisualDressingRootName);
++            var firstScreenRoot = FindSceneGameObject(FirstScreenVisualDressingRootName);
++            var meshyRenderers = CollectSceneRenderers(meshyRoot != null ? meshyRoot.transform : null);
++            var firstScreenRenderers = CollectSceneRenderers(firstScreenRoot != null ? firstScreenRoot.transform : null);
++            var allRenderers = CollectSceneRenderers(null);
++            var doorRendererCount = CountRenderersWithName("door_wood_old");
++            var windowRendererCount = CountRenderersWithName("window_dark_frame");
++            var noticeRendererCount = CountRenderersWithName("prop_notice_board");
++            var lampRendererCount = CountRenderersWithName("prop_lamp_post");
++
++            Debug.Log(
++                "[DeepStakeCapture] Open editor capture scene state " +
++                "activeScene=" + activeScene.name +
++                " path=" + activeScene.path +
++                " isLoaded=" + activeScene.isLoaded +
++                " controllerExists=" + (controller != null) +
++                " meshyRootExists=" + (meshyRoot != null) +
++                " meshyRendererCount=" + meshyRenderers.Count +
++                " firstScreenRootExists=" + (firstScreenRoot != null) +
++                " firstScreenRendererCount=" + firstScreenRenderers.Count +
++                " sceneRendererCount=" + allRenderers.Count +
++                " door_wood_oldRenderers=" + doorRendererCount +
++                " window_dark_frameRenderers=" + windowRendererCount +
++                " prop_notice_boardRenderers=" + noticeRendererCount +
++                " prop_lamp_postRenderers=" + lampRendererCount);
++
++            if (!string.Equals(activeScene.path, WorldScenePath, StringComparison.OrdinalIgnoreCase))
++            {
++                throw new InvalidOperationException("Wrong active scene for clean capture: " + activeScene.path);
++            }
++
++            if (meshyRoot == null)
++            {
++                throw new InvalidOperationException(
++                    "MeshyVisualDressing missing in active editor scene; open committed WorldPrototype3D scene state or instantiate/apply dressing before capture.");
++            }
++
++            if (meshyRenderers.Count == 0)
++            {
++                throw new InvalidOperationException(
++                    "MeshyVisualDressing exists but has zero visible renderers in active editor scene; refusing primitive fallback capture.");
++            }
++
++            if (TryGetRendererBounds(meshyRenderers, out var meshyBounds))
++            {
++                Debug.Log("[DeepStakeCapture] Meshy target bounds center=" + meshyBounds.center + " size=" + meshyBounds.size);
++            }
++
++            return new MeshySceneState
++            {
++                MeshyRoot = meshyRoot,
++                MeshyRenderers = meshyRenderers,
++                SceneRendererCount = allRenderers.Count
++            };
++        }
++
++        private static void LogActiveSceneDiagnostics(Scene activeScene)
++        {
++            var roots = activeScene.GetRootGameObjects();
++            var rootNames = new List<string>(roots.Length);
++            for (var index = 0; index < roots.Length; index++)
++            {
++                var root = roots[index];
++                if (root != null)
++                {
++                    rootNames.Add(root.name);
++                }
++            }
++
++            var meshyNameMatches = FindSceneObjectNamesContaining("Meshy", maxCount: 20);
++            var dressingNameMatches = FindSceneObjectNamesContaining("Dressing", maxCount: 20);
++            Debug.Log("[DeepStakeCapture] Active scene diagnostics name=" + activeScene.name +
++                      " path=" + activeScene.path +
++                      " isLoaded=" + activeScene.isLoaded +
++                      " rootCount=" + rootNames.Count +
++                      " roots=[" + string.Join(", ", rootNames) + "]");
++            Debug.Log("[DeepStakeCapture] Scene objects containing Meshy: [" + string.Join(", ", meshyNameMatches) + "]");
++            Debug.Log("[DeepStakeCapture] Scene objects containing Dressing: [" + string.Join(", ", dressingNameMatches) + "]");
++        }
++
++        private static List<string> FindSceneObjectNamesContaining(string value, int maxCount)
++        {
++            var matches = new List<string>();
++            var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
++            for (var index = 0; index < allObjects.Length && matches.Count < maxCount; index++)
++            {
++                var candidate = allObjects[index];
++                if (candidate == null || !candidate.scene.IsValid())
++                {
++                    continue;
++                }
++
++                if (!string.Equals(candidate.scene.path, WorldScenePath, StringComparison.OrdinalIgnoreCase))
++                {
++                    continue;
++                }
++
++                if (candidate.name.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0)
++                {
++                    matches.Add(candidate.name);
++                }
++            }
++
++            return matches;
++        }
++
++        private static int CountRenderersWithName(string namePart)
++        {
++            var count = 0;
++            var renderers = UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
++            for (var index = 0; index < renderers.Length; index++)
++            {
++                var renderer = renderers[index];
++                if (!IsSceneCaptureRenderer(renderer))
++                {
++                    continue;
++                }
++
++                var transform = renderer.transform;
++                while (transform != null)
++                {
++                    if (transform.name.IndexOf(namePart, StringComparison.OrdinalIgnoreCase) >= 0)
++                    {
++                        count++;
++                        break;
++                    }
++
++                    transform = transform.parent;
++                }
++            }
++
++            return count;
++        }
++
++        private static void LogMeshyRegistryState()
++        {
++            if (!File.Exists(MeshyRegistryPath))
++            {
++                Debug.LogWarning("[DeepStakeCapture] Meshy registry not found: " + MeshyRegistryPath);
++                return;
++            }
++
++            try
++            {
++                var registry = JsonUtility.FromJson<MeshyRegistryDocument>(File.ReadAllText(MeshyRegistryPath));
++                var applied = new List<string>();
++                var prefabReady = new List<string>();
++                if (registry?.entries != null)
++                {
++                    for (var index = 0; index < registry.entries.Length; index++)
++                    {
++                        var entry = registry.entries[index];
++                        if (entry == null)
++                        {
++                            continue;
++                        }
++
++                        if (string.Equals(entry.status, "applied", StringComparison.OrdinalIgnoreCase))
++                        {
++                            applied.Add(entry.assetId);
++                        }
++                        else if (string.Equals(entry.status, "prefab_ready", StringComparison.OrdinalIgnoreCase))
++                        {
++                            prefabReady.Add(entry.assetId);
++                        }
++                    }
++                }
++
++                Debug.Log("[DeepStakeCapture] Meshy registry applied=[" + string.Join(", ", applied) +
++                          "] prefab_ready=[" + string.Join(", ", prefabReady) + "]");
++            }
++            catch (Exception exception)
++            {
++                Debug.LogWarning("[DeepStakeCapture] Could not read Meshy registry state. " + exception.Message);
++            }
++        }
++
++        private static void FrameOpenEditorCaptureCamera(Camera captureCamera, WorldPrototype3DController controller, MeshySceneState sceneState)
++        {
++            if (captureCamera == null)
++            {
++                return;
++            }
++
++            var serializedController = new SerializedObject(controller);
++            var playerTransform = GetObjectReference<Transform>(serializedController, "playerTransform");
++            var zoneRoot = GetObjectReference<Transform>(serializedController, "zoneRoot");
++            var worldPrototypeJson = GetObjectReference<TextAsset>(serializedController, "worldPrototypeJson");
++
++            var focus = playerTransform != null ? playerTransform.position : Vector3.zero;
++            var requestedOffset = new Vector3(6f, 5f, -6f);
++            if (worldPrototypeJson != null)
++            {
++                try
++                {
++                    var definition = WorldPrototype3DDefinition.FromJson(worldPrototypeJson);
++                    focus = playerTransform != null
++                        ? playerTransform.position
++                        : new Vector3(definition.playerSpawn.x, 0.5f, definition.playerSpawn.z);
++                    requestedOffset = new Vector3(definition.cameraOffset.x, definition.cameraOffset.y, definition.cameraOffset.z);
++                }
++                catch (Exception exception)
++                {
++                    Debug.LogWarning("[DeepStakeCapture] Could not read world prototype camera framing data. " + exception.Message);
++                }
++            }
++
++            if (TryGetRelevantSceneRenderBounds(zoneRoot, playerTransform, sceneState, out var bounds))
++            {
++                focus = bounds.center;
++                var extentMagnitude = Mathf.Max(bounds.extents.magnitude, 4.0f);
++                var planar = new Vector3(requestedOffset.x, 0f, requestedOffset.z);
++                if (planar.sqrMagnitude < 0.01f)
++                {
++                    planar = new Vector3(1f, 0f, -1f);
++                }
++
++                requestedOffset = planar.normalized * Mathf.Clamp(extentMagnitude * 1.65f, 7.0f, 15.0f) +
++                                  Vector3.up * Mathf.Clamp(extentMagnitude * 0.95f, 5.0f, 10.0f);
++            }
++
++            var planarOffset = new Vector3(requestedOffset.x, 0f, requestedOffset.z);
++            if (planarOffset.sqrMagnitude < 0.01f)
++            {
++                planarOffset = new Vector3(1f, 0f, -1f);
++            }
++
++            var distance = Mathf.Clamp(planarOffset.magnitude, 6.5f, 16f);
++            var height = Mathf.Clamp(requestedOffset.y, 5.0f, 10f);
++            var offset = planarOffset.normalized * distance + Vector3.up * height;
++            var lookTarget = focus + Vector3.up * 1.0f;
++
++            captureCamera.transform.position = lookTarget + offset;
++            captureCamera.transform.rotation = Quaternion.LookRotation((lookTarget - captureCamera.transform.position).normalized, Vector3.up);
++            captureCamera.nearClipPlane = 0.1f;
++            captureCamera.farClipPlane = 250f;
++            captureCamera.fieldOfView = Mathf.Clamp(captureCamera.fieldOfView, 49f, 56f);
++            captureCamera.cullingMask = ~0;
++            captureCamera.targetTexture = null;
++        }
++
++        private static bool TryGetRelevantSceneRenderBounds(Transform zoneRoot, Transform playerTransform, MeshySceneState sceneState, out Bounds bounds)
++        {
++            if (sceneState.MeshyRenderers != null && TryGetRendererBounds(sceneState.MeshyRenderers, out bounds))
++            {
++                return true;
++            }
++
++            return TryGetRelevantSceneRenderBounds(zoneRoot, playerTransform, out bounds);
++        }
++
++        private static bool TryGetRelevantSceneRenderBounds(Transform zoneRoot, Transform playerTransform, out Bounds bounds)
++        {
++            var renderers = UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
++            var found = false;
++            bounds = default;
++            var playerPosition = playerTransform != null ? playerTransform.position : Vector3.zero;
++
++            for (var index = 0; index < renderers.Length; index++)
++            {
++                var renderer = renderers[index];
++                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
++                {
++                    continue;
++                }
++
++                if (renderer is ParticleSystemRenderer || renderer.GetComponent<Camera>() != null)
++                {
++                    continue;
++                }
++
++                var transform = renderer.transform;
++                var underZone = zoneRoot == null || transform == zoneRoot || transform.IsChildOf(zoneRoot);
++                var nearFirstScreen = Vector3.Distance(renderer.bounds.center, playerPosition) <= 18f;
++                if (!underZone && !nearFirstScreen)
++                {
++                    continue;
++                }
++
++                if (!found)
++                {
++                    bounds = renderer.bounds;
++                    found = true;
++                }
++                else
++                {
++                    bounds.Encapsulate(renderer.bounds);
++                }
++            }
++
++            return found;
++        }
++
++        private static List<Renderer> CollectSceneRenderers(Transform root)
++        {
++            var renderers = root != null
++                ? root.GetComponentsInChildren<Renderer>(includeInactive: false)
++                : UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
++            var collected = new List<Renderer>(renderers.Length);
++            for (var index = 0; index < renderers.Length; index++)
++            {
++                var renderer = renderers[index];
++                if (IsSceneCaptureRenderer(renderer))
++                {
++                    collected.Add(renderer);
++                }
++            }
++
++            return collected;
++        }
++
++        private static bool TryGetRendererBounds(IReadOnlyList<Renderer> renderers, out Bounds bounds)
++        {
++            var found = false;
++            bounds = default;
++            for (var index = 0; index < renderers.Count; index++)
++            {
++                var renderer = renderers[index];
++                if (!IsSceneCaptureRenderer(renderer))
++                {
++                    continue;
++                }
++
++                if (!found)
++                {
++                    bounds = renderer.bounds;
++                    found = true;
++                }
++                else
++                {
++                    bounds.Encapsulate(renderer.bounds);
++                }
++            }
++
++            return found;
++        }
++
++        private static bool IsSceneCaptureRenderer(Renderer renderer)
++        {
++            return renderer != null &&
++                   renderer.enabled &&
++                   renderer.gameObject.activeInHierarchy &&
++                   !(renderer is ParticleSystemRenderer) &&
++                   renderer.GetComponent<Camera>() == null;
++        }
++
++        private static GameObject FindSceneGameObject(string objectName)
++        {
++            var activeObject = GameObject.Find(objectName);
++            if (activeObject != null)
++            {
++                return activeObject;
++            }
++
++            var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
++            for (var index = 0; index < allObjects.Length; index++)
++            {
++                var candidate = allObjects[index];
++                if (candidate == null || !string.Equals(candidate.name, objectName, StringComparison.Ordinal))
++                {
++                    continue;
++                }
++
++                if (!candidate.scene.IsValid() || !string.Equals(candidate.scene.path, WorldScenePath, StringComparison.OrdinalIgnoreCase))
++                {
++                    continue;
++                }
++
++                return candidate;
++            }
++
++            return null;
++        }
++
++        private static bool CameraHasRenderableContent(Camera captureCamera)
++        {
++            if (captureCamera == null)
++            {
++                return false;
++            }
++
++            var planes = GeometryUtility.CalculateFrustumPlanes(captureCamera);
++            var renderers = UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
++            var visibleCount = 0;
++            for (var index = 0; index < renderers.Length; index++)
++            {
++                var renderer = renderers[index];
++                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
++                {
++                    continue;
++                }
++
++                if (renderer is ParticleSystemRenderer || renderer.GetComponent<Camera>() != null)
++                {
++                    continue;
++                }
++
++                if (GeometryUtility.TestPlanesAABB(planes, renderer.bounds))
++                {
++                    visibleCount++;
++                    if (visibleCount >= 3)
++                    {
++                        Debug.Log("[DeepStakeCapture] Visible renderer count before capture >= " + visibleCount);
++                        return true;
++                    }
++                }
++            }
++
++            Debug.LogWarning("[DeepStakeCapture] Visible renderer count before capture=" + visibleCount);
++            return visibleCount > 0;
++        }
++
++        private static bool CameraHasMeshyContent(Camera captureCamera, IReadOnlyList<Renderer> meshyRenderers)
++        {
++            if (captureCamera == null || meshyRenderers == null || meshyRenderers.Count == 0)
++            {
++                return false;
++            }
++
++            var planes = GeometryUtility.CalculateFrustumPlanes(captureCamera);
++            var visibleCount = 0;
++            for (var index = 0; index < meshyRenderers.Count; index++)
++            {
++                var renderer = meshyRenderers[index];
++                if (!IsSceneCaptureRenderer(renderer))
++                {
++                    continue;
++                }
++
++                if (GeometryUtility.TestPlanesAABB(planes, renderer.bounds))
++                {
++                    visibleCount++;
++                }
++            }
++
++            Debug.Log("[DeepStakeCapture] Meshy renderer count visible to camera=" + visibleCount + " total=" + meshyRenderers.Count);
++            return visibleCount > 0;
++        }
++
++        private static void LogCaptureCamera(string label, Camera captureCamera)
++        {
++            if (captureCamera == null)
++            {
++                Debug.LogWarning("[DeepStakeCapture] Capture camera " + label + " is null.");
++                return;
++            }
++
++            Debug.Log(
++                "[DeepStakeCapture] Capture camera " + label +
++                " name=" + captureCamera.name +
++                " position=" + captureCamera.transform.position +
++                " rotation=" + captureCamera.transform.rotation.eulerAngles +
++                " fov=" + captureCamera.fieldOfView +
++                " cullingMask=" + captureCamera.cullingMask +
++                " near=" + captureCamera.nearClipPlane +
++                " far=" + captureCamera.farClipPlane +
++                " targetTexture=" + (captureCamera.targetTexture != null ? captureCamera.targetTexture.name : "null"));
++        }
++
++        private static List<CameraSnapshot> CaptureCameraSnapshots()
++        {
++            var cameras = UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
++            var snapshots = new List<CameraSnapshot>(cameras.Length);
++            foreach (var camera in cameras)
++            {
++                if (camera == null)
++                {
++                    continue;
++                }
++
++                snapshots.Add(new CameraSnapshot
++                {
++                    camera = camera,
++                    position = camera.transform.position,
++                    rotation = camera.transform.rotation,
++                    localScale = camera.transform.localScale,
++                    enabled = camera.enabled,
++                    clearFlags = camera.clearFlags,
++                    backgroundColor = camera.backgroundColor,
++                    fieldOfView = camera.fieldOfView,
++                    nearClipPlane = camera.nearClipPlane,
++                    farClipPlane = camera.farClipPlane,
++                    cullingMask = camera.cullingMask,
++                    targetTexture = camera.targetTexture
++                });
++            }
++
++            return snapshots;
++        }
++
++        private static void RestoreCameraSnapshots(IReadOnlyList<CameraSnapshot> snapshots)
++        {
++            for (var index = 0; index < snapshots.Count; index++)
++            {
++                var snapshot = snapshots[index];
++                if (snapshot.camera == null)
++                {
++                    continue;
++                }
++
++                snapshot.camera.transform.position = snapshot.position;
++                snapshot.camera.transform.rotation = snapshot.rotation;
++                snapshot.camera.transform.localScale = snapshot.localScale;
++                snapshot.camera.enabled = snapshot.enabled;
++                snapshot.camera.clearFlags = snapshot.clearFlags;
++                snapshot.camera.backgroundColor = snapshot.backgroundColor;
++                snapshot.camera.fieldOfView = snapshot.fieldOfView;
++                snapshot.camera.nearClipPlane = snapshot.nearClipPlane;
++                snapshot.camera.farClipPlane = snapshot.farClipPlane;
++                snapshot.camera.cullingMask = snapshot.cullingMask;
++                snapshot.camera.targetTexture = snapshot.targetTexture;
++            }
++        }
++
++        private static List<CanvasSnapshot> CaptureCanvasSnapshots()
++        {
++            var canvases = UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
++            var snapshots = new List<CanvasSnapshot>(canvases.Length);
++            foreach (var canvas in canvases)
++            {
++                if (canvas == null)
++                {
++                    continue;
++                }
++
++                snapshots.Add(new CanvasSnapshot
++                {
++                    canvas = canvas,
++                    enabled = canvas.enabled
++                });
++            }
++
++            return snapshots;
++        }
++
++        private static void SetCanvasEnabled(IReadOnlyList<CanvasSnapshot> snapshots, bool enabled)
++        {
++            for (var index = 0; index < snapshots.Count; index++)
++            {
++                var canvas = snapshots[index].canvas;
++                if (canvas != null)
++                {
++                    canvas.enabled = enabled;
++                }
++            }
++        }
++
++        private static void RestoreCanvasSnapshots(IReadOnlyList<CanvasSnapshot> snapshots)
++        {
++            for (var index = 0; index < snapshots.Count; index++)
++            {
++                var snapshot = snapshots[index];
++                if (snapshot.canvas != null)
++                {
++                    snapshot.canvas.enabled = snapshot.enabled;
++                }
++            }
++        }
++
++        private static void ApplyQuarterViewCameraFrame(Transform cameraTransform, Transform target, Vector3 requestedOffset)
++        {
++            if (cameraTransform == null || target == null)
++            {
++                return;
++            }
++
++            var planar = new Vector3(requestedOffset.x, 0f, requestedOffset.z);
++            if (planar.sqrMagnitude < 0.01f)
++            {
++                planar = new Vector3(1f, 0f, -1f);
++            }
++
++            var clampedDistance = Mathf.Clamp(planar.magnitude, 4.95f, 5.95f);
++            var readableHeight = Mathf.Clamp(requestedOffset.y, 4.2f, 5.2f);
++            var normalizedPlanar = planar.normalized * clampedDistance;
++            var effectiveOffset = new Vector3(normalizedPlanar.x, readableHeight, normalizedPlanar.z);
++            cameraTransform.position = target.position + effectiveOffset;
++            cameraTransform.LookAt(target.position + Vector3.up * 1.16f);
++        }
++
++        private static bool RenderCameraToPng(Camera captureCamera, string outputPath, int width, int height)
++        {
++            var directory = Path.GetDirectoryName(outputPath);
++            if (!string.IsNullOrWhiteSpace(directory))
++            {
++                Directory.CreateDirectory(directory);
++            }
++
++            var previousTargetTexture = captureCamera.targetTexture;
++            var previousActive = RenderTexture.active;
++            var renderTexture = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
++            var texture = new Texture2D(width, height, TextureFormat.RGB24, false);
++            var hasVisiblePixels = false;
++
++            try
++            {
++                captureCamera.targetTexture = renderTexture;
++                RenderTexture.active = renderTexture;
++                captureCamera.Render();
++                texture.ReadPixels(new Rect(0f, 0f, width, height), 0, 0, false);
++                texture.Apply(false, false);
++                hasVisiblePixels = HasNonBackgroundPixels(texture, captureCamera.backgroundColor);
++                File.WriteAllBytes(outputPath, texture.EncodeToPNG());
++            }
++            finally
++            {
++                captureCamera.targetTexture = previousTargetTexture;
++                RenderTexture.active = previousActive;
++                UnityEngine.Object.DestroyImmediate(renderTexture);
++                UnityEngine.Object.DestroyImmediate(texture);
++            }
++
++            Debug.Log("[DeepStakeCapture] Rendered PNG " + outputPath + " hasVisiblePixels=" + hasVisiblePixels);
++            return hasVisiblePixels;
++        }
++
++        private static bool HasNonBackgroundPixels(Texture2D texture, Color backgroundColor)
++        {
++            if (texture == null)
++            {
++                return false;
++            }
++
++            var background = new Color32(
++                (byte)Mathf.RoundToInt(Mathf.Clamp01(backgroundColor.r) * 255f),
++                (byte)Mathf.RoundToInt(Mathf.Clamp01(backgroundColor.g) * 255f),
++                (byte)Mathf.RoundToInt(Mathf.Clamp01(backgroundColor.b) * 255f),
++                255);
++            var pixels = texture.GetPixels32();
++            var sampleStep = Mathf.Max(1, pixels.Length / 12000);
++            var differentPixels = 0;
++            var sampledPixels = 0;
++
++            for (var index = 0; index < pixels.Length; index += sampleStep)
++            {
++                sampledPixels++;
++                var pixel = pixels[index];
++                var delta = Mathf.Abs(pixel.r - background.r) +
++                            Mathf.Abs(pixel.g - background.g) +
++                            Mathf.Abs(pixel.b - background.b);
++                if (delta > 18)
++                {
++                    differentPixels++;
++                    if (differentPixels > 24)
++                    {
++                        return true;
++                    }
++                }
++            }
++
++            Debug.LogWarning("[DeepStakeCapture] Blank capture check failed. sampledPixels=" + sampledPixels +
++                             " differentPixels=" + differentPixels);
++            return false;
++        }
++
++        private static void OnEditorPlayStateChanged(PlayModeStateChange change)
++        {
++            if (change == PlayModeStateChange.EnteredEditMode)
++            {
++                if (editorPlayCaptureSucceeded)
++                {
++                    CleanupEditorPlayCapture(0);
++                    return;
++                }
++
++                if (string.IsNullOrWhiteSpace(editorPlayScreenshotPath) || !File.Exists(editorPlayScreenshotPath))
++                {
++                    Debug.LogError("[DeepStakeCapture] EditorPlay returned to edit mode without producing screenshot.");
++                    CleanupEditorPlayCapture(1);
++                }
++            }
++        }
++
++        private static void PollEditorPlayCapture()
++        {
++            if (editorPlayCleanSceneCapture && TryCaptureCleanSceneWhilePlaying())
++            {
++                return;
++            }
++
++            if (!string.IsNullOrWhiteSpace(editorPlayScreenshotPath) && File.Exists(editorPlayScreenshotPath))
++            {
++                editorPlayCaptureSucceeded = true;
++                Debug.Log("[DeepStakeCapture] EditorPlay screenshot capture succeeded: " + editorPlayScreenshotPath);
++                if (EditorApplication.isPlaying)
++                {
++                    EditorApplication.isPlaying = false;
++                }
++                else
++                {
++                    CleanupEditorPlayCapture(0);
++                }
++                return;
++            }
++
++            if (EditorApplication.timeSinceStartup < editorPlayDeadline)
++            {
++                return;
++            }
++
++            Debug.LogError("[DeepStakeCapture] EditorPlay screenshot capture timed out. expected=" + editorPlayScreenshotPath);
++            CleanupEditorPlayCapture(1);
++        }
++
++        private static bool TryCaptureCleanSceneWhilePlaying()
++        {
++            if (!EditorApplication.isPlaying)
++            {
++                return false;
++            }
++
++            var activeScene = SceneManager.GetActiveScene();
++            if (!activeScene.IsValid() || !string.Equals(activeScene.path, WorldScenePath, StringComparison.OrdinalIgnoreCase))
++            {
++                return false;
++            }
++
++            if (editorPlayCaptureReadyTime <= 0d)
++            {
++                editorPlayCaptureReadyTime = EditorApplication.timeSinceStartup + 1.0d;
++                return false;
++            }
++
++            if (EditorApplication.timeSinceStartup < editorPlayCaptureReadyTime)
++            {
++                return false;
++            }
++
++            var controller = UnityEngine.Object.FindFirstObjectByType<WorldPrototype3DController>();
++            if (controller == null || !controller.isActiveAndEnabled)
++            {
++                return false;
++            }
++
++            var captureCamera = ResolveCaptureCamera(controller);
++            if (captureCamera == null)
++            {
++                return false;
++            }
++
++            RenderCameraToPng(captureCamera, editorPlayScreenshotPath, DefaultRenderWidth, DefaultRenderHeight);
++            editorPlayCaptureSucceeded = true;
++            Debug.Log("[DeepStakeCapture] Clean EditorPlay scene capture succeeded: " + editorPlayScreenshotPath);
++            EditorApplication.isPlaying = false;
++            return true;
++        }
++
++        private static void CleanupEditorPlayCapture(int exitCode)
++        {
++            EditorApplication.playModeStateChanged -= OnEditorPlayStateChanged;
++            EditorApplication.update -= PollEditorPlayCapture;
++            SessionState.EraseString(StartupCaptureStateKey);
++
++            if (EditorApplication.isPlaying)
++            {
++                EditorApplication.isPlaying = false;
++            }
++
++            DeepStakeDevLaunchOptions.ClearEditorOverrides();
++            editorPlayDeadline = 0d;
++            editorPlayCaptureReadyTime = 0d;
++            editorPlayScreenshotPath = string.Empty;
++            editorPlayCaptureSucceeded = false;
++            editorPlayCleanSceneCapture = false;
++            EditorApplication.Exit(exitCode);
++        }
++
++        private static void ValidateScenes()
++        {
++            if (!File.Exists(BootScenePath))
++            {
++                throw new FileNotFoundException("Boot scene is missing: " + BootScenePath);
++            }
++
++            if (!File.Exists(WorldScenePath))
++            {
++                throw new FileNotFoundException("World scene is missing: " + WorldScenePath);
++            }
++        }
++
++        private static string RequireScreenshotPath()
++        {
++            var screenshotPath = GetCommandLineValue(ScreenshotDirArgPrefix);
++            if (string.IsNullOrWhiteSpace(screenshotPath))
++            {
++                throw new InvalidOperationException("Screenshot capture requires -deepstakeScreenshotDir=<absolute png path>.");
++            }
++
++            var normalizedPath = NormalizeOutputPath(screenshotPath);
++            var screenshotDirectory = Path.GetDirectoryName(normalizedPath);
++            if (!string.IsNullOrWhiteSpace(screenshotDirectory))
++            {
++                Directory.CreateDirectory(screenshotDirectory);
++            }
++
++            return normalizedPath;
++        }
++
++        private static T GetObjectReference<T>(SerializedObject serializedObject, string propertyName) where T : UnityEngine.Object
++        {
++            return serializedObject.FindProperty(propertyName)?.objectReferenceValue as T;
++        }
++
++        private static string GetCommandLineValue(string prefix)
++        {
++            var args = System.Environment.GetCommandLineArgs();
++            for (var index = 0; index < args.Length; index++)
++            {
++                var value = args[index];
++                if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
++                {
++                    return value.Substring(prefix.Length);
++                }
++            }
++
++            return string.Empty;
++        }
++
++        private static int GetCommandLineIntValue(string prefix, int defaultValue)
++        {
++            var rawValue = GetCommandLineValue(prefix);
++            if (int.TryParse(rawValue, out var parsedValue))
++            {
++                return parsedValue;
++            }
++
++            return defaultValue;
++        }
++
++        private static string NormalizeOutputPath(string outputPath)
++        {
++            if (Path.IsPathRooted(outputPath))
++            {
++                return outputPath;
++            }
++
++            return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), outputPath));
++        }
++
++        private static void DeleteIfExists(string path)
++        {
++            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
++            {
++                File.Delete(path);
++            }
++        }
++
++        private static void MoveExistingScreenshotAside(string screenshotPath, string captureId)
++        {
++            if (string.IsNullOrWhiteSpace(screenshotPath) || !File.Exists(screenshotPath))
++            {
++                return;
++            }
++
++            var directory = Path.GetDirectoryName(screenshotPath);
++            var fileName = Path.GetFileNameWithoutExtension(screenshotPath);
++            var extension = Path.GetExtension(screenshotPath);
++            var stalePath = Path.Combine(
++                string.IsNullOrWhiteSpace(directory) ? Directory.GetCurrentDirectory() : directory,
++                fileName + ".stale-" + captureId + extension);
++            if (File.Exists(stalePath))
++            {
++                File.Delete(stalePath);
++            }
++
++            File.Move(screenshotPath, stalePath);
++            Debug.Log("[DeepStakeCapture] Moved previous screenshot aside: " + stalePath);
++        }
++
++        private static void WriteScreenshotSidecar(string sidecarPath, SerializedMeshyCaptureDiagnostics diagnostics)
++        {
++            var directory = Path.GetDirectoryName(sidecarPath);
++            if (!string.IsNullOrWhiteSpace(directory))
++            {
++                Directory.CreateDirectory(directory);
++            }
++
++            File.WriteAllLines(sidecarPath, new[]
++            {
++                "captureId=" + diagnostics.CaptureId,
++                "timestamp=" + diagnostics.Timestamp,
++                "scenePath=" + diagnostics.ActiveScenePath,
++                "meshyRendererCount=" + diagnostics.MeshyRendererCount,
++                "matchedAppliedAssetObjectNames=" + string.Join(", ", diagnostics.MatchedAppliedAssetObjectNames ?? new List<string>()),
++                "outputScreenshotPath=" + diagnostics.OutputScreenshotPath
++            });
++        }
++
++        private static void WriteSerializedMeshyCaptureDiagnostics(SerializedMeshyCaptureDiagnostics diagnostics)
++        {
++            var diagnosticsPath = NormalizeOutputPath(SerializedMeshyCaptureDiagnosticsPath);
++            var directory = Path.GetDirectoryName(diagnosticsPath);
++            if (!string.IsNullOrWhiteSpace(directory))
++            {
++                Directory.CreateDirectory(directory);
++            }
++
++            var lines = new List<string>
++            {
++                "captureId=" + diagnostics.CaptureId,
++                "timestamp=" + diagnostics.Timestamp,
++                "initialScenePath=" + diagnostics.InitialScenePath,
++                "initialSceneDirty=" + diagnostics.InitialSceneDirty,
++                "activeScenePath=" + diagnostics.ActiveScenePath,
++                "activeSceneLoaded=" + diagnostics.ActiveSceneLoaded,
++                "rootObjectNames=" + string.Join(", ", diagnostics.RootObjectNames ?? new List<string>()),
++                "meshyVisualDressingFound=" + diagnostics.MeshyVisualDressingFound,
++                "meshyVisualDressingRendererCount=" + diagnostics.MeshyRendererCount,
++                "matchedAppliedAssetObjectNames=" + string.Join(", ", diagnostics.MatchedAppliedAssetObjectNames ?? new List<string>()),
++                "selectedCameraMode=" + diagnostics.SelectedCameraMode,
++                "rendererBounds=" + diagnostics.RendererBounds,
++                "primitiveFallbackDetected=" + diagnostics.PrimitiveFallbackDetected,
++                "primitiveFallbackObjects=" + string.Join(", ", diagnostics.PrimitiveFallbackObjectNames ?? new List<string>()),
++                "outputScreenshotPath=" + diagnostics.OutputScreenshotPath,
++                "success=" + diagnostics.Success,
++                "resultReason=" + diagnostics.ResultReason
++            };
++
++            File.WriteAllLines(diagnosticsPath, lines);
++            Debug.Log("[DeepStakeCapture] Serialized Meshy diagnostics written: " + diagnosticsPath);
++        }
++
++        private static SerializedMeshyCaptureDiagnostics ReadSerializedMeshyCaptureDiagnosticsFallback(string screenshotPath, string failureReason)
++        {
++            var diagnosticsPath = NormalizeOutputPath(SerializedMeshyCaptureDiagnosticsPath);
++            if (!File.Exists(diagnosticsPath))
++            {
++                return new SerializedMeshyCaptureDiagnostics
++                {
++                    Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
++                    CaptureId = string.Empty,
++                    OutputScreenshotPath = screenshotPath,
++                    Success = false,
++                    ResultReason = failureReason
++                };
++            }
++
++            var diagnostics = new SerializedMeshyCaptureDiagnostics
++            {
++                OutputScreenshotPath = screenshotPath,
++                Success = false,
++                ResultReason = failureReason
++            };
++            var lines = File.ReadAllLines(diagnosticsPath);
++            for (var index = 0; index < lines.Length; index++)
++            {
++                var line = lines[index];
++                var separator = line.IndexOf('=');
++                if (separator <= 0)
++                {
++                    continue;
++                }
++
++                var key = line.Substring(0, separator);
++                var value = line.Substring(separator + 1);
++                switch (key)
++                {
++                    case "captureId":
++                        diagnostics.CaptureId = value;
++                        break;
++                    case "timestamp":
++                        diagnostics.Timestamp = value;
++                        break;
++                    case "activeScenePath":
++                        diagnostics.ActiveScenePath = value;
++                        break;
++                    case "meshyVisualDressingFound":
++                        diagnostics.MeshyVisualDressingFound = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase);
++                        break;
++                    case "meshyVisualDressingRendererCount":
++                        int.TryParse(value, out diagnostics.MeshyRendererCount);
++                        break;
++                    case "matchedAppliedAssetObjectNames":
++                        diagnostics.MatchedAppliedAssetObjectNames = SplitDiagnosticList(value);
++                        break;
++                    case "primitiveFallbackDetected":
++                        diagnostics.PrimitiveFallbackDetected = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase);
++                        break;
++                    case "resultReason":
++                        diagnostics.ResultReason = value;
++                        break;
++                }
++            }
++
++            return diagnostics;
++        }
++
++        private static List<string> SplitDiagnosticList(string value)
++        {
++            var result = new List<string>();
++            if (string.IsNullOrWhiteSpace(value))
++            {
++                return result;
++            }
++
++            var parts = value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
++            for (var index = 0; index < parts.Length; index++)
++            {
++                result.Add(parts[index].Trim());
++            }
++
++            return result;
++        }
++
++        private static void WriteEditorCaptureResponse(string responsePath, EditorCaptureResponse response)
++        {
++            var directory = Path.GetDirectoryName(responsePath);
++            if (!string.IsNullOrWhiteSpace(directory))
++            {
++                Directory.CreateDirectory(directory);
++            }
++
++            File.WriteAllText(responsePath, JsonUtility.ToJson(response, prettyPrint: true));
++            Debug.Log("[DeepStakeCapture] Editor capture response written: " + responsePath + " success=" + response.success);
++        }
+ 
+         private static void WriteScreenshotRequest(string screenshotPath, string verificationTag, bool cleanSceneCapture, bool hideUi)
+         {
+@@ -729,5 +2159,128 @@ namespace DeepStake.EditorTools
+             public bool cleanSceneCapture;
+             public bool hideUi;
+         }
++
++        [Serializable]
++        private sealed class EditorCaptureRequest
++        {
++            public string command = string.Empty;
++            public string tag = string.Empty;
++        }
++
++        [Serializable]
++        private sealed class EditorCaptureResponse
++        {
++            public bool success;
++            public string captureId = string.Empty;
++            public string screenshotPath = string.Empty;
++            public string sidecarPath = string.Empty;
++            public string diagnosticsPath = string.Empty;
++            public bool meshyVisualDressingFound;
++            public int meshyRendererCount;
++            public string[] matchedAppliedAssetNames = Array.Empty<string>();
++            public bool primitiveFallbackDetected;
++            public string failureReason = string.Empty;
++
++            public static EditorCaptureResponse FromDiagnostics(SerializedMeshyCaptureDiagnostics diagnostics)
++            {
++                return new EditorCaptureResponse
++                {
++                    success = diagnostics.Success,
++                    captureId = diagnostics.CaptureId ?? string.Empty,
++                    screenshotPath = diagnostics.OutputScreenshotPath ?? string.Empty,
++                    sidecarPath = Path.ChangeExtension(diagnostics.OutputScreenshotPath ?? string.Empty, ".txt"),
++                    diagnosticsPath = NormalizeOutputPath(SerializedMeshyCaptureDiagnosticsPath),
++                    meshyVisualDressingFound = diagnostics.MeshyVisualDressingFound,
++                    meshyRendererCount = diagnostics.MeshyRendererCount,
++                    matchedAppliedAssetNames = diagnostics.MatchedAppliedAssetObjectNames != null
++                        ? diagnostics.MatchedAppliedAssetObjectNames.ToArray()
++                        : Array.Empty<string>(),
++                    primitiveFallbackDetected = diagnostics.PrimitiveFallbackDetected,
++                    failureReason = diagnostics.Success ? string.Empty : diagnostics.ResultReason ?? string.Empty
++                };
++            }
++
++            public static EditorCaptureResponse FromFailure(string reason, string captureId)
++            {
++                return new EditorCaptureResponse
++                {
++                    success = false,
++                    captureId = captureId ?? string.Empty,
++                    screenshotPath = NormalizeOutputPath(CurrentCleanBaselineScreenshotPath),
++                    sidecarPath = Path.ChangeExtension(NormalizeOutputPath(CurrentCleanBaselineScreenshotPath), ".txt"),
++                    diagnosticsPath = NormalizeOutputPath(SerializedMeshyCaptureDiagnosticsPath),
++                    failureReason = reason ?? string.Empty
++                };
++            }
++        }
++
++        [Serializable]
++        private sealed class MeshyRegistryDocument
++        {
++            public MeshyRegistryEntry[] entries = Array.Empty<MeshyRegistryEntry>();
++        }
++
++        [Serializable]
++        private sealed class MeshyRegistryEntry
++        {
++            public string assetId = string.Empty;
++            public string status = string.Empty;
++        }
++
++        private sealed class SerializedMeshyCaptureDiagnostics
++        {
++            public string CaptureId = string.Empty;
++            public string Timestamp = string.Empty;
++            public string InitialScenePath = string.Empty;
++            public bool InitialSceneDirty;
++            public string ActiveScenePath = string.Empty;
++            public bool ActiveSceneLoaded;
++            public List<string> RootObjectNames = new List<string>();
++            public bool MeshyVisualDressingFound;
++            public int MeshyRendererCount;
++            public List<string> MatchedAppliedAssetObjectNames = new List<string>();
++            public string SelectedCameraMode = string.Empty;
++            public string RendererBounds = string.Empty;
++            public bool PrimitiveFallbackDetected;
++            public List<string> PrimitiveFallbackObjectNames = new List<string>();
++            public string OutputScreenshotPath = string.Empty;
++            public bool Success;
++            public string ResultReason = string.Empty;
++        }
++
++        private struct RendererSnapshot
++        {
++            public Renderer Renderer;
++            public bool Enabled;
++        }
++
++        private struct MeshySceneState
++        {
++            public GameObject MeshyRoot;
++            public List<Renderer> MeshyRenderers;
++            public int SceneRendererCount;
++        }
++
++        private struct CameraSnapshot
++        {
++            public Camera camera;
++            public Vector3 position;
++            public Quaternion rotation;
++            public Vector3 localScale;
++            public bool enabled;
++            public CameraClearFlags clearFlags;
++            public Color backgroundColor;
++            public float fieldOfView;
++            public float nearClipPlane;
++            public float farClipPlane;
++            public int cullingMask;
++            public RenderTexture targetTexture;
++        }
++
++        private struct CanvasSnapshot
++        {
++            public Canvas canvas;
++            public bool enabled;
++        }
+     }
+ }

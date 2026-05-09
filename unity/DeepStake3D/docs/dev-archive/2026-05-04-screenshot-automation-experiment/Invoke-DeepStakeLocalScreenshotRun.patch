@@ -1,0 +1,265 @@
+﻿diff --git a/unity/DeepStake3D/Tools/Invoke-DeepStakeLocalScreenshotRun.ps1 b/unity/DeepStake3D/Tools/Invoke-DeepStakeLocalScreenshotRun.ps1
+index 31fc50b..21b14f6 100644
+--- a/unity/DeepStake3D/Tools/Invoke-DeepStakeLocalScreenshotRun.ps1
++++ b/unity/DeepStake3D/Tools/Invoke-DeepStakeLocalScreenshotRun.ps1
+@@ -4,8 +4,11 @@ param(
+     [string]$VerificationTag = "local-dev-run",
+     [Alias("LaunchTimeoutSeconds")]
+     [int]$TimeoutSeconds = 0,
++    [switch]$UseExistingUpmIpcFromLog,
+     [switch]$FailIfUnityProcessesRunning = $true,
+-    [ValidateSet("PreflightOnly", "EditorRender", "EditorPlay", "WindowsPlayer")]
++    [ValidateSet("", "PreflightOnly", "EditorRender", "EditorPlay", "WindowsPlayer", "SerializedMeshyEditorCapture")]
++    [string]$PreflightCaptureMode = "",
++    [ValidateSet("PreflightOnly", "EditorRender", "EditorPlay", "WindowsPlayer", "SerializedMeshyEditorCapture")]
+     [string]$Mode = "EditorRender"
+ )
+ 
+@@ -18,6 +21,7 @@ $picturesRoot = Join-Path $projectPath "Pictures\Screenshot"
+ $statusPath = Join-Path $verificationRoot "local-windows-screenshot-status.txt"
+ $defaultEditorLogPath = Join-Path $verificationRoot "local-windows-build.log"
+ $defaultRuntimeLogPath = Join-Path $verificationRoot "local-windows-runtime.log"
++$upmLogPath = Join-Path $env:LOCALAPPDATA "Unity\Editor\upm.log"
+ $exePath = Join-Path $windowsBuildRoot "DeepStake-local-dev.exe"
+ $worldScenePath = Join-Path $projectPath "Assets\Scenes\WorldPrototype3D.unity"
+ $statusNotes = New-Object System.Collections.Generic.List[string]
+@@ -185,6 +189,7 @@ function Get-DefaultTimeoutSeconds {
+ 
+     switch ($CaptureMode) {
+         "EditorRender" { return 180 }
++        "SerializedMeshyEditorCapture" { return 600 }
+         "EditorPlay" { return 600 }
+         "WindowsPlayer" { return 600 }
+         default { return 180 }
+@@ -210,6 +215,26 @@ function Get-UnityProcessesByName {
+     return @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $Names -contains $_.ProcessName })
+ }
+ 
++function Get-ExistingUpmIpcPath {
++    if (-not (Test-Path $upmLogPath)) {
++        return ""
++    }
++
++    $hintLine = Get-Content -LiteralPath $upmLogPath -ErrorAction SilentlyContinue |
++        Select-String -Pattern "Hint: To connect to this UPM instance, launch Unity with the command-line parameter -upmIpcPath " |
++        Select-Object -Last 1
++
++    if (-not $hintLine) {
++        return ""
++    }
++
++    if ($hintLine.Line -match "-upmIpcPath\s+([A-Za-z0-9\-_]+)") {
++        return $matches[1]
++    }
++
++    return ""
++}
++
+ function Test-BlockingUnityProcesses {
+     param([string]$CaptureMode)
+ 
+@@ -252,7 +277,7 @@ function Get-LogFailureCategory {
+         $evidence.Add("unable to open database file")
+         return [pscustomobject]@{
+             Category = "database_lock"
+-            SuggestedAction = "Close Unity, Unity Hub, UnityPackageManager, and UnityShaderCompiler, then rerun PreflightOnly."
++            SuggestedAction = "Close Unity, UnityPackageManager, and UnityShaderCompiler, then rerun PreflightOnly."
+             Evidence = $evidence
+         }
+     }
+@@ -266,24 +291,51 @@ function Get-LogFailureCategory {
+         }
+     }
+ 
++    $serializedMeshyExecuteRequested = $lines | Select-String -SimpleMatch "DeepStake.EditorTools.DeepStakeScreenshotCapture.CaptureSerializedMeshyEditorCli"
++    $serializedMeshyExecuteReached = $lines | Select-String -SimpleMatch "[DeepStakeCapture] STRICT_SERIALIZED_MESHY_CAPTURE_CLI_ENTERED"
++
++    if (($lines | Select-String -SimpleMatch "Could not establish a connection with the Unity Package Manager local server process.") -or
++        ($lines | Select-String -SimpleMatch "Could not connect to IPC stream")) {
++        $ipcLine = $lines | Select-String -SimpleMatch "Could not connect to IPC stream" | Select-Object -First 1
++        $upmLine = $lines | Select-String -SimpleMatch "Could not establish a connection with the Unity Package Manager local server process." | Select-Object -First 1
++        if ($ipcLine) { $evidence.Add($ipcLine.Line.Trim()) }
++        if ($upmLine) { $evidence.Add($upmLine.Line.Trim()) }
++        if ($serializedMeshyExecuteRequested -and -not $serializedMeshyExecuteReached) {
++            $evidence.Add("capture_method_not_reached")
++        }
++        return [pscustomobject]@{
++            Category = "upm_startup_timeout"
++            SuggestedAction = "Unity Package Manager did not become reachable before executeMethod could run. Retry once after cleanup; if repeated, repair Unity Package Manager environment."
++            Evidence = $evidence
++        }
++    }
++
+     if ($lines | Select-String -SimpleMatch "Failed to acquire global mutex Unity-LicenseClient") {
+         $evidence.Add(($lines | Select-String -SimpleMatch "Failed to acquire global mutex Unity-LicenseClient" | Select-Object -First 1).Line.Trim())
++        if ($serializedMeshyExecuteRequested -and -not $serializedMeshyExecuteReached) {
++            $evidence.Add("capture_method_not_reached")
++        }
+         return [pscustomobject]@{
+             Category = "licensing_mutex"
+-            SuggestedAction = "Stop Unity.Licensing.Client and Unity Hub before rerunning."
++            SuggestedAction = "Stop Unity.Licensing.Client before rerunning."
+             Evidence = $evidence
+         }
+     }
+ 
+-    if (($lines | Select-String -SimpleMatch "Could not establish a connection with the Unity Package Manager local server process.") -or
+-        ($lines | Select-String -SimpleMatch "Could not connect to IPC stream")) {
+-        $ipcLine = $lines | Select-String -SimpleMatch "Could not connect to IPC stream" | Select-Object -First 1
+-        $upmLine = $lines | Select-String -SimpleMatch "Could not establish a connection with the Unity Package Manager local server process." | Select-Object -First 1
+-        if ($ipcLine) { $evidence.Add($ipcLine.Line.Trim()) }
+-        if ($upmLine) { $evidence.Add($upmLine.Line.Trim()) }
++    if (($lines | Select-String -SimpleMatch "Licensing initialization failed") -or
++        ($lines | Select-String -SimpleMatch "waiting for channel: `"LicenseClient") -or
++        ($lines | Select-String -SimpleMatch "LicenseClient") -or
++        ($lines | Select-String -SimpleMatch "No valid Unity Editor license found")) {
++        $licenseLine = $lines |
++            Select-String -Pattern "Licensing initialization failed|waiting for channel: `"LicenseClient|LicenseClient|No valid Unity Editor license found" |
++            Select-Object -First 1
++        if ($licenseLine) { $evidence.Add($licenseLine.Line.Trim()) }
++        if ($serializedMeshyExecuteRequested -and -not $serializedMeshyExecuteReached) {
++            $evidence.Add("capture_method_not_reached")
++        }
+         return [pscustomobject]@{
+-            Category = "upm_ipc_failure"
+-            SuggestedAction = "Close UnityPackageManager and Unity Hub, then rerun PreflightOnly and EditorRender."
++            Category = "licensing_ipc_failure"
++            SuggestedAction = "Repair Unity Hub/license state, then rerun the single background capture."
+             Evidence = $evidence
+         }
+     }
+@@ -316,7 +368,9 @@ function Invoke-Preflight {
+         Add-StatusDetail "missing_unity_executable" $ResolvedUnityPath
+     }
+ 
+-    if (($CaptureMode -eq "EditorRender") -or ($CaptureMode -eq "EditorPlay")) {
++    if (($CaptureMode -eq "EditorRender") -or
++        ($CaptureMode -eq "EditorPlay") -or
++        ($CaptureMode -eq "SerializedMeshyEditorCapture")) {
+         if (-not (Test-Path $worldScenePath)) {
+             $issues.Add("missing_scene_path")
+             Add-StatusDetail "missing_scene_path" $worldScenePath
+@@ -354,8 +408,13 @@ function Invoke-Preflight {
+                 Sort-Object ProcessName, Id |
+                 ForEach-Object { "{0} (PID {1})" -f $_.ProcessName, $_.Id }) -join ", "
+             Add-StatusDetail "licensing_processes" $licensingSummary
+-            $issues.Add("blocking_licensing_process")
+-            Add-StatusNote "Unity.Licensing.Client detected. EditorRender is blocked until the licensing client is closed because it can trigger Unity-LicenseClient mutex failures."
++            if ($CaptureMode -eq "SerializedMeshyEditorCapture") {
++                Add-StatusNote "Unity.Licensing.Client detected without a competing Unity Hub/Editor process; allowing SerializedMeshyEditorCapture to attempt single-process license initialization."
++            }
++            else {
++                $issues.Add("blocking_licensing_process")
++                Add-StatusNote "Unity.Licensing.Client detected. EditorRender is blocked until the licensing client is closed because it can trigger Unity-LicenseClient mutex failures."
++            }
+         }
+     }
+ 
+@@ -429,6 +488,7 @@ function Start-UnityCliWithTimeout {
+ $resolvedUnityPath = Resolve-UnityEditorPath -PreferredPath $UnityPath
+ $effectiveTimeoutSeconds = Get-EffectiveTimeoutSeconds -CaptureMode $Mode -RequestedTimeoutSeconds $TimeoutSeconds
+ $screenshotPath = Get-ScreenshotPath -Tag $VerificationTag
++$effectivePreflightMode = if ($Mode -eq "PreflightOnly" -and -not [string]::IsNullOrWhiteSpace($PreflightCaptureMode)) { $PreflightCaptureMode } else { $Mode }
+ 
+ Remove-IfExists -Path $statusPath | Out-Null
+ Write-Status -State "starting" -Message "Preflight started."
+@@ -447,7 +507,7 @@ Write-Host "Build log: $editorLogPath"
+ Write-Host "Runtime log: $runtimeLogPath"
+ Write-Host "Status file: $statusPath"
+ 
+-if (-not (Invoke-Preflight -CaptureMode $Mode -ResolvedUnityPath $resolvedUnityPath -EditorLogPath $editorLogPath -RuntimeLogPath $runtimeLogPath -RequestedScreenshotPath $screenshotPath)) {
++if (-not (Invoke-Preflight -CaptureMode $effectivePreflightMode -ResolvedUnityPath $resolvedUnityPath -EditorLogPath $editorLogPath -RuntimeLogPath $runtimeLogPath -RequestedScreenshotPath $screenshotPath)) {
+     throw "Preflight failed. See $statusPath"
+ }
+ 
+@@ -463,7 +523,53 @@ if ($FailIfUnityProcessesRunning) {
+     Test-BlockingUnityProcesses -CaptureMode $Mode
+ }
+ 
+-if ($Mode -eq "EditorRender") {
++if ($Mode -eq "SerializedMeshyEditorCapture") {
++    if ($SkipBuild) {
++        Add-StatusNote "SkipBuild ignored in SerializedMeshyEditorCapture mode."
++    }
++
++    $unityArgs = @(
++        "-batchmode",
++        "-quit",
++        "-projectPath", $projectPath,
++        "-executeMethod", "DeepStake.EditorTools.DeepStakeScreenshotCapture.CaptureSerializedMeshyEditorCli",
++        "-logFile", $editorLogPath,
++        "-deepstakeVerificationTag=$VerificationTag",
++        "-deepstakeScreenshotDir=$screenshotPath",
++        "-deepstakeScreenshotTimeoutSeconds=$effectiveTimeoutSeconds"
++    )
++
++    if ($UseExistingUpmIpcFromLog) {
++        $existingUpmIpcPath = Get-ExistingUpmIpcPath
++        if (-not [string]::IsNullOrWhiteSpace($existingUpmIpcPath)) {
++            $unityArgs += @("-upmIpcPath", $existingUpmIpcPath)
++            Add-StatusDetail "existing_upm_ipc_path" $existingUpmIpcPath
++        }
++        else {
++            Add-StatusNote "UseExistingUpmIpcFromLog requested, but no reusable UPM IPC path was found in $upmLogPath."
++        }
++    }
++
++    Start-UnityCliWithTimeout `
++        -FilePath $resolvedUnityPath `
++        -ArgumentList $unityArgs `
++        -StartState "serialized_meshy_editor_capture_starting" `
++        -StartMessage "Starting serialized Meshy editor screenshot capture." `
++        -FailureState "serialized_meshy_editor_capture_failed" `
++        -FailureMessage "Serialized Meshy editor screenshot capture failed. See $editorLogPath" `
++        -TimeoutState "serialized_meshy_editor_capture_timeout" `
++        -TimeoutSecondsValue $effectiveTimeoutSeconds `
++        -SuccessOutputPath $screenshotPath `
++        -FailureLogPath $editorLogPath
++
++    if (-not (Test-Path $screenshotPath)) {
++        Write-Status -State "serialized_meshy_editor_capture_failed" -Message "Serialized Meshy editor capture completed without producing screenshot."
++        throw "Serialized Meshy editor capture completed without producing screenshot."
++    }
++
++    Write-Status -State "serialized_meshy_editor_capture_success" -Message "Serialized Meshy editor screenshot created successfully: $screenshotPath"
++}
++elseif ($Mode -eq "EditorRender") {
+     if ($SkipBuild) {
+         Add-StatusNote "SkipBuild ignored in EditorRender mode."
+     }
+@@ -479,6 +585,17 @@ if ($Mode -eq "EditorRender") {
+         "-deepstakeScreenshotTimeoutSeconds=$effectiveTimeoutSeconds"
+     )
+ 
++    if ($UseExistingUpmIpcFromLog) {
++        $existingUpmIpcPath = Get-ExistingUpmIpcPath
++        if (-not [string]::IsNullOrWhiteSpace($existingUpmIpcPath)) {
++            $unityArgs += @("-upmIpcPath", $existingUpmIpcPath)
++            Add-StatusDetail "existing_upm_ipc_path" $existingUpmIpcPath
++        }
++        else {
++            Add-StatusNote "UseExistingUpmIpcFromLog requested, but no reusable UPM IPC path was found in $upmLogPath."
++        }
++    }
++
+     Start-UnityCliWithTimeout `
+         -FilePath $resolvedUnityPath `
+         -ArgumentList $unityArgs `
+@@ -513,6 +630,17 @@ elseif ($Mode -eq "EditorPlay") {
+         "-deepstakeScreenshotTimeoutSeconds=$effectiveTimeoutSeconds"
+     )
+ 
++    if ($UseExistingUpmIpcFromLog) {
++        $existingUpmIpcPath = Get-ExistingUpmIpcPath
++        if (-not [string]::IsNullOrWhiteSpace($existingUpmIpcPath)) {
++            $unityArgs += @("-upmIpcPath", $existingUpmIpcPath)
++            Add-StatusDetail "existing_upm_ipc_path" $existingUpmIpcPath
++        }
++        else {
++            Add-StatusNote "UseExistingUpmIpcFromLog requested, but no reusable UPM IPC path was found in $upmLogPath."
++        }
++    }
++
+     Start-UnityCliWithTimeout `
+         -FilePath $resolvedUnityPath `
+         -ArgumentList $unityArgs `

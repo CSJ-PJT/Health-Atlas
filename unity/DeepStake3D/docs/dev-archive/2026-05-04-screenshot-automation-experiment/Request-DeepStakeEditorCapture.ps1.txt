@@ -1,0 +1,40 @@
+param(
+    [string]$Tag = "current-clean-baseline",
+    [int]$TimeoutSeconds = 60
+)
+
+$ErrorActionPreference = "Stop"
+
+$unityEditor = Get-Process -Name Unity -ErrorAction SilentlyContinue
+if (-not $unityEditor) {
+    throw "Unity Editor is not running. Open DeepStake3D in Unity Editor before requesting capture."
+}
+
+$projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$requestPath = Join-Path $projectRoot "TestResults/editor-capture-request.json"
+$responsePath = Join-Path $projectRoot "TestResults/editor-capture-response.json"
+$requestDir = Split-Path $requestPath -Parent
+New-Item -ItemType Directory -Force -Path $requestDir | Out-Null
+
+if (Test-Path $responsePath) {
+    Remove-Item -LiteralPath $responsePath -Force
+}
+
+$request = [ordered]@{
+    command = "capture_serialized_meshy_scene"
+    tag = $Tag
+}
+
+$request | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $requestPath -Encoding UTF8
+
+$deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+while ((Get-Date) -lt $deadline) {
+    if (Test-Path $responsePath) {
+        Get-Content -LiteralPath $responsePath -Raw
+        exit 0
+    }
+
+    Start-Sleep -Milliseconds 500
+}
+
+throw "Timed out waiting for Unity Editor capture response: $responsePath"

@@ -1,0 +1,18 @@
+﻿diff --git a/unity/DeepStake3D/Assets/Scripts/World/WorldPrototype3DController.cs b/unity/DeepStake3D/Assets/Scripts/World/WorldPrototype3DController.cs
+index b3a8014..553d8dd 100644
+--- a/unity/DeepStake3D/Assets/Scripts/World/WorldPrototype3DController.cs
++++ b/unity/DeepStake3D/Assets/Scripts/World/WorldPrototype3DController.cs
+@@ -76,6 +76,13 @@ namespace DeepStake.World
+         private void Start()
+         {
+             Debug.Log("[DeepStakeDev] WorldPrototype3D start requested.");
++#if UNITY_EDITOR
++            if (DeepStakeDevLaunchOptions.EditorValidationCaptureMode)
++            {
++                Debug.Log("[DeepStakeDev] Editor validation capture mode active; skipping WorldPrototype3D runtime primitive regeneration.");
++                return;
++            }
++#endif
+             definition = WorldPrototype3DDefinition.FromJson(worldPrototypeJson);
+             if (questCatalogJson == null)
+             {

@@ -1,0 +1,154 @@
+﻿diff --git a/unity/DeepStake3D/Tools/Run-DeepStakeAutoLoop.ps1 b/unity/DeepStake3D/Tools/Run-DeepStakeAutoLoop.ps1
+index c0a687e..b564403 100644
+--- a/unity/DeepStake3D/Tools/Run-DeepStakeAutoLoop.ps1
++++ b/unity/DeepStake3D/Tools/Run-DeepStakeAutoLoop.ps1
+@@ -1,8 +1,9 @@
+ param(
+     [string]$VerificationTag = "auto-test",
+-    [ValidateSet("PreflightOnly", "EditorRender", "EditorPlay", "WindowsPlayer")]
++    [ValidateSet("PreflightOnly", "EditorRender", "EditorPlay", "WindowsPlayer", "SerializedMeshyEditorCapture")]
+     [string]$Mode = "EditorRender",
+     [switch]$ForceKillBlockingProcesses,
++    [switch]$UseExistingUpmIpcFromLog,
+     [int]$TimeoutSeconds = 0,
+     [switch]$KeepPreviousLatest,
+     [switch]$NoLatestAlias
+@@ -87,7 +88,8 @@ function Write-RunReport {
+ 
+ function Invoke-ScreenshotScript {
+     param(
+-        [string]$RunMode
++        [string]$RunMode,
++        [string]$PreflightTargetMode = ""
+     )
+ 
+     $arguments = @(
+@@ -101,6 +103,14 @@ function Invoke-ScreenshotScript {
+         $arguments += @("-TimeoutSeconds", $TimeoutSeconds)
+     }
+ 
++    if (-not [string]::IsNullOrWhiteSpace($PreflightTargetMode)) {
++        $arguments += @("-PreflightCaptureMode", $PreflightTargetMode)
++    }
++
++    if ($UseExistingUpmIpcFromLog) {
++        $arguments += "-UseExistingUpmIpcFromLog"
++    }
++
+     & powershell @arguments
+     return $LASTEXITCODE
+ }
+@@ -120,6 +130,22 @@ function Stop-UnityProcesses {
+     return @($killed)
+ }
+ 
++function Test-UnityHubStillRunning {
++    $hubProcesses = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -eq "Unity Hub" })
++    return $hubProcesses.Count -gt 0
++}
++
++function Get-UnityProcessSummary {
++    $processes = Get-UnityProcesses
++    if ($processes.Count -eq 0) {
++        return ""
++    }
++
++    return (($processes |
++        Sort-Object ProcessName, Id |
++        ForEach-Object { "{0} (PID {1})" -f $_.ProcessName, $_.Id }) -join "; ")
++}
++
+ function Join-ValueList {
+     param([string[]]$Values)
+ 
+@@ -142,7 +168,7 @@ function Should-RetryEnvironmentFailure {
+ 
+     foreach ($note in Get-ValueList -Map $StatusMap -Key "note") {
+         if ($note -match "^root_cause_category=(.+)$") {
+-            return @("database_lock", "readonly_database", "upm_ipc_failure", "licensing_mutex") -contains $matches[1]
++            return @("database_lock", "readonly_database", "upm_startup_timeout", "upm_ipc_failure", "licensing_mutex") -contains $matches[1]
+         }
+     }
+ 
+@@ -203,10 +229,66 @@ $statusNotes = @()
+ if ($ForceKillBlockingProcesses) {
+     $preCleanupAttempted = $true
+     $preCleanupProcessesKilled = Stop-UnityProcesses
+-    Start-Sleep -Seconds 10
++    Start-Sleep -Seconds 15
++
++    if (Test-UnityHubStillRunning) {
++        $secondCleanupKilled = Stop-UnityProcesses
++        if ($secondCleanupKilled.Count -gt 0) {
++            $preCleanupProcessesKilled += $secondCleanupKilled
++        }
++
++        Start-Sleep -Seconds 10
++    }
++
++    if (Test-UnityHubStillRunning) {
++        $failureReason = "Unity Hub respawned or remained running after two cleanup cycles."
++        $remainingProcesses = Get-UnityProcessSummary
++        Write-RunReport -Fields @{
++            timestamp = (Get-Date).ToString("s")
++            mode = $Mode
++            verification_tag = $VerificationTag
++            expected_screenshot = $expectedScreenshotPath
++            screenshot_path = ""
++            success = "false"
++            failure_reason = $failureReason
++            status_file = $statusPath
++            build_log = $buildLogPath
++            runtime_log = $runtimeLogPath
++            pre_cleanup_attempted = $preCleanupAttempted.ToString().ToLowerInvariant()
++            pre_cleanup_processes_killed = (Join-ValueList -Values $preCleanupProcessesKilled)
++            preflight_before_capture = "blocked"
++            first_capture_result = ""
++            retry_attempted = "false"
++            retry_reason = ""
++            retry_capture_result = ""
++            post_cleanup_attempted = "false"
++            post_cleanup_processes_killed = ""
++            final_screenshot_exists = "false"
++            final_result = "failure"
++            status_state = "blocked"
++            status_message = $failureReason
++            status_root_cause_category = "unity_hub_respawn"
++            status_notes = ("remaining_unity_processes=" + $remainingProcesses)
++        }
++        @(
++            "timestamp=$((Get-Date).ToString("s"))"
++            "state=blocked"
++            "message=$failureReason"
++            "note=root_cause_category=unity_hub_respawn"
++            "note=remaining_unity_processes=$remainingProcesses"
++        ) | Out-File -LiteralPath $statusPath -Encoding utf8
++        Write-Host ""
++        Write-Host "DeepStake auto loop summary"
++        Write-Host "Mode: $Mode"
++        Write-Host "Success: false"
++        Write-Host "Failure: $failureReason"
++        Write-Host "Status: $statusPath"
++        Write-Host "Report: $reportPath"
++        exit 1
++    }
+ }
+ 
+-$preflightExitCode = Invoke-ScreenshotScript -RunMode "PreflightOnly"
++$preflightExitCode = Invoke-ScreenshotScript -RunMode "PreflightOnly" -PreflightTargetMode $Mode
+ $preflightStatus = Read-StatusFile
+ $preflightBeforeCapture = if ($preflightStatus.ContainsKey("state")) { $preflightStatus["state"] } else { "missing_status" }
+ 
+@@ -321,7 +403,11 @@ $statusMessage = Get-StatusMessage -StatusMap $statusAfterRun
+ $statusRootCause = Get-RootCauseCategory -StatusMap $statusAfterRun
+ $statusNotes = Get-ValueList -Map $statusAfterRun -Key "note"
+ 
+-if ($finalScreenshotExists -or $statusState -eq "editor_render_success" -or $statusState -eq "editor_play_success" -or $statusState -eq "success") {
++if ($finalScreenshotExists -or
++    $statusState -eq "editor_render_success" -or
++    $statusState -eq "editor_play_success" -or
++    $statusState -eq "serialized_meshy_editor_capture_success" -or
++    $statusState -eq "success") {
+     Publish-LatestAlias
+     $finalResult = "success"
+     Write-RunReport -Fields @{
