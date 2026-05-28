@@ -238,7 +238,7 @@ namespace DeepStake.World
                 }
 
                 DeepStakeGameState.Instance.UpdatePrompt(
-                    "Read the notice board, speak with Archivist Sena, inspect the supply crates, then anchor the beacon.");
+                    "Read the authority notice, speak with Archivist Sena, inspect the supply crates, then anchor the beacon.");
             }
 
             DeepStakePbrEnvironmentPipeline.ApplyToWorld(
@@ -675,7 +675,7 @@ namespace DeepStake.World
         {
             if (primaryInteractable == null)
             {
-                var signObject = GameObject.Find("FarmSign3D");
+                var signObject = GameObject.Find("OutpostNotice3D") ?? GameObject.Find("FarmSign3D");
                 if (signObject != null)
                 {
                     primaryInteractable = signObject.GetComponent<Interactable3DStub>();

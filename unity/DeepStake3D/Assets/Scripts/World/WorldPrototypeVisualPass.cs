@@ -13,9 +13,10 @@ namespace DeepStake.World
 
         private const string GeneratedVisualRootName = "__GeneratedZoneVisuals";
         private const string PropVisualRootName = "__PropVisual";
-        private const string PropVisualVersionName = "__PropVisualVersion_51";
+        private const string PropVisualVersionName = "__PropVisualVersion_55";
         private static readonly bool UseDenseVillageClutter = false;
         private static readonly bool UseCleanBaseGround = true;
+        private static readonly bool UseExpandedVillageDistricts = false;
         private const string LegacyCuteProxyRootName = "__CutePlayerProxy";
         private const string GroundDrySoilMaterialName = "DS_Ground_DrySoil";
         private const string GroundDirtPathMaterialName = "DS_Ground_DirtPath";
@@ -460,6 +461,10 @@ namespace DeepStake.World
             CreateGroundZonePatch(root, "NoticeBoardZone", new Vector3(-4.5f, 0f, 2.28f), new Vector3(3.2f, 0.034f, 2.1f), new Color(0.59f, 0.5f, 0.35f), 0.068f);
             CreateGroundZonePatch(root, "NoticeBoardZoneRear", new Vector3(-4.7f, 0f, 3.45f), new Vector3(5.8f, 0.024f, 2.7f), new Color(0.45f, 0.49f, 0.37f), 0.038f);
             CreateGroundZonePatch(root, "NoticeBoardZoneSide", new Vector3(-5.72f, 0f, 2.05f), new Vector3(2.2f, 0.02f, 2.15f), new Color(0.49f, 0.45f, 0.34f), 0.034f);
+            CreateGroundZonePatch(root, "FirstScreenNoGridBackdrop", new Vector3(-1.1f, 0f, 3.62f), new Vector3(17.8f, 0.031f, 5.9f), new Color(0.38f, 0.42f, 0.32f), 0.058f);
+            CreateGroundZonePatch(root, "FirstScreenLeftNoGridShoulder", new Vector3(-6.08f, 0f, 1.35f), new Vector3(3.7f, 0.028f, 5.75f), new Color(0.39f, 0.38f, 0.3f), 0.05f);
+            CreateGroundZonePatch(root, "FirstScreenCameraForegroundMatte", new Vector3(-1.15f, 0f, -0.72f), new Vector3(10.2f, 0.029f, 3.85f), new Color(0.35f, 0.33f, 0.28f), 0.046f);
+            CreateGroundZonePatch(root, "FirstScreenRightNoGridShoulder", new Vector3(4.75f, 0f, 1.85f), new Vector3(5.4f, 0.027f, 5.25f), new Color(0.4f, 0.39f, 0.32f), 0.045f);
             CreateGroundZonePatch(root, "NorthRecoveryBandZone", new Vector3(-0.35f, 0f, 4.55f), new Vector3(13.6f, 0.026f, 3.0f), new Color(0.46f, 0.5f, 0.39f), 0.04f);
             CreateGroundZonePatch(root, "NorthRightRecoveryZone", new Vector3(4.9f, 0f, 3.28f), new Vector3(6.1f, 0.024f, 2.55f), new Color(0.45f, 0.49f, 0.38f), 0.036f);
             CreateGroundZonePatch(root, "RightVillageYardZone", new Vector3(4.82f, 0f, 0.72f), new Vector3(5.8f, 0.03f, 4.2f), new Color(0.48f, 0.43f, 0.37f), 0.06f);
@@ -477,6 +482,8 @@ namespace DeepStake.World
             CreatePerimeterWall(root, "SouthVillageWallWest", new Vector3(-5.0f, 0f, -4.75f), new Vector3(-0.65f, 0f, -4.75f), new Color(0.34f, 0.34f, 0.34f));
             CreatePerimeterWall(root, "SouthVillageWallEast", new Vector3(1.65f, 0f, -4.75f), new Vector3(5.7f, 0f, -4.75f), new Color(0.34f, 0.34f, 0.34f));
             CreateVillageGate(root, "SouthGate", new Vector3(0.5f, 0f, -4.72f), new Color(0.42f, 0.36f, 0.27f));
+            CreateAuthorityCheckpoint(root);
+            CreateFirstScreenBoundaryBreakers(root);
 
             CreateFieldRows(root, "RecoveryFieldRows", new Vector3(-4.65f, 0f, 2.35f), 7, new Color(0.43f, 0.39f, 0.27f));
             CreateGrassBorder(root, "NorthGrass", new Vector3(-5.2f, 0f, 5.55f), 8, new Vector3(0.95f, 0f, 0.08f), new Color(0.31f, 0.39f, 0.27f));
@@ -504,7 +511,10 @@ namespace DeepStake.World
                 CreateRealisticVillageDetails(root);
             }
 
-            CreateExpandedVillageDistricts(root);
+            if (UseExpandedVillageDistricts)
+            {
+                CreateExpandedVillageDistricts(root);
+            }
 
             if (UseDenseVillageClutter)
             {
@@ -756,6 +766,63 @@ namespace DeepStake.World
             CreateVisualPiece(root, PrimitiveType.Cube, label + "_OpenDoorR", basePosition + new Vector3(0.35f, 0.47f, -0.25f), new Vector3(0.42f, 0.82f, 0.08f), color * 0.78f).transform.localRotation = Quaternion.Euler(0f, -24f, 0f);
             CreateCollisionBlocker(root, label + "_PostLCollision", basePosition + new Vector3(-0.72f, 0.72f, 0f), new Vector3(0.28f, 1.44f, 0.36f));
             CreateCollisionBlocker(root, label + "_PostRCollision", basePosition + new Vector3(0.72f, 0.72f, 0f), new Vector3(0.28f, 1.44f, 0.36f));
+        }
+
+        private static void CreateAuthorityCheckpoint(Transform root)
+        {
+            var darkWood = new Color(0.25f, 0.21f, 0.16f);
+            var agedPaper = new Color(0.72f, 0.67f, 0.54f);
+            var warningOchre = new Color(0.62f, 0.51f, 0.28f);
+            var mutedMetal = new Color(0.29f, 0.31f, 0.31f);
+
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeBackdropWall", new Vector3(-4.55f, 0.94f, 2.7f), new Vector3(3.05f, 1.88f, 0.2f), new Color(0.29f, 0.26f, 0.21f));
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeBackShadow", new Vector3(-4.55f, 0.9f, 2.84f), new Vector3(3.35f, 1.86f, 0.12f), new Color(0.18f, 0.16f, 0.13f));
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeLeftPost", new Vector3(-6.18f, 1.08f, 2.58f), new Vector3(0.2f, 2.16f, 0.26f), darkWood * 0.9f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeRightPost", new Vector3(-2.92f, 1.08f, 2.58f), new Vector3(0.2f, 2.16f, 0.26f), darkWood * 0.9f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeHeaderBeam", new Vector3(-4.55f, 1.88f, 2.56f), new Vector3(3.35f, 0.2f, 0.3f), darkWood);
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeLintel", new Vector3(-4.55f, 2.14f, 2.54f), new Vector3(2.72f, 0.13f, 0.23f), warningOchre * 0.82f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticePrimaryPaper", new Vector3(-4.62f, 1.08f, 2.46f), new Vector3(0.98f, 0.78f, 0.055f), agedPaper);
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeSecondaryPaper", new Vector3(-3.86f, 1.0f, 2.43f), new Vector3(0.46f, 0.5f, 0.052f), agedPaper * 0.88f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeBlackBarA", new Vector3(-4.64f, 1.28f, 2.39f), new Vector3(0.66f, 0.055f, 0.04f), mutedMetal);
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeBlackBarB", new Vector3(-4.64f, 1.12f, 2.39f), new Vector3(0.78f, 0.045f, 0.04f), mutedMetal);
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeBlackBarC", new Vector3(-4.64f, 0.95f, 2.39f), new Vector3(0.52f, 0.045f, 0.04f), mutedMetal);
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthorityNoticeSeal", new Vector3(-5.18f, 1.1f, 2.38f), new Vector3(0.18f, 0.18f, 0.055f), warningOchre);
+            CreateVisualPiece(root, PrimitiveType.Cube, "RouteLimitStripeA", new Vector3(-3.1f, 0.105f, 1.36f), new Vector3(1.8f, 0.045f, 0.075f), warningOchre * 0.78f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "RouteLimitStripeB", new Vector3(-4.16f, 0.105f, 2.04f), new Vector3(1.7f, 0.045f, 0.075f), warningOchre * 0.7f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "RouteLimitStripeC", new Vector3(-3.58f, 0.107f, 1.68f), new Vector3(2.45f, 0.042f, 0.06f), warningOchre * 0.58f).transform.localRotation = Quaternion.Euler(0f, -32f, 0f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "CheckpointBench", new Vector3(-3.55f, 0.25f, 1.92f), new Vector3(1.15f, 0.18f, 0.38f), darkWood * 1.08f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "CheckpointBenchLegL", new Vector3(-3.92f, 0.13f, 1.82f), new Vector3(0.12f, 0.26f, 0.12f), darkWood * 0.9f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "CheckpointBenchLegR", new Vector3(-3.18f, 0.13f, 2.02f), new Vector3(0.12f, 0.26f, 0.12f), darkWood * 0.9f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "QueuePostA", new Vector3(-2.24f, 0.48f, 0.92f), new Vector3(0.09f, 0.96f, 0.09f), mutedMetal);
+            CreateVisualPiece(root, PrimitiveType.Cube, "QueuePostB", new Vector3(-3.12f, 0.48f, 1.48f), new Vector3(0.09f, 0.96f, 0.09f), mutedMetal);
+            CreateVisualPiece(root, PrimitiveType.Cube, "QueuePostC", new Vector3(-4.0f, 0.48f, 2.02f), new Vector3(0.09f, 0.96f, 0.09f), mutedMetal);
+            CreateVisualPiece(root, PrimitiveType.Cube, "QueueRailA", new Vector3(-2.68f, 0.72f, 1.2f), new Vector3(1.02f, 0.08f, 0.08f), mutedMetal * 0.92f).transform.localRotation = Quaternion.Euler(0f, -33f, 0f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "QueueRailB", new Vector3(-3.56f, 0.72f, 1.75f), new Vector3(1.02f, 0.08f, 0.08f), mutedMetal * 0.92f).transform.localRotation = Quaternion.Euler(0f, -33f, 0f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "ConfiscatedSupplyCrateA", new Vector3(-5.55f, 0.24f, 2.0f), new Vector3(0.58f, 0.48f, 0.5f), new Color(0.38f, 0.31f, 0.23f));
+            CreateVisualPiece(root, PrimitiveType.Cube, "ConfiscatedSupplyCrateB", new Vector3(-5.18f, 0.18f, 1.48f), new Vector3(0.46f, 0.36f, 0.42f), new Color(0.35f, 0.29f, 0.22f));
+            CreateVisualPiece(root, PrimitiveType.Cube, "RecoveryBoundaryMarker", new Vector3(-2.48f, 0.72f, 2.56f), new Vector3(0.16f, 1.44f, 0.16f), warningOchre * 0.9f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "RecoveryBoundaryArm", new Vector3(-2.86f, 1.24f, 2.56f), new Vector3(0.78f, 0.12f, 0.12f), warningOchre);
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthoritySideScreenLeft", new Vector3(-6.28f, 0.72f, 2.0f), new Vector3(0.16f, 1.28f, 1.65f), new Color(0.26f, 0.23f, 0.18f));
+            CreateVisualPiece(root, PrimitiveType.Cube, "AuthoritySideScreenRight", new Vector3(-2.72f, 0.64f, 2.35f), new Vector3(0.16f, 1.12f, 1.28f), new Color(0.25f, 0.23f, 0.19f));
+        }
+
+        private static void CreateFirstScreenBoundaryBreakers(Transform root)
+        {
+            var darkFence = new Color(0.27f, 0.24f, 0.19f);
+            var deadGrass = new Color(0.34f, 0.36f, 0.25f);
+            var noticeOchre = new Color(0.55f, 0.46f, 0.25f);
+
+            CreatePerimeterWall(root, "FirstScreenRearFenceA", new Vector3(-6.35f, 0f, 3.28f), new Vector3(-4.82f, 0f, 3.98f), darkFence);
+            CreatePerimeterWall(root, "FirstScreenRearFenceB", new Vector3(-3.72f, 0f, 4.22f), new Vector3(-1.8f, 0f, 4.85f), darkFence * 1.05f);
+            CreatePerimeterWall(root, "FirstScreenRightFenceReturn", new Vector3(-2.08f, 0f, 2.72f), new Vector3(-2.08f, 0f, 4.68f), darkFence);
+            CreateVisualPiece(root, PrimitiveType.Cube, "FirstScreenRearWarningBoard", new Vector3(-3.05f, 1.08f, 4.72f), new Vector3(0.95f, 0.5f, 0.08f), noticeOchre * 0.88f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "FirstScreenRearWarningBarA", new Vector3(-3.05f, 1.18f, 4.66f), new Vector3(0.65f, 0.045f, 0.055f), darkFence);
+            CreateVisualPiece(root, PrimitiveType.Cube, "FirstScreenRearWarningBarB", new Vector3(-3.05f, 1.0f, 4.66f), new Vector3(0.45f, 0.04f, 0.055f), darkFence);
+            CreateVisualPiece(root, PrimitiveType.Cube, "FirstScreenRearDarkLeanTo", new Vector3(-3.55f, 0.86f, 5.12f), new Vector3(3.2f, 1.36f, 0.16f), darkFence * 0.82f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "FirstScreenRearLowRoof", new Vector3(-3.55f, 1.58f, 5.02f), new Vector3(3.55f, 0.18f, 0.78f), darkFence * 1.12f);
+            CreateVisualPiece(root, PrimitiveType.Cube, "FirstScreenRightReturnScreen", new Vector3(-1.72f, 0.72f, 3.86f), new Vector3(0.16f, 1.18f, 2.42f), darkFence * 0.92f);
+            CreateGrassBorder(root, "FirstScreenRearRoughGrass", new Vector3(-4.8f, 0f, 4.55f), 7, new Vector3(0.66f, 0f, 0.08f), deadGrass);
+            CreateGrassBorder(root, "FirstScreenLeftRoughGrass", new Vector3(-6.18f, 0f, 2.12f), 6, new Vector3(0.0f, 0f, 0.62f), deadGrass * 0.9f);
         }
 
         private static void CreateFieldRows(Transform root, string label, Vector3 basePosition, int rows, Color color)

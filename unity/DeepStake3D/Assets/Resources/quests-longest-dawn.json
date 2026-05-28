@@ -3,7 +3,7 @@
     {
       "questId": "first-harvest",
       "title": "Longest Dawn: First Recovery Loop",
-      "objectiveDefault": "Read the field notice board.",
+      "objectiveDefault": "Read the authority notice.",
       "objectiveReadNotice": "Speak with Archivist Sena about the repeated seal.",
       "objectiveMetArchivist": "Inspect the delayed supply crates by the storage yard.",
       "objectiveReviewedSupply": "Anchor the first recovery beacon in the frame.",

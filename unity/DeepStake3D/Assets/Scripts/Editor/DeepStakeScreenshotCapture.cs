@@ -361,45 +361,40 @@ namespace DeepStake.EditorTools
             {
                 captureCamera.enabled = true;
                 captureCamera.clearFlags = CameraClearFlags.SolidColor;
-                captureCamera.backgroundColor = new Color(0.66f, 0.71f, 0.72f);
-                captureCamera.fieldOfView = Mathf.Clamp(captureCamera.fieldOfView, 49f, 56f);
-                ForceCameraFrameToWorldBounds(captureCamera);
+                captureCamera.backgroundColor = new Color(0.56f, 0.62f, 0.61f);
+                captureCamera.fieldOfView = Mathf.Clamp(captureCamera.fieldOfView, 38f, 42f);
+                ForceCameraFrameToFirstScreen(captureCamera);
             }
             DeepStakePbrEnvironmentPipeline.ApplyLightingProfile();
             return captureCamera;
         }
 
-        private static void ForceCameraFrameToWorldBounds(Camera captureCamera)
+        private static void ForceCameraFrameToFirstScreen(Camera captureCamera)
         {
             if (captureCamera == null)
             {
                 return;
             }
 
-            if (!TryGetSceneRenderBounds(out var combinedBounds))
-            {
-                Debug.LogWarning("[DeepStakeCapture] No scene render bounds were found for capture framing.");
-                return;
-            }
-
-            var planarDirection = new Vector3(1f, 0f, -1f).normalized;
-            var extentMagnitude = Mathf.Max(combinedBounds.extents.magnitude, 4.5f);
-            var planarDistance = Mathf.Max(7.5f, extentMagnitude * 1.85f);
-            var height = Mathf.Max(5.2f, extentMagnitude * 1.2f);
-            var lookTarget = combinedBounds.center + Vector3.up * Mathf.Clamp(combinedBounds.extents.y * 0.3f, 0.6f, 2.0f);
-            var capturePosition = lookTarget + planarDirection * planarDistance + Vector3.up * height;
+            var player = GameObject.Find("Player3D");
+            var notice = GameObject.Find("OutpostNotice3D") ?? GameObject.Find("FarmSign3D");
+            var playerPosition = player != null ? player.transform.position : new Vector3(0f, 0.5f, 0f);
+            var noticePosition = notice != null ? notice.transform.position : new Vector3(-3f, 0.75f, 2f);
+            var routeCenter = Vector3.Lerp(playerPosition, noticePosition, 0.66f);
+            var lookTarget = routeCenter + new Vector3(-0.2f, 0.86f, 0.2f);
+            var capturePosition = lookTarget + new Vector3(4.15f, 4.35f, -4.2f);
 
             captureCamera.transform.position = capturePosition;
             captureCamera.transform.rotation = Quaternion.LookRotation((lookTarget - capturePosition).normalized, Vector3.up);
             captureCamera.nearClipPlane = 0.1f;
-            captureCamera.farClipPlane = Mathf.Max(200f, planarDistance * 20f);
+            captureCamera.farClipPlane = 180f;
             captureCamera.cullingMask = ~0;
 
             Debug.Log(
-                "[DeepStakeCapture] Forced camera frame. position=" + capturePosition +
+                "[DeepStakeCapture] Forced first-screen camera frame. position=" + capturePosition +
                 " lookTarget=" + lookTarget +
-                " boundsCenter=" + combinedBounds.center +
-                " boundsSize=" + combinedBounds.size);
+                " player=" + playerPosition +
+                " notice=" + noticePosition);
         }
 
         private static bool TryGetSceneRenderBounds(out Bounds combinedBounds)

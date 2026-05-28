@@ -2,6 +2,7 @@ using System.Collections;
 using System.IO;
 using DeepStake.Boot;
 using DeepStake.CameraRig;
+using DeepStake.Construction;
 using DeepStake.Core;
 using DeepStake.Interaction;
 using DeepStake.Quests;
@@ -22,6 +23,7 @@ namespace DeepStake.Tests.PlayMode
         private const string BootScene = "Boot";
         private const string MainMenuScene = "MainMenu";
         private const string WorldScene = "WorldPrototype3D";
+        private const string ModularConstructionScene = "ModularConstructionPrototype";
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -76,6 +78,47 @@ namespace DeepStake.Tests.PlayMode
             Assert.That(world.TertiaryInteractable, Is.Not.Null);
             Assert.That(world.QuestNpc, Is.Not.Null);
             Assert.That(world.PrimaryPlacement, Is.Not.Null);
+        }
+
+        [UnityTest]
+        public IEnumerator ModularConstructionPrototype_CanPlaceRotateRemove_WithChunkData()
+        {
+            yield return LoadScene(ModularConstructionScene);
+            yield return WaitFrames(2);
+
+            var controller = Object.FindFirstObjectByType<ModularConstructionPrototypeController>();
+            Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo(ModularConstructionScene));
+            Assert.That(controller, Is.Not.Null);
+            Assert.That(controller.TileSizeMeters, Is.EqualTo(1f));
+            Assert.That(controller.ChunkSizeTiles, Is.EqualTo(32));
+            Assert.That(controller.ChunkRecords.Count, Is.GreaterThan(0));
+
+            var globalTile = new Vector2Int(34, -1);
+            var expectedChunk = controller.GlobalTileToChunk(globalTile);
+            var expectedLocalTile = controller.GlobalTileToLocalTile(globalTile, expectedChunk);
+            var beforeCount = controller.PlacedPieceCount;
+
+            Assert.That(controller.TryPlacePieceAtGlobalTile(ModularBuildPieceId.WindowWall, globalTile, 450), Is.True);
+            Assert.That(controller.PlacedPieceCount, Is.EqualTo(beforeCount + 1));
+            Assert.That(ModularConstructionPrototypeController.NormalizeRotation(450), Is.EqualTo(90));
+
+            ModularConstructionTile placedTile = null;
+            foreach (var chunk in controller.ChunkRecords)
+            {
+                if (chunk.chunkX == expectedChunk.x && chunk.chunkY == expectedChunk.y)
+                {
+                    chunk.TryGetTile(expectedLocalTile, out placedTile);
+                    break;
+                }
+            }
+
+            Assert.That(placedTile, Is.Not.Null);
+            Assert.That(placedTile.pieces.Count, Is.EqualTo(1));
+            Assert.That(placedTile.pieces[0].pieceId, Is.EqualTo(ModularBuildPieceId.WindowWall.ToString()));
+            Assert.That(placedTile.pieces[0].rotation, Is.EqualTo(90));
+
+            Assert.That(controller.TryRemoveTopPieceAtGlobalTile(globalTile), Is.True);
+            Assert.That(controller.PlacedPieceCount, Is.EqualTo(beforeCount));
         }
 
         [UnityTest]

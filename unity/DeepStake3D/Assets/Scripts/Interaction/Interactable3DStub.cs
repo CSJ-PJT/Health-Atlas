@@ -6,7 +6,7 @@ namespace DeepStake.Interaction
     public sealed class Interactable3DStub : MonoBehaviour
     {
         [SerializeField] private string interactId = "farm-sign";
-        [SerializeField] private string interactLabel = "Sign";
+        [SerializeField] private string interactLabel = "Authority Notice";
         [SerializeField] private string promptVerb = "Inspect";
         [SerializeField] [TextArea] private string interactMessage =
             "The field waits for the first cycle of restoration.";
@@ -67,7 +67,7 @@ namespace DeepStake.Interaction
         {
             if (interactId == "farm-sign")
             {
-                return "Sign";
+                return "Authority Notice";
             }
 
             if (interactId == "supply-cache")
@@ -93,8 +93,8 @@ namespace DeepStake.Interaction
                 {
                     save.StoryFlags.ReadFieldNoticeBoard = true;
                     save.StoryFlags.LearnedDirectoratePressure = true;
-                    save.ActivePressureHint = "The field board still carries a recovery order, but the same Directorate filing mark has been stamped across land transfer and debt notices nearby.";
-                    statusSummary = "Field notice recorded.";
+                    save.ActivePressureHint = "The authority notice still carries a recovery order, but the same Directorate filing mark has been stamped across land transfer and debt notices nearby.";
+                    statusSummary = "Authority notice recorded.";
                 }
                 else if (interactId == "supply-cache")
                 {

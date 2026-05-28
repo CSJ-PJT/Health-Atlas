@@ -14,6 +14,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/WorldPrototype3D.unity
     guid: d2cb4494477db3d46b776a15733e267a
+  - enabled: 1
+    path: Assets/Scenes/ModularConstructionPrototype.unity
+    guid: 8187a0aee2fc45b39bbf4a1f39d85766
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

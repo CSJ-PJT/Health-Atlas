@@ -145,7 +145,7 @@ namespace DeepStake.UI
 
             if (!save.StoryFlags.ReadFieldNoticeBoard)
             {
-                UpdateMarker(signMarkerText, worldController.PrimaryInteractable != null ? worldController.PrimaryInteractable.transform : null, Application.isMobilePlatform ? "Sign" : "Notice", true);
+                UpdateMarker(signMarkerText, worldController.PrimaryInteractable != null ? worldController.PrimaryInteractable.transform : null, "Notice", true);
                 return;
             }
 

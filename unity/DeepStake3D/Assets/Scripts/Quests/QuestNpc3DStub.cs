@@ -351,7 +351,7 @@ namespace DeepStake.Quests
 
             if (!save.StoryFlags.ReadFieldNoticeBoard)
             {
-                return "Read the field notice first. The crop order and the land transfer should not share the same seal, but they do.";
+                return "Read the authority notice first. The crop order and the land transfer should not share the same seal, but they do.";
             }
 
             if (!save.StoryFlags.ReviewedSupplyCrate)
