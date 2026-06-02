@@ -1,0 +1,38 @@
+{
+  "name": "mcp-codex-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local MCP bridge for ChatGPT <-> Codex task orchestration",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "check": "node --check src/index.mjs && node --check src/orchestrator.mjs && node --check src/gpt-session-bridge.mjs && node --check src/dev-reviewer-loop.mjs && node --check src/reset-queue.mjs && node --check src/queue-status.mjs && node --check src/queue-cat.mjs && node --check src/queue-watch.mjs && node --check src/test-failure-guard.mjs && node --check src/discord-notify.mjs",
+    "orchestrator": "node src/orchestrator.mjs",
+    "dev:bridge": "concurrently -k -n MCP,ORCH -c cyan,magenta \"npm:start\" \"npm:orchestrator\"",
+    "gpt:bridge": "node src/gpt-session-bridge.mjs",
+    "dev:all": "concurrently -k -n MCP,ORCH,GPT -c cyan,magenta,green \"npm:start\" \"npm:orchestrator\" \"npm:gpt:bridge\"",
+    "dev:review": "node src/dev-reviewer-loop.mjs",
+    "dev:review2": "node src/dev-reviewer-loop.mjs --max-auto-tasks=2",
+    "dev:review3": "node src/dev-reviewer-loop.mjs --max-auto-tasks=3",
+    "dev:loop": "node src/dev-reviewer-loop.mjs --max-auto-tasks=unlimited --continue-on-success",
+    "dev:loop:fast": "node src/dev-reviewer-loop.mjs --max-auto-tasks=unlimited --continue-on-success --fast",
+    "dev:review3:fast": "node src/dev-reviewer-loop.mjs --max-auto-tasks=3 --fast",
+    "dev:milestone-a": "node src/dev-reviewer-loop.mjs --max-auto-tasks=unlimited --continue-on-success --fast --milestone=A",
+    "dev:modular:node": "node src/dev-reviewer-loop.mjs --continue-on-success --fast --milestone=MODULAR",
+    "dev:modular": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\Run-ModularLoop.ps1",
+    "queue:reset": "node src/reset-queue.mjs",
+    "queue:status": "node src/queue-status.mjs",
+    "queue:cat": "node src/queue-cat.mjs",
+    "queue:watch": "node src/queue-watch.mjs",
+    "test:failure-guard": "node src/test-failure-guard.mjs",
+    "notify:discord": "node src/discord-notify.mjs",
+    "notify:discord:pm": "node src/discord-notify.mjs --watch-decisions"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

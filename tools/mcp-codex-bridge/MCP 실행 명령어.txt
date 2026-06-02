@@ -1,0 +1,65 @@
+cd /c/Users/dan18/health-sync-daily/tools/mcp-codex-bridge
+npm install
+npm run dev:review2
+
+Check progress in another shell:
+npm run queue:status
+npm run queue:watch
+npm run queue:cat
+
+Cat one queue file:
+npm run queue:cat -- state
+npm run queue:cat -- processing
+npm run queue:cat -- result
+npm run queue:cat -- review
+
+Reset queue:
+npm run queue:reset
+
+3 tasks:
+npm run dev:review3
+
+Custom task count:
+npm run dev:review -- --max-auto-tasks=2
+
+Experimental unlimited loop from the current worktree:
+npm run queue:reset
+npm run dev:loop
+
+Fast experimental loop:
+npm run queue:reset
+npm run dev:loop:fast
+
+Fast 3-task check:
+npm run queue:reset
+npm run dev:review3:fast
+
+Fast loop with an explicit Codex model:
+npm run queue:reset
+npm run dev:review -- --max-auto-tasks=unlimited --continue-on-success --fast --model=gpt-5.4-mini
+
+Milestone A screenshot-first mode:
+npm run queue:reset
+npm run dev:milestone-a
+
+Milestone A with an explicit Codex model:
+npm run queue:reset
+npm run dev:review -- --max-auto-tasks=unlimited --continue-on-success --fast --milestone=A --model=gpt-5.4-mini
+
+Discord notification bridge:
+export DISCORD_WEBHOOK_URL="paste-webhook-url-here"
+npm run notify:discord
+
+Discord PM approve/reject bridge:
+export DISCORD_WEBHOOK_URL="paste-webhook-url-here"
+export DISCORD_BOT_TOKEN="paste-bot-token-here"
+export DISCORD_CHANNEL_ID="paste-channel-id-here"
+npm run notify:discord:pm
+
+Discord dry-run test:
+npm run notify:discord -- --once --latest --dry-run
+
+
+cd /c/Users/dan18/health-sync-daily/tools/mcp-codex-bridge
+  npm run queue:reset
+  npm run dev:loop

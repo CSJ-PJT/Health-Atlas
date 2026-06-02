@@ -1,0 +1,16 @@
+{
+  "task_id": "modular-construction-v1-temp-home-restart",
+  "role": "implementer",
+  "requested_by": "pm",
+  "repo": "C:\\Users\\dan18\\health-sync-daily",
+  "branch": "plan",
+  "instruction": "DeepStake3D active project. Restart using temporary CODEX_HOME after app-server access fix. Target only REAL GAME FOUNDATION: ModularConstructionPrototype V1. Inspect existing ModularConstructionPrototype scene/scripts/prefabs/tests and current git diff. Do not touch WorldPrototype3D, screenshots, Discord, UPM, approval tooling, Meshy prop placement, inventory, crafting, combat, NPC systems, or process/PID cleanup. If V1 foundation is already complete, do not edit files; report commit-ready files and files to exclude. V1 foundation requires isolated ModularConstructionPrototype scene or equivalent, 1 Unity unit = 1 meter, believable character/building scale, floor/wall/door/window/fence/gate modular pieces, grid snapping, 90-degree rotation snap, basic place/remove, and tile/chunk data for future large maps. If incomplete, make only the smallest foundation fix. Output changed files, validation command/result, and commit recommendation.",
+  "constraints": [
+    "No WorldPrototype3D decoration",
+    "No screenshot/Discord/UPM work",
+    "No random Meshy props",
+    "No process cleanup",
+    "No inventory/crafting/combat/NPC expansion",
+    "Minimal modular construction foundation only"
+  ]
+}
