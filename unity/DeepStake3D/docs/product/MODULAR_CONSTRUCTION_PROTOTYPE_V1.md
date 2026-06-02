@@ -46,6 +46,8 @@ Buildings must stay believable beside the player. Do not shrink buildings for ca
 - `R`: rotate 90 degrees
 - left click: place
 - right click or `Delete`: remove the top piece at the hovered tile
+- `F5`: save placed modular construction pieces
+- `F9`: load placed modular construction pieces
 
 ## Data Model
 
@@ -53,18 +55,27 @@ The core record is:
 
 ```csharp
 PlacedBuildPiece {
+  recordId,
   pieceId,
   chunkX,
   chunkY,
   tileX,
   tileY,
+  footprintWidthTiles,
+  footprintDepthTiles,
   rotation,
   state,
   durability
 }
 ```
 
-This is intentionally save/load-ready, even though V1 does not implement persistence.
+Placed pieces are saved to:
+
+```text
+Application.persistentDataPath/DeepStake3D/modular-construction-prototype.json
+```
+
+On scene load, the prototype restores this file when it exists. If no save file exists, the demo footprint is spawned.
 
 ## Large-World Readiness
 
@@ -81,7 +92,6 @@ V1 does not implement streaming. It does prepare:
 Future work can add:
 
 - chunk load/unload
-- save/load repository
 - dismantle/salvage/repair states
 - material requirements
 - ownership/settlement permissions
@@ -116,7 +126,6 @@ V1 uses primitive modular pieces because structure and scale matter more than as
 
 - no inventory
 - no crafting
-- no save/load
 - no chunk streaming
 - no dismantle/salvage/repair
 - no collision validation beyond same-piece duplicate blocking

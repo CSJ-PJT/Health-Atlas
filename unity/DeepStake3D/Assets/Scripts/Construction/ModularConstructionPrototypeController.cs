@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 namespace DeepStake.Construction
@@ -50,6 +51,7 @@ namespace DeepStake.Construction
         private Vector2Int previewChunk;
         private Vector2Int previewLocalTile;
         private int nextRecordId = 1;
+        private string persistenceStatus = "Persistence ready";
 
         public float TileSizeMeters
         {
@@ -71,6 +73,11 @@ namespace DeepStake.Construction
             get { return placedPieces.Count; }
         }
 
+        public string SaveFilePath
+        {
+            get { return GetSaveFilePath(); }
+        }
+
         private void Awake()
         {
             CreateMaterials();
@@ -81,7 +88,7 @@ namespace DeepStake.Construction
             EnsureCamera();
             EnsureLighting();
 
-            if (spawnDemoFootprint)
+            if (!LoadPlacedPiecesFromDisk() && spawnDemoFootprint)
             {
                 SpawnDemoBuilding();
             }
@@ -91,6 +98,7 @@ namespace DeepStake.Construction
         {
             HandlePieceSelection();
             HandleRotation();
+            HandlePersistenceInput();
             UpdatePreview();
             HandlePlacementInput();
         }
@@ -101,7 +109,7 @@ namespace DeepStake.Construction
             GUI.Label(new Rect(24, 40, 390, 22), "1-8 select | [ ] cycle | R rotate | Left place | Right/Delete remove");
             GUI.Label(new Rect(24, 64, 390, 22), "Selected: " + selectedPiece + " | Rotation: " + rotationDegrees);
             GUI.Label(new Rect(24, 88, 390, 22), "Tile: " + previewGlobalTile + " | Chunk: " + previewChunk + " | Local: " + previewLocalTile);
-            GUI.Label(new Rect(24, 112, 405, 22), "1u=1m | Character=" + characterHeightMeters.ToString("0.00") + "m | Placed=" + placedPieces.Count);
+            GUI.Label(new Rect(24, 112, 405, 22), "F5 save | F9 load | Placed=" + placedPieces.Count + " | " + persistenceStatus);
         }
 
         private void HandlePieceSelection()
@@ -143,6 +151,19 @@ namespace DeepStake.Construction
             if (previewInstance != null)
             {
                 previewInstance.transform.rotation = Quaternion.Euler(0f, rotationDegrees, 0f);
+            }
+        }
+
+        private void HandlePersistenceInput()
+        {
+            if (UnityEngine.Input.GetKeyDown(KeyCode.F5))
+            {
+                SavePlacedPiecesToDisk();
+            }
+
+            if (UnityEngine.Input.GetKeyDown(KeyCode.F9))
+            {
+                LoadPlacedPiecesFromDisk();
             }
         }
 
@@ -248,6 +269,100 @@ namespace DeepStake.Construction
 
             record = default;
             return false;
+        }
+
+        public bool SavePlacedPiecesToDisk()
+        {
+            try
+            {
+                var savePath = GetSaveFilePath();
+                var directory = Path.GetDirectoryName(savePath);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var saveData = new ModularConstructionPrototypeSaveData
+                {
+                    pieces = new List<PlacedBuildPiece>(placedPieces)
+                };
+
+                File.WriteAllText(savePath, JsonUtility.ToJson(saveData, true));
+                persistenceStatus = "Saved " + placedPieces.Count + " pieces";
+                return true;
+            }
+            catch (Exception exception)
+            {
+                persistenceStatus = "Save failed: " + exception.GetType().Name;
+                Debug.LogError("Failed to save modular construction prototype data: " + exception);
+                return false;
+            }
+        }
+
+        public bool LoadPlacedPiecesFromDisk()
+        {
+            var savePath = GetSaveFilePath();
+            if (!File.Exists(savePath))
+            {
+                persistenceStatus = "No save file";
+                return false;
+            }
+
+            try
+            {
+                var json = File.ReadAllText(savePath);
+                var saveData = JsonUtility.FromJson<ModularConstructionPrototypeSaveData>(json);
+                ClearPlacedPieces();
+
+                var highestRecordId = 0;
+                if (saveData != null && saveData.pieces != null)
+                {
+                    foreach (var savedRecord in saveData.pieces)
+                    {
+                        if (!Enum.TryParse(savedRecord.pieceId, out ModularBuildPieceId pieceId) ||
+                            !definitions.TryGetValue(pieceId, out var definition))
+                        {
+                            continue;
+                        }
+
+                        var record = savedRecord;
+                        if (record.recordId <= 0)
+                        {
+                            record.recordId = highestRecordId + 1;
+                        }
+                        record.rotation = NormalizeRotation(record.rotation);
+                        if (record.footprintWidthTiles <= 0 || record.footprintDepthTiles <= 0)
+                        {
+                            var footprint = RotateFootprint(definition.footprintTiles, record.rotation);
+                            record.footprintWidthTiles = footprint.x;
+                            record.footprintDepthTiles = footprint.y;
+                        }
+
+                        if (string.IsNullOrEmpty(record.state))
+                        {
+                            record.state = "intact";
+                        }
+
+                        AddRecord(record);
+                        highestRecordId = Mathf.Max(highestRecordId, record.recordId);
+                    }
+                }
+
+                nextRecordId = highestRecordId + 1;
+                persistenceStatus = "Loaded " + placedPieces.Count + " pieces";
+                return true;
+            }
+            catch (Exception exception)
+            {
+                persistenceStatus = "Load failed: " + exception.GetType().Name;
+                Debug.LogError("Failed to load modular construction prototype data: " + exception);
+                return false;
+            }
+        }
+
+        public static string GetSaveFilePath()
+        {
+            return Path.Combine(Application.persistentDataPath, "DeepStake3D", "modular-construction-prototype.json");
         }
 
         private bool TryRemoveTopPieceAt(Vector2Int chunk, Vector2Int localTile)
@@ -743,6 +858,12 @@ namespace DeepStake.Construction
                 this.localScale = localScale;
                 this.material = material;
             }
+        }
+
+        [Serializable]
+        private sealed class ModularConstructionPrototypeSaveData
+        {
+            public List<PlacedBuildPiece> pieces = new List<PlacedBuildPiece>();
         }
     }
 }

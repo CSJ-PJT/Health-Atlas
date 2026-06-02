@@ -91,7 +91,7 @@ namespace DeepStake.Tests.PlayMode
             Assert.That(controller, Is.Not.Null);
             Assert.That(controller.TileSizeMeters, Is.EqualTo(1f));
             Assert.That(controller.ChunkSizeTiles, Is.EqualTo(32));
-            Assert.That(controller.ChunkRecords.Count, Is.GreaterThan(0));
+            controller.ClearPlacedPieces();
 
             var globalTile = new Vector2Int(34, -1);
             var expectedChunk = controller.GlobalTileToChunk(globalTile);
@@ -119,6 +119,70 @@ namespace DeepStake.Tests.PlayMode
 
             Assert.That(controller.TryRemoveTopPieceAtGlobalTile(globalTile), Is.True);
             Assert.That(controller.PlacedPieceCount, Is.EqualTo(beforeCount));
+        }
+
+        [UnityTest]
+        public IEnumerator ModularConstructionPrototype_CanSaveClearAndRestorePlacedPieces()
+        {
+            var savePath = ModularConstructionPrototypeController.GetSaveFilePath();
+            var backupPath = savePath + ".playmode-backup";
+            var hadExistingSave = File.Exists(savePath);
+
+            if (hadExistingSave)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? ".");
+                File.Copy(savePath, backupPath, true);
+                File.Delete(savePath);
+            }
+
+            yield return LoadScene(ModularConstructionScene);
+            yield return WaitFrames(2);
+
+            var controller = Object.FindFirstObjectByType<ModularConstructionPrototypeController>();
+            Assert.That(controller, Is.Not.Null);
+            Assert.That(savePath, Does.EndWith(Path.Combine("DeepStake3D", "modular-construction-prototype.json")));
+
+            var globalTile = new Vector2Int(65, 66);
+            var expectedChunk = controller.GlobalTileToChunk(globalTile);
+            var expectedLocalTile = controller.GlobalTileToLocalTile(globalTile, expectedChunk);
+
+            Assert.That(controller.TryPlacePieceAtGlobalTile(ModularBuildPieceId.Gate, globalTile, -90), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(globalTile, out var placedBeforeSave), Is.True);
+            Assert.That(placedBeforeSave.pieceId, Is.EqualTo(ModularBuildPieceId.Gate.ToString()));
+            Assert.That(placedBeforeSave.chunkX, Is.EqualTo(expectedChunk.x));
+            Assert.That(placedBeforeSave.chunkY, Is.EqualTo(expectedChunk.y));
+            Assert.That(placedBeforeSave.tileX, Is.EqualTo(expectedLocalTile.x));
+            Assert.That(placedBeforeSave.tileY, Is.EqualTo(expectedLocalTile.y));
+            Assert.That(placedBeforeSave.rotation, Is.EqualTo(270));
+            Assert.That(placedBeforeSave.state, Is.EqualTo("intact"));
+            Assert.That(placedBeforeSave.durability, Is.EqualTo(100f));
+
+            Assert.That(controller.SavePlacedPiecesToDisk(), Is.True);
+            Assert.That(File.Exists(savePath), Is.True);
+
+            controller.ClearPlacedPieces();
+            Assert.That(controller.PlacedPieceCount, Is.EqualTo(0));
+
+            Assert.That(controller.LoadPlacedPiecesFromDisk(), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(globalTile, out var restored), Is.True);
+            Assert.That(restored.pieceId, Is.EqualTo(ModularBuildPieceId.Gate.ToString()));
+            Assert.That(restored.chunkX, Is.EqualTo(expectedChunk.x));
+            Assert.That(restored.chunkY, Is.EqualTo(expectedChunk.y));
+            Assert.That(restored.tileX, Is.EqualTo(expectedLocalTile.x));
+            Assert.That(restored.tileY, Is.EqualTo(expectedLocalTile.y));
+            Assert.That(restored.rotation, Is.EqualTo(270));
+            Assert.That(restored.state, Is.EqualTo("intact"));
+            Assert.That(restored.durability, Is.EqualTo(100f));
+
+            if (hadExistingSave)
+            {
+                File.Copy(backupPath, savePath, true);
+                File.Delete(backupPath);
+            }
+            else if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
+            }
         }
 
         [UnityTest]
