@@ -7,6 +7,11 @@ namespace DeepStake.Construction
 {
     public sealed class ModularConstructionPrototypeController : MonoBehaviour
     {
+        private const string StateBuilt = "built";
+        private const string StateDamaged = "damaged";
+        private const string StateRepaired = "repaired";
+        private const float FullDurability = 100f;
+
         private static readonly KeyCode[] PieceHotkeys =
         {
             KeyCode.Alpha1,
@@ -105,11 +110,12 @@ namespace DeepStake.Construction
 
         private void OnGUI()
         {
-            GUI.Box(new Rect(12, 12, 430, 136), "Modular Construction Prototype V1");
-            GUI.Label(new Rect(24, 40, 390, 22), "1-8 select | [ ] cycle | R rotate | Left place | Right/Delete remove");
+            GUI.Box(new Rect(12, 12, 430, 158), "Modular Construction Prototype V1");
+            GUI.Label(new Rect(24, 40, 390, 22), "1-8 select | [ ] cycle | R rotate | Left place | Right/Delete dismantle");
             GUI.Label(new Rect(24, 64, 390, 22), "Selected: " + selectedPiece + " | Rotation: " + rotationDegrees);
             GUI.Label(new Rect(24, 88, 390, 22), "Tile: " + previewGlobalTile + " | Chunk: " + previewChunk + " | Local: " + previewLocalTile);
-            GUI.Label(new Rect(24, 112, 405, 22), "F5 save | F9 load | Placed=" + placedPieces.Count + " | " + persistenceStatus);
+            GUI.Label(new Rect(24, 112, 405, 22), "Z damage | X repair | F5 save | F9 load");
+            GUI.Label(new Rect(24, 136, 405, 22), "Placed=" + placedPieces.Count + " | " + persistenceStatus);
         }
 
         private void HandlePieceSelection()
@@ -176,7 +182,17 @@ namespace DeepStake.Construction
 
             if (UnityEngine.Input.GetMouseButtonDown(1) || UnityEngine.Input.GetKeyDown(KeyCode.Delete))
             {
-                TryRemoveTopPieceAtGlobalTile(previewGlobalTile);
+                TryDismantleTopPieceAtGlobalTile(previewGlobalTile);
+            }
+
+            if (UnityEngine.Input.GetKeyDown(KeyCode.Z))
+            {
+                TryDamageTopPieceAtGlobalTile(previewGlobalTile);
+            }
+
+            if (UnityEngine.Input.GetKeyDown(KeyCode.X))
+            {
+                TryRepairTopPieceAtGlobalTile(previewGlobalTile);
             }
         }
 
@@ -226,16 +242,21 @@ namespace DeepStake.Construction
             }
 
             var definition = definitions[pieceId];
-            var record = new PlacedBuildPiece(nextRecordId++, pieceId, chunk, localTile, RotateFootprint(definition.footprintTiles, normalizedRotation), normalizedRotation);
+            var record = CreatePlacedBuildPiece(pieceId, chunk, localTile, normalizedRotation);
             AddRecord(record);
             return true;
         }
 
         public bool TryRemoveTopPieceAtGlobalTile(Vector2Int globalTile)
         {
+            return TryDismantleTopPieceAtGlobalTile(globalTile);
+        }
+
+        public bool TryDismantleTopPieceAtGlobalTile(Vector2Int globalTile)
+        {
             var chunk = GlobalTileToChunk(globalTile);
             var localTile = GlobalTileToLocalTile(globalTile, chunk);
-            return TryRemoveTopPieceAt(chunk, localTile);
+            return TryDismantleTopPieceAt(chunk, localTile);
         }
 
         public void ClearPlacedPieces()
@@ -271,6 +292,27 @@ namespace DeepStake.Construction
             return false;
         }
 
+        public bool TryDamageTopPieceAtGlobalTile(Vector2Int globalTile, float durabilityLoss = 50f)
+        {
+            if (!TryGetTopPieceAtGlobalTile(globalTile, out var record))
+            {
+                return false;
+            }
+
+            var nextDurability = Mathf.Clamp(record.durability - Mathf.Max(0f, durabilityLoss), 0f, FullDurability);
+            return UpdatePlacedPieceState(record.recordId, StateDamaged, nextDurability);
+        }
+
+        public bool TryRepairTopPieceAtGlobalTile(Vector2Int globalTile)
+        {
+            if (!TryGetTopPieceAtGlobalTile(globalTile, out var record))
+            {
+                return false;
+            }
+
+            return UpdatePlacedPieceState(record.recordId, StateRepaired, FullDurability);
+        }
+
         public bool SavePlacedPiecesToDisk()
         {
             try
@@ -284,7 +326,8 @@ namespace DeepStake.Construction
 
                 var saveData = new ModularConstructionPrototypeSaveData
                 {
-                    pieces = new List<PlacedBuildPiece>(placedPieces)
+                    pieces = new List<PlacedBuildPiece>(placedPieces),
+                    chunks = new List<ModularConstructionChunk>(chunkRecords)
                 };
 
                 File.WriteAllText(savePath, JsonUtility.ToJson(saveData, true));
@@ -315,9 +358,10 @@ namespace DeepStake.Construction
                 ClearPlacedPieces();
 
                 var highestRecordId = 0;
-                if (saveData != null && saveData.pieces != null)
+                var recordsToLoad = GetRecordsToLoad(saveData);
+                if (recordsToLoad != null)
                 {
-                    foreach (var savedRecord in saveData.pieces)
+                    foreach (var savedRecord in recordsToLoad)
                     {
                         if (!Enum.TryParse(savedRecord.pieceId, out ModularBuildPieceId pieceId) ||
                             !definitions.TryGetValue(pieceId, out var definition))
@@ -330,6 +374,7 @@ namespace DeepStake.Construction
                         {
                             record.recordId = highestRecordId + 1;
                         }
+
                         record.rotation = NormalizeRotation(record.rotation);
                         if (record.footprintWidthTiles <= 0 || record.footprintDepthTiles <= 0)
                         {
@@ -338,13 +383,45 @@ namespace DeepStake.Construction
                             record.footprintDepthTiles = footprint.y;
                         }
 
-                        if (string.IsNullOrEmpty(record.state))
+                        if (string.IsNullOrEmpty(record.state) || record.state == "intact")
                         {
-                            record.state = "intact";
+                            record.state = StateBuilt;
+                        }
+
+                        if (record.state == StateBuilt && record.durability <= 0f)
+                        {
+                            record.durability = FullDurability;
+                        }
+                        else
+                        {
+                            record.durability = Mathf.Clamp(record.durability, 0f, FullDurability);
+                        }
+
+                        if (string.IsNullOrEmpty(record.resourceCostKey))
+                        {
+                            record.resourceCostKey = definition.resourceCostKey;
+                        }
+
+                        if (record.resourceCostUnits <= 0)
+                        {
+                            record.resourceCostUnits = definition.resourceCostUnits;
+                        }
+
+                        if (string.IsNullOrEmpty(record.buildRequirementKey))
+                        {
+                            record.buildRequirementKey = definition.buildRequirementKey;
+                            record.buildRequirementSatisfied = true;
+                        }
+
+                        highestRecordId = Mathf.Max(highestRecordId, record.recordId);
+                        var recordChunk = new Vector2Int(record.chunkX, record.chunkY);
+                        var recordLocalTile = new Vector2Int(record.tileX, record.tileY);
+                        if (!IsPlacementValid(pieceId, recordChunk, recordLocalTile, record.rotation))
+                        {
+                            continue;
                         }
 
                         AddRecord(record);
-                        highestRecordId = Mathf.Max(highestRecordId, record.recordId);
                     }
                 }
 
@@ -360,12 +437,60 @@ namespace DeepStake.Construction
             }
         }
 
+        private static List<PlacedBuildPiece> GetRecordsToLoad(ModularConstructionPrototypeSaveData saveData)
+        {
+            if (saveData == null)
+            {
+                return null;
+            }
+
+            if (saveData.pieces != null && saveData.pieces.Count > 0)
+            {
+                return saveData.pieces;
+            }
+
+            if (saveData.chunks == null || saveData.chunks.Count == 0)
+            {
+                return null;
+            }
+
+            var records = new List<PlacedBuildPiece>();
+            var seenRecordIds = new HashSet<int>();
+            foreach (var chunk in saveData.chunks)
+            {
+                if (chunk == null || chunk.tiles == null)
+                {
+                    continue;
+                }
+
+                foreach (var tile in chunk.tiles)
+                {
+                    if (tile == null || tile.pieces == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var record in tile.pieces)
+                    {
+                        if (record.recordId > 0 && !seenRecordIds.Add(record.recordId))
+                        {
+                            continue;
+                        }
+
+                        records.Add(record);
+                    }
+                }
+            }
+
+            return records;
+        }
+
         public static string GetSaveFilePath()
         {
             return Path.Combine(Application.persistentDataPath, "DeepStake3D", "modular-construction-prototype.json");
         }
 
-        private bool TryRemoveTopPieceAt(Vector2Int chunk, Vector2Int localTile)
+        private bool TryDismantleTopPieceAt(Vector2Int chunk, Vector2Int localTile)
         {
             var chunkKey = chunk;
             if (!chunks.TryGetValue(chunkKey, out var chunkData) || !chunkData.TryGetTile(localTile, out var tile) || tile.pieces.Count == 0)
@@ -385,6 +510,49 @@ namespace DeepStake.Construction
             return true;
         }
 
+        private bool UpdatePlacedPieceState(int recordId, string state, float durability)
+        {
+            var found = false;
+            var clampedDurability = Mathf.Clamp(durability, 0f, FullDurability);
+
+            for (var index = 0; index < placedPieces.Count; index++)
+            {
+                if (placedPieces[index].recordId != recordId)
+                {
+                    continue;
+                }
+
+                var updated = placedPieces[index];
+                updated.state = state;
+                updated.durability = clampedDurability;
+                placedPieces[index] = updated;
+                found = true;
+                break;
+            }
+
+            foreach (var chunk in chunkRecords)
+            {
+                foreach (var tile in chunk.tiles)
+                {
+                    for (var index = 0; index < tile.pieces.Count; index++)
+                    {
+                        if (tile.pieces[index].recordId != recordId)
+                        {
+                            continue;
+                        }
+
+                        var updated = tile.pieces[index];
+                        updated.state = state;
+                        updated.durability = clampedDurability;
+                        tile.pieces[index] = updated;
+                        found = true;
+                    }
+                }
+            }
+
+            return found;
+        }
+
         private bool IsPlacementValid(ModularBuildPieceId pieceId, Vector2Int chunk, Vector2Int localTile, int rotation)
         {
             if (!definitions.TryGetValue(pieceId, out var definition))
@@ -401,7 +569,7 @@ namespace DeepStake.Construction
 
                 foreach (var record in tile.pieces)
                 {
-                    if (record.pieceId == pieceId.ToString())
+                    if (!CanPiecesCoexist(definition, record))
                     {
                         return false;
                     }
@@ -444,10 +612,31 @@ namespace DeepStake.Construction
             var globalTile = new Vector2Int(tileX, tileY);
             var chunk = GlobalTileToChunk(globalTile);
             var localTile = GlobalTileToLocalTile(globalTile, chunk);
-            var definition = definitions[pieceId];
             var normalizedRotation = NormalizeRotation(rotation);
-            var record = new PlacedBuildPiece(nextRecordId++, pieceId, chunk, localTile, RotateFootprint(definition.footprintTiles, normalizedRotation), normalizedRotation);
+            var record = CreatePlacedBuildPiece(pieceId, chunk, localTile, normalizedRotation);
             AddRecord(record);
+        }
+
+        private PlacedBuildPiece CreatePlacedBuildPiece(
+            ModularBuildPieceId pieceId,
+            Vector2Int chunk,
+            Vector2Int localTile,
+            int normalizedRotation)
+        {
+            var definition = definitions[pieceId];
+            return new PlacedBuildPiece(
+                nextRecordId++,
+                pieceId,
+                chunk,
+                localTile,
+                RotateFootprint(definition.footprintTiles, normalizedRotation),
+                normalizedRotation,
+                StateBuilt,
+                FullDurability,
+                definition.resourceCostKey,
+                definition.resourceCostUnits,
+                definition.buildRequirementKey,
+                true);
         }
 
         private void AddRecord(PlacedBuildPiece record)
@@ -593,30 +782,54 @@ namespace DeepStake.Construction
         private void RegisterDefinitions()
         {
             definitions[ModularBuildPieceId.FloorTile] = new BuildPieceDefinition(
+                BuildPieceCategory.Floor,
                 new Vector2Int(2, 2),
+                "foundation_material",
+                2,
+                "basic_construction",
                 new BuildPart("2m_floor_tile", new Vector3(0f, 0.04f, 0f), new Vector3(2f, 0.08f, 2f), floorMaterial));
 
             definitions[ModularBuildPieceId.WallSegment] = new BuildPieceDefinition(
+                BuildPieceCategory.Wall,
                 new Vector2Int(2, 1),
+                "wall_material",
+                3,
+                "basic_construction",
                 new BuildPart("2m_wall_segment_2_8m", new Vector3(0f, 1.4f, 0f), new Vector3(2f, 2.8f, 0.18f), wallMaterial));
 
             definitions[ModularBuildPieceId.CornerWall] = new BuildPieceDefinition(
+                BuildPieceCategory.Wall,
                 new Vector2Int(2, 2),
+                "wall_material",
+                5,
+                "basic_construction",
                 new BuildPart("corner_wall_a", new Vector3(0f, 1.4f, 0f), new Vector3(2f, 2.8f, 0.18f), wallMaterial),
                 new BuildPart("corner_wall_b", new Vector3(-0.91f, 1.4f, 0.91f), new Vector3(0.18f, 2.8f, 2f), wallMaterial));
 
             definitions[ModularBuildPieceId.DoorFrame] = new BuildPieceDefinition(
+                BuildPieceCategory.Opening,
                 new Vector2Int(2, 1),
+                "framing_material",
+                2,
+                "opening_construction",
                 new BuildPart("door_left_post", new Vector3(-0.55f, 1.05f, 0f), new Vector3(0.16f, 2.1f, 0.2f), woodMaterial),
                 new BuildPart("door_right_post", new Vector3(0.55f, 1.05f, 0f), new Vector3(0.16f, 2.1f, 0.2f), woodMaterial),
                 new BuildPart("door_top_beam", new Vector3(0f, 2.18f, 0f), new Vector3(1.25f, 0.18f, 0.2f), woodMaterial));
 
             definitions[ModularBuildPieceId.Door] = new BuildPieceDefinition(
+                BuildPieceCategory.Door,
                 new Vector2Int(1, 1),
+                "door_material",
+                1,
+                "opening_construction",
                 new BuildPart("0_9m_door_2_1m", new Vector3(0f, 1.05f, 0.03f), new Vector3(0.9f, 2.1f, 0.08f), woodMaterial));
 
             definitions[ModularBuildPieceId.WindowWall] = new BuildPieceDefinition(
+                BuildPieceCategory.Wall,
                 new Vector2Int(2, 1),
+                "wall_material",
+                4,
+                "opening_construction",
                 new BuildPart("window_wall_left", new Vector3(-0.78f, 1.4f, 0f), new Vector3(0.44f, 2.8f, 0.18f), wallMaterial),
                 new BuildPart("window_wall_right", new Vector3(0.78f, 1.4f, 0f), new Vector3(0.44f, 2.8f, 0.18f), wallMaterial),
                 new BuildPart("window_wall_bottom", new Vector3(0f, 0.55f, 0f), new Vector3(1.12f, 1.1f, 0.18f), wallMaterial),
@@ -624,17 +837,51 @@ namespace DeepStake.Construction
                 new BuildPart("dark_window_frame", new Vector3(0f, 1.48f, -0.02f), new Vector3(0.95f, 0.82f, 0.08f), metalMaterial));
 
             definitions[ModularBuildPieceId.Fence] = new BuildPieceDefinition(
+                BuildPieceCategory.Fence,
                 new Vector2Int(2, 1),
+                "fence_material",
+                2,
+                "boundary_construction",
                 new BuildPart("fence_post_left", new Vector3(-0.9f, 0.7f, 0f), new Vector3(0.12f, 1.4f, 0.12f), woodMaterial),
                 new BuildPart("fence_post_right", new Vector3(0.9f, 0.7f, 0f), new Vector3(0.12f, 1.4f, 0.12f), woodMaterial),
                 new BuildPart("fence_rail_top", new Vector3(0f, 1.05f, 0f), new Vector3(1.9f, 0.12f, 0.12f), woodMaterial),
                 new BuildPart("fence_rail_mid", new Vector3(0f, 0.58f, 0f), new Vector3(1.9f, 0.12f, 0.12f), woodMaterial));
 
             definitions[ModularBuildPieceId.Gate] = new BuildPieceDefinition(
+                BuildPieceCategory.Gate,
                 new Vector2Int(2, 1),
+                "gate_material",
+                3,
+                "boundary_construction",
                 new BuildPart("gate_post_left", new Vector3(-0.95f, 0.8f, 0f), new Vector3(0.14f, 1.6f, 0.14f), woodMaterial),
                 new BuildPart("gate_post_right", new Vector3(0.95f, 0.8f, 0f), new Vector3(0.14f, 1.6f, 0.14f), woodMaterial),
                 new BuildPart("gate_panel", new Vector3(0f, 0.75f, 0.04f), new Vector3(1.55f, 1.1f, 0.1f), woodMaterial));
+        }
+
+        private bool CanPiecesCoexist(BuildPieceDefinition candidate, PlacedBuildPiece existingRecord)
+        {
+            if (!Enum.TryParse(existingRecord.pieceId, out ModularBuildPieceId existingPieceId) ||
+                !definitions.TryGetValue(existingPieceId, out var existing))
+            {
+                return false;
+            }
+
+            if (candidate.category == BuildPieceCategory.Floor || existing.category == BuildPieceCategory.Floor)
+            {
+                return candidate.category != existing.category;
+            }
+
+            if (candidate.category == BuildPieceCategory.Door && existing.category == BuildPieceCategory.Opening)
+            {
+                return true;
+            }
+
+            if (candidate.category == BuildPieceCategory.Opening && existing.category == BuildPieceCategory.Door)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private IEnumerable<(Vector2Int chunk, Vector2Int localTile)> EnumerateOccupiedTiles(
@@ -834,14 +1081,38 @@ namespace DeepStake.Construction
 
         private sealed class BuildPieceDefinition
         {
+            public readonly BuildPieceCategory category;
             public readonly Vector2Int footprintTiles;
+            public readonly string resourceCostKey;
+            public readonly int resourceCostUnits;
+            public readonly string buildRequirementKey;
             public readonly BuildPart[] parts;
 
-            public BuildPieceDefinition(Vector2Int footprintTiles, params BuildPart[] parts)
+            public BuildPieceDefinition(
+                BuildPieceCategory category,
+                Vector2Int footprintTiles,
+                string resourceCostKey,
+                int resourceCostUnits,
+                string buildRequirementKey,
+                params BuildPart[] parts)
             {
+                this.category = category;
                 this.footprintTiles = new Vector2Int(Mathf.Max(1, footprintTiles.x), Mathf.Max(1, footprintTiles.y));
+                this.resourceCostKey = string.IsNullOrEmpty(resourceCostKey) ? "placeholder" : resourceCostKey;
+                this.resourceCostUnits = Mathf.Max(0, resourceCostUnits);
+                this.buildRequirementKey = string.IsNullOrEmpty(buildRequirementKey) ? "basic_construction" : buildRequirementKey;
                 this.parts = parts;
             }
+        }
+
+        private enum BuildPieceCategory
+        {
+            Floor,
+            Wall,
+            Opening,
+            Door,
+            Fence,
+            Gate
         }
 
         private sealed class BuildPart
@@ -864,6 +1135,7 @@ namespace DeepStake.Construction
         private sealed class ModularConstructionPrototypeSaveData
         {
             public List<PlacedBuildPiece> pieces = new List<PlacedBuildPiece>();
+            public List<ModularConstructionChunk> chunks = new List<ModularConstructionChunk>();
         }
     }
 }

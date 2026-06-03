@@ -45,7 +45,9 @@ Buildings must stay believable beside the player. Do not shrink buildings for ca
 - `[` / `]`: cycle piece type
 - `R`: rotate 90 degrees
 - left click: place
-- right click or `Delete`: remove the top piece at the hovered tile
+- right click or `Delete`: dismantle/remove the top piece at the hovered tile
+- `Z`: damage the top piece at the hovered tile
+- `X`: repair the top piece at the hovered tile
 - `F5`: save placed modular construction pieces
 - `F9`: load placed modular construction pieces
 
@@ -65,7 +67,11 @@ PlacedBuildPiece {
   footprintDepthTiles,
   rotation,
   state,
-  durability
+  durability,
+  resourceCostKey,
+  resourceCostUnits,
+  buildRequirementKey,
+  buildRequirementSatisfied
 }
 ```
 
@@ -77,6 +83,62 @@ Application.persistentDataPath/DeepStake3D/modular-construction-prototype.json
 
 On scene load, the prototype restores this file when it exists. If no save file exists, the demo footprint is spawned.
 
+The save payload keeps the flat `pieces` list for compatibility and also writes `chunks` with their nested `tiles` and piece records. Loading still prefers the flat list when present, then falls back to chunk records for future chunk-first saves.
+
+## Placement Rules
+
+V1 uses the existing chunk/tile/placed-piece records as the source of truth. Runtime visuals are spawned from those records.
+
+Each build piece has simple rule metadata:
+
+- category: `floor`, `wall`, `opening`, `door`, `fence`, or `gate`
+- footprint tiles
+- occupancy compatibility
+
+Current rule behavior:
+
+- floor pieces cannot overlap another floor piece
+- floor pieces may coexist with one vertical structural piece as an explicit foundation layer
+- wall, window wall, fence, and gate pieces cannot overlap another incompatible structural piece
+- doors may coexist with door frames
+- door frames may coexist with doors
+- dismantling the top piece clears that piece from every occupied chunk/tile record
+- load rejects saved records that fail the same occupancy validation against already-restored records
+
+This is still a prototype rule set, not a full building-code system.
+
+## Durability State Flow
+
+Placed build pieces use the existing `state` and `durability` fields.
+
+Current debug flow:
+
+- new pieces start as `built` with durability `100`
+- `Z` changes the top hovered piece to `damaged` and reduces durability
+- `X` changes the top hovered piece to `repaired` and restores durability to `100`
+- right click or `Delete` dismantles/removes the top hovered piece from the records
+- save/load preserves state and durability for placed pieces
+
+This is not inventory-backed crafting yet. Dismantled pieces are removed rather than converted into resources.
+
+## Resource Cost Placeholder
+
+Placed build pieces snapshot lightweight placeholder cost metadata from their construction definition:
+
+- `resourceCostKey`: a future-facing material bucket such as `wall_material` or `gate_material`
+- `resourceCostUnits`: a simple integer cost weight
+
+This is intentionally not an inventory, crafting, or economy system. The values exist so future construction requirements can read stable saved records without changing the chunk/tile model.
+
+## Build Requirement Placeholder
+
+Placed build pieces also snapshot non-blocking requirement metadata:
+
+- `buildRequirementKey`: a future-facing requirement bucket such as `basic_construction`, `opening_construction`, or `boundary_construction`
+- `buildRequirementSatisfied`: currently `true` for prototype placements
+
+The prototype does not check skills, quests, inventory, ownership, or settlement permissions. Requirement fields only reserve stable save data for future validation layers.
+
 ## Large-World Readiness
 
 V1 does not implement streaming. It does prepare:
@@ -86,14 +148,16 @@ V1 does not implement streaming. It does prepare:
 - local tile coordinate inside chunk
 - piece id
 - rotation
-- state placeholder
-- durability placeholder
+- state
+- durability
+- resource cost placeholder
+- build requirement placeholder
 
 Future work can add:
 
 - chunk load/unload
-- dismantle/salvage/repair states
-- material requirements
+- salvage/resource returns
+- inventory-backed material requirements
 - ownership/settlement permissions
 - dimension-specific construction rules
 
@@ -127,8 +191,8 @@ V1 uses primitive modular pieces because structure and scale matter more than as
 - no inventory
 - no crafting
 - no chunk streaming
-- no dismantle/salvage/repair
-- no collision validation beyond same-piece duplicate blocking
-- no material costs
+- no salvage/resource return
+- no full structural support or stability simulation
+- no inventory-backed material costs
 - no multiplayer or NPC construction behavior
 - no roof/cutaway system

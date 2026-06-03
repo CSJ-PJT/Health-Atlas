@@ -17,6 +17,10 @@ namespace DeepStake.Construction
         public int rotation;
         public string state;
         public float durability;
+        public string resourceCostKey;
+        public int resourceCostUnits;
+        public string buildRequirementKey;
+        public bool buildRequirementSatisfied;
 
         public PlacedBuildPiece(
             int recordId,
@@ -25,8 +29,12 @@ namespace DeepStake.Construction
             Vector2Int tile,
             Vector2Int footprintTiles,
             int rotation,
-            string state = "intact",
-            float durability = 100f)
+            string state = "built",
+            float durability = 100f,
+            string resourceCostKey = "placeholder",
+            int resourceCostUnits = 1,
+            string buildRequirementKey = "basic_construction",
+            bool buildRequirementSatisfied = true)
         {
             this.recordId = recordId;
             this.pieceId = pieceId.ToString();
@@ -39,6 +47,10 @@ namespace DeepStake.Construction
             this.rotation = rotation;
             this.state = state;
             this.durability = durability;
+            this.resourceCostKey = resourceCostKey;
+            this.resourceCostUnits = Mathf.Max(0, resourceCostUnits);
+            this.buildRequirementKey = buildRequirementKey;
+            this.buildRequirementSatisfied = buildRequirementSatisfied;
         }
 
         public PlacedBuildPiece(
@@ -47,9 +59,13 @@ namespace DeepStake.Construction
             Vector2Int chunk,
             Vector2Int tile,
             int rotation,
-            string state = "intact",
-            float durability = 100f)
-            : this(recordId, pieceId, chunk, tile, Vector2Int.one, rotation, state, durability)
+            string state = "built",
+            float durability = 100f,
+            string resourceCostKey = "placeholder",
+            int resourceCostUnits = 1,
+            string buildRequirementKey = "basic_construction",
+            bool buildRequirementSatisfied = true)
+            : this(recordId, pieceId, chunk, tile, Vector2Int.one, rotation, state, durability, resourceCostKey, resourceCostUnits, buildRequirementKey, buildRequirementSatisfied)
         {
         }
 
@@ -59,9 +75,13 @@ namespace DeepStake.Construction
             Vector2Int tile,
             Vector2Int footprintTiles,
             int rotation,
-            string state = "intact",
-            float durability = 100f)
-            : this(0, pieceId, chunk, tile, footprintTiles, rotation, state, durability)
+            string state = "built",
+            float durability = 100f,
+            string resourceCostKey = "placeholder",
+            int resourceCostUnits = 1,
+            string buildRequirementKey = "basic_construction",
+            bool buildRequirementSatisfied = true)
+            : this(0, pieceId, chunk, tile, footprintTiles, rotation, state, durability, resourceCostKey, resourceCostUnits, buildRequirementKey, buildRequirementSatisfied)
         {
         }
 
@@ -70,9 +90,13 @@ namespace DeepStake.Construction
             Vector2Int chunk,
             Vector2Int tile,
             int rotation,
-            string state = "intact",
-            float durability = 100f)
-            : this(0, pieceId, chunk, tile, Vector2Int.one, rotation, state, durability)
+            string state = "built",
+            float durability = 100f,
+            string resourceCostKey = "placeholder",
+            int resourceCostUnits = 1,
+            string buildRequirementKey = "basic_construction",
+            bool buildRequirementSatisfied = true)
+            : this(0, pieceId, chunk, tile, Vector2Int.one, rotation, state, durability, resourceCostKey, resourceCostUnits, buildRequirementKey, buildRequirementSatisfied)
         {
         }
     }

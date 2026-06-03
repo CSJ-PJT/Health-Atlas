@@ -154,11 +154,19 @@ namespace DeepStake.Tests.PlayMode
             Assert.That(placedBeforeSave.tileX, Is.EqualTo(expectedLocalTile.x));
             Assert.That(placedBeforeSave.tileY, Is.EqualTo(expectedLocalTile.y));
             Assert.That(placedBeforeSave.rotation, Is.EqualTo(270));
-            Assert.That(placedBeforeSave.state, Is.EqualTo("intact"));
+            Assert.That(placedBeforeSave.state, Is.EqualTo("built"));
             Assert.That(placedBeforeSave.durability, Is.EqualTo(100f));
+            Assert.That(placedBeforeSave.resourceCostKey, Is.EqualTo("gate_material"));
+            Assert.That(placedBeforeSave.resourceCostUnits, Is.EqualTo(3));
+            Assert.That(placedBeforeSave.buildRequirementKey, Is.EqualTo("boundary_construction"));
+            Assert.That(placedBeforeSave.buildRequirementSatisfied, Is.True);
 
             Assert.That(controller.SavePlacedPiecesToDisk(), Is.True);
             Assert.That(File.Exists(savePath), Is.True);
+            var savedJson = File.ReadAllText(savePath);
+            Assert.That(savedJson, Does.Contain("\"pieces\""));
+            Assert.That(savedJson, Does.Contain("\"chunks\""));
+            Assert.That(savedJson, Does.Contain("\"tiles\""));
 
             controller.ClearPlacedPieces();
             Assert.That(controller.PlacedPieceCount, Is.EqualTo(0));
@@ -171,8 +179,223 @@ namespace DeepStake.Tests.PlayMode
             Assert.That(restored.tileX, Is.EqualTo(expectedLocalTile.x));
             Assert.That(restored.tileY, Is.EqualTo(expectedLocalTile.y));
             Assert.That(restored.rotation, Is.EqualTo(270));
-            Assert.That(restored.state, Is.EqualTo("intact"));
+            Assert.That(restored.state, Is.EqualTo("built"));
             Assert.That(restored.durability, Is.EqualTo(100f));
+            Assert.That(restored.resourceCostKey, Is.EqualTo("gate_material"));
+            Assert.That(restored.resourceCostUnits, Is.EqualTo(3));
+            Assert.That(restored.buildRequirementKey, Is.EqualTo("boundary_construction"));
+            Assert.That(restored.buildRequirementSatisfied, Is.True);
+
+            if (hadExistingSave)
+            {
+                File.Copy(backupPath, savePath, true);
+                File.Delete(backupPath);
+            }
+            else if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ModularConstructionPrototype_EnforcesOccupancyRulesAndPersistsValidRecords()
+        {
+            var savePath = ModularConstructionPrototypeController.GetSaveFilePath();
+            var backupPath = savePath + ".playmode-backup";
+            var hadExistingSave = File.Exists(savePath);
+
+            if (hadExistingSave)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? ".");
+                File.Copy(savePath, backupPath, true);
+                File.Delete(savePath);
+            }
+
+            yield return LoadScene(ModularConstructionScene);
+            yield return WaitFrames(2);
+
+            var controller = Object.FindFirstObjectByType<ModularConstructionPrototypeController>();
+            Assert.That(controller, Is.Not.Null);
+            controller.ClearPlacedPieces();
+
+            var structuralTile = new Vector2Int(96, 96);
+            var rotatedTile = new Vector2Int(104, 104);
+
+            Assert.That(controller.TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, structuralTile, 0), Is.True);
+            Assert.That(controller.TryPlacePieceAtGlobalTile(ModularBuildPieceId.WallSegment, structuralTile, 0), Is.True);
+            Assert.That(controller.TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, structuralTile, 0), Is.False);
+            Assert.That(controller.TryPlacePieceAtGlobalTile(ModularBuildPieceId.WindowWall, structuralTile, 0), Is.False);
+
+            Assert.That(controller.TryPlacePieceAtGlobalTile(ModularBuildPieceId.Fence, rotatedTile, 450), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(rotatedTile, out var rotatedFence), Is.True);
+            Assert.That(rotatedFence.pieceId, Is.EqualTo(ModularBuildPieceId.Fence.ToString()));
+            Assert.That(rotatedFence.rotation, Is.EqualTo(90));
+
+            Assert.That(controller.TryDismantleTopPieceAtGlobalTile(structuralTile), Is.True);
+            Assert.That(controller.TryPlacePieceAtGlobalTile(ModularBuildPieceId.WindowWall, structuralTile, 0), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(structuralTile, out var replacementWall), Is.True);
+            Assert.That(replacementWall.pieceId, Is.EqualTo(ModularBuildPieceId.WindowWall.ToString()));
+
+            var countBeforeSave = controller.PlacedPieceCount;
+            Assert.That(controller.SavePlacedPiecesToDisk(), Is.True);
+
+            controller.ClearPlacedPieces();
+            Assert.That(controller.PlacedPieceCount, Is.EqualTo(0));
+            Assert.That(controller.LoadPlacedPiecesFromDisk(), Is.True);
+            Assert.That(controller.PlacedPieceCount, Is.EqualTo(countBeforeSave));
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(structuralTile, out var restoredWall), Is.True);
+            Assert.That(restoredWall.pieceId, Is.EqualTo(ModularBuildPieceId.WindowWall.ToString()));
+            Assert.That(restoredWall.rotation, Is.EqualTo(0));
+            Assert.That(restoredWall.state, Is.EqualTo("built"));
+            Assert.That(restoredWall.durability, Is.EqualTo(100f));
+            Assert.That(restoredWall.resourceCostKey, Is.EqualTo("wall_material"));
+            Assert.That(restoredWall.resourceCostUnits, Is.EqualTo(4));
+            Assert.That(restoredWall.buildRequirementKey, Is.EqualTo("opening_construction"));
+            Assert.That(restoredWall.buildRequirementSatisfied, Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(rotatedTile, out var restoredFence), Is.True);
+            Assert.That(restoredFence.pieceId, Is.EqualTo(ModularBuildPieceId.Fence.ToString()));
+            Assert.That(restoredFence.rotation, Is.EqualTo(90));
+            Assert.That(restoredFence.resourceCostKey, Is.EqualTo("fence_material"));
+            Assert.That(restoredFence.resourceCostUnits, Is.EqualTo(2));
+            Assert.That(restoredFence.buildRequirementKey, Is.EqualTo("boundary_construction"));
+            Assert.That(restoredFence.buildRequirementSatisfied, Is.True);
+
+            if (hadExistingSave)
+            {
+                File.Copy(backupPath, savePath, true);
+                File.Delete(backupPath);
+            }
+            else if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ModularConstructionPrototype_CanDamageRepairDismantleAndPersistState()
+        {
+            var savePath = ModularConstructionPrototypeController.GetSaveFilePath();
+            var backupPath = savePath + ".playmode-backup";
+            var hadExistingSave = File.Exists(savePath);
+
+            if (hadExistingSave)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? ".");
+                File.Copy(savePath, backupPath, true);
+                File.Delete(savePath);
+            }
+
+            yield return LoadScene(ModularConstructionScene);
+            yield return WaitFrames(2);
+
+            var controller = Object.FindFirstObjectByType<ModularConstructionPrototypeController>();
+            Assert.That(controller, Is.Not.Null);
+            controller.ClearPlacedPieces();
+
+            var globalTile = new Vector2Int(112, 112);
+            Assert.That(controller.TryPlacePieceAtGlobalTile(ModularBuildPieceId.WallSegment, globalTile, 0), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(globalTile, out var built), Is.True);
+            Assert.That(built.state, Is.EqualTo("built"));
+            Assert.That(built.durability, Is.EqualTo(100f));
+
+            Assert.That(controller.TryDamageTopPieceAtGlobalTile(globalTile, 35f), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(globalTile, out var damaged), Is.True);
+            Assert.That(damaged.state, Is.EqualTo("damaged"));
+            Assert.That(damaged.durability, Is.EqualTo(65f));
+
+            Assert.That(controller.SavePlacedPiecesToDisk(), Is.True);
+            controller.ClearPlacedPieces();
+            Assert.That(controller.LoadPlacedPiecesFromDisk(), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(globalTile, out var restoredDamaged), Is.True);
+            Assert.That(restoredDamaged.state, Is.EqualTo("damaged"));
+            Assert.That(restoredDamaged.durability, Is.EqualTo(65f));
+
+            Assert.That(controller.TryRepairTopPieceAtGlobalTile(globalTile), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(globalTile, out var repaired), Is.True);
+            Assert.That(repaired.state, Is.EqualTo("repaired"));
+            Assert.That(repaired.durability, Is.EqualTo(100f));
+
+            Assert.That(controller.SavePlacedPiecesToDisk(), Is.True);
+            controller.ClearPlacedPieces();
+            Assert.That(controller.LoadPlacedPiecesFromDisk(), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(globalTile, out var restoredRepaired), Is.True);
+            Assert.That(restoredRepaired.state, Is.EqualTo("repaired"));
+            Assert.That(restoredRepaired.durability, Is.EqualTo(100f));
+
+            Assert.That(controller.TryDismantleTopPieceAtGlobalTile(globalTile), Is.True);
+            Assert.That(controller.PlacedPieceCount, Is.EqualTo(0));
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(globalTile, out _), Is.False);
+
+            if (hadExistingSave)
+            {
+                File.Copy(backupPath, savePath, true);
+                File.Delete(backupPath);
+            }
+            else if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ModularConstructionPrototype_SkipsInvalidOverlapsDuringLoad()
+        {
+            var savePath = ModularConstructionPrototypeController.GetSaveFilePath();
+            var backupPath = savePath + ".playmode-backup";
+            var hadExistingSave = File.Exists(savePath);
+
+            if (hadExistingSave)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? ".");
+                File.Copy(savePath, backupPath, true);
+                File.Delete(savePath);
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(savePath) ?? ".");
+            File.WriteAllText(
+                savePath,
+                @"{
+  ""pieces"": [
+    {
+      ""recordId"": 1,
+      ""pieceId"": ""FloorTile"",
+      ""chunkX"": 4,
+      ""chunkY"": 4,
+      ""tileX"": 0,
+      ""tileY"": 0,
+      ""footprintWidthTiles"": 2,
+      ""footprintDepthTiles"": 2,
+      ""rotation"": 0,
+      ""state"": ""intact""
+    },
+    {
+      ""recordId"": 2,
+      ""pieceId"": ""FloorTile"",
+      ""chunkX"": 4,
+      ""chunkY"": 4,
+      ""tileX"": 0,
+      ""tileY"": 0,
+      ""footprintWidthTiles"": 2,
+      ""footprintDepthTiles"": 2,
+      ""rotation"": 0,
+      ""state"": ""built"",
+      ""durability"": 100.0
+    }
+  ]
+}");
+
+            yield return LoadScene(ModularConstructionScene);
+            yield return WaitFrames(2);
+
+            var controller = Object.FindFirstObjectByType<ModularConstructionPrototypeController>();
+            Assert.That(controller, Is.Not.Null);
+            Assert.That(controller.PlacedPieceCount, Is.EqualTo(1));
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(128, 128), out var restored), Is.True);
+            Assert.That(restored.recordId, Is.EqualTo(1));
+            Assert.That(restored.state, Is.EqualTo("built"));
+            Assert.That(restored.durability, Is.EqualTo(100f));
+            Assert.That(restored.resourceCostKey, Is.EqualTo("foundation_material"));
+            Assert.That(restored.buildRequirementKey, Is.EqualTo("basic_construction"));
 
             if (hadExistingSave)
             {
