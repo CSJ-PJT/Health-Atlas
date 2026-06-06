@@ -96,4 +96,34 @@ namespace DeepStake.Construction
             get { return pieces.Count > 0; }
         }
     }
+
+    public sealed class ModularConstructionDataDiagnostics
+    {
+        public int sourceRecordCount;
+        public int chunkCount;
+        public int tileCount;
+        public int chunkPieceReferences;
+        public int duplicateRecordIds;
+        public int invalidChunkTiles;
+        public int outOfRangeTileReferences;
+        public int missingChunkReferences;
+        public int orphanedChunkReferences;
+        public bool hasErrors;
+
+        public string Summary
+        {
+            get
+            {
+                return "records=" + sourceRecordCount +
+                    " chunks=" + chunkCount +
+                    " tiles=" + tileCount +
+                    " refs=" + chunkPieceReferences +
+                    " duplicateIds=" + duplicateRecordIds +
+                    " invalidTiles=" + invalidChunkTiles +
+                    " outOfRangeRefs=" + outOfRangeTileReferences +
+                    " missingRefs=" + missingChunkReferences +
+                    " orphanRefs=" + orphanedChunkReferences;
+            }
+        }
+    }
 }

@@ -3,9 +3,7 @@
   "references": [
     "DeepStake3D.Runtime"
   ],
-  "includePlatforms": [
-    "Editor"
-  ],
+  "includePlatforms": [],
   "optionalUnityReferences": [
     "TestAssemblies"
   ]

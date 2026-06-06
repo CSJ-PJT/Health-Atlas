@@ -409,6 +409,230 @@ namespace DeepStake.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator ModularConstructionPrototype_ValidatesAndSerializesBoundaryChunks()
+        {
+            var savePath = ModularConstructionPrototypeController.GetSaveFilePath();
+            var backupPath = savePath + ".playmode-backup";
+            var hadExistingSave = File.Exists(savePath);
+
+            if (hadExistingSave)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? ".");
+                File.Copy(savePath, backupPath, true);
+                File.Delete(savePath);
+            }
+
+            yield return LoadScene(ModularConstructionScene);
+            yield return WaitFrames(2);
+
+            var controller = Object.FindFirstObjectByType<ModularConstructionPrototypeController>();
+            Assert.That(controller, Is.Not.Null);
+            controller.ClearPlacedPieces();
+
+            var boundaryOrigin = new Vector2Int(31, 0);
+            Assert.That(controller.TryPlacePieceAtGlobalTile(ModularBuildPieceId.WallSegment, boundaryOrigin, 0), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(32, 0), out var crossed), Is.True);
+            Assert.That(crossed.pieceId, Is.EqualTo(ModularBuildPieceId.WallSegment.ToString()));
+
+            var diagnostics = controller.ValidateCurrentConstructionData();
+            Assert.That(diagnostics.hasErrors, Is.False, diagnostics.Summary);
+            Assert.That(diagnostics.sourceRecordCount, Is.EqualTo(1));
+            Assert.That(diagnostics.chunkCount, Is.EqualTo(2));
+            Assert.That(diagnostics.chunkPieceReferences, Is.EqualTo(2));
+
+            Assert.That(controller.TryGetChunkSnapshot(new Vector2Int(0, 0), out var originChunk), Is.True);
+            Assert.That(controller.TryGetChunkSnapshot(new Vector2Int(1, 0), out var neighborChunk), Is.True);
+            Assert.That(originChunk.tiles.Count, Is.EqualTo(1));
+            Assert.That(neighborChunk.tiles.Count, Is.EqualTo(1));
+            Assert.That(neighborChunk.tiles[0].tileX, Is.EqualTo(0));
+            Assert.That(neighborChunk.tiles[0].tileY, Is.EqualTo(0));
+
+            Assert.That(controller.SavePlacedPiecesToDisk(), Is.True);
+            controller.ClearPlacedPieces();
+            Assert.That(controller.LoadPlacedPiecesFromDisk(), Is.True);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(32, 0), out var restored), Is.True);
+            Assert.That(restored.recordId, Is.EqualTo(crossed.recordId));
+            Assert.That(controller.LastDiagnostics.hasErrors, Is.False, controller.LastDiagnostics.Summary);
+
+            if (hadExistingSave)
+            {
+                File.Copy(backupPath, savePath, true);
+                File.Delete(backupPath);
+            }
+            else if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ModularConstructionPrototype_LoadsChunkOnlyRecordsAndRejectsOutOfBoundsChunkTiles()
+        {
+            var savePath = ModularConstructionPrototypeController.GetSaveFilePath();
+            var backupPath = savePath + ".playmode-backup";
+            var hadExistingSave = File.Exists(savePath);
+
+            if (hadExistingSave)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? ".");
+                File.Copy(savePath, backupPath, true);
+                File.Delete(savePath);
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(savePath) ?? ".");
+            File.WriteAllText(
+                savePath,
+                @"{
+  ""chunks"": [
+    {
+      ""chunkX"": 0,
+      ""chunkY"": 0,
+      ""tiles"": [
+        {
+          ""tileX"": 31,
+          ""tileY"": 0,
+          ""pieces"": [
+            {
+              ""recordId"": 21,
+              ""pieceId"": ""WallSegment"",
+              ""chunkX"": 0,
+              ""chunkY"": 0,
+              ""tileX"": 31,
+              ""tileY"": 0,
+              ""footprintWidthTiles"": 2,
+              ""footprintDepthTiles"": 1,
+              ""rotation"": 0,
+              ""state"": ""damaged"",
+              ""durability"": 42.0
+            }
+          ]
+        },
+        {
+          ""tileX"": 32,
+          ""tileY"": 0,
+          ""pieces"": [
+            {
+              ""recordId"": 22,
+              ""pieceId"": ""Fence"",
+              ""chunkX"": 0,
+              ""chunkY"": 0,
+              ""tileX"": 32,
+              ""tileY"": 0,
+              ""footprintWidthTiles"": 2,
+              ""footprintDepthTiles"": 1,
+              ""rotation"": 0,
+              ""state"": ""built"",
+              ""durability"": 100.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}");
+
+            yield return LoadScene(ModularConstructionScene);
+            yield return WaitFrames(2);
+
+            var controller = Object.FindFirstObjectByType<ModularConstructionPrototypeController>();
+            Assert.That(controller, Is.Not.Null);
+            Assert.That(controller.PlacedPieceCount, Is.EqualTo(1));
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(31, 0), out var restored), Is.True);
+            Assert.That(restored.recordId, Is.EqualTo(21));
+            Assert.That(restored.state, Is.EqualTo("damaged"));
+            Assert.That(restored.durability, Is.EqualTo(42f));
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(32, 0), out var crossed), Is.True);
+            Assert.That(crossed.recordId, Is.EqualTo(21));
+            Assert.That(controller.LastDiagnostics.hasErrors, Is.False, controller.LastDiagnostics.Summary);
+
+            var invalidSnapshot = new ModularConstructionChunk(2, 0);
+            invalidSnapshot.tiles.Add(new ModularConstructionTile(32, 0));
+            Assert.That(controller.TryApplyChunkSnapshot(invalidSnapshot), Is.False);
+            Assert.That(controller.LastDiagnostics.invalidChunkTiles, Is.EqualTo(1));
+
+            if (hadExistingSave)
+            {
+                File.Copy(backupPath, savePath, true);
+                File.Delete(backupPath);
+            }
+            else if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ModularConstructionPrototype_BuildsSettlementScaleScenarioAcrossChunks()
+        {
+            var savePath = ModularConstructionPrototypeController.GetSaveFilePath();
+            var backupPath = savePath + ".playmode-backup";
+            var hadExistingSave = File.Exists(savePath);
+
+            if (hadExistingSave)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? ".");
+                File.Copy(savePath, backupPath, true);
+                File.Delete(savePath);
+            }
+
+            yield return LoadScene(ModularConstructionScene);
+            yield return WaitFrames(2);
+
+            var controller = Object.FindFirstObjectByType<ModularConstructionPrototypeController>();
+            Assert.That(controller, Is.Not.Null);
+            Assert.That(controller.BuildSettlementScaleValidationScenario(), Is.True);
+
+            var pieceCountBeforeSave = controller.PlacedPieceCount;
+            var diagnosticsBeforeSave = controller.ValidateCurrentConstructionData();
+            Assert.That(pieceCountBeforeSave, Is.GreaterThanOrEqualTo(80));
+            Assert.That(diagnosticsBeforeSave.hasErrors, Is.False, diagnosticsBeforeSave.Summary);
+            Assert.That(diagnosticsBeforeSave.chunkCount, Is.GreaterThanOrEqualTo(5));
+            Assert.That(diagnosticsBeforeSave.chunkPieceReferences, Is.GreaterThan(pieceCountBeforeSave));
+
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(32, 0), out var boundaryHousePiece), Is.True);
+            Assert.That(boundaryHousePiece.pieceId, Is.EqualTo(ModularBuildPieceId.CornerWall.ToString()));
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(32, 31), out var roadMarker), Is.True);
+            Assert.That(roadMarker.pieceId, Is.EqualTo(ModularBuildPieceId.FloorTile.ToString()));
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(-1, 32), out var negativeBoundaryPiece), Is.True);
+            Assert.That(negativeBoundaryPiece.pieceId, Is.EqualTo(ModularBuildPieceId.FloorTile.ToString()));
+
+            Assert.That(controller.TryGetChunkSnapshot(new Vector2Int(0, 0), out var originChunk), Is.True);
+            Assert.That(controller.TryGetChunkSnapshot(new Vector2Int(1, 0), out var eastChunk), Is.True);
+            Assert.That(controller.TryGetChunkSnapshot(new Vector2Int(1, 1), out var northEastChunk), Is.True);
+            Assert.That(controller.TryGetChunkSnapshot(new Vector2Int(-1, 0), out var westChunk), Is.True);
+            Assert.That(controller.TryGetChunkSnapshot(new Vector2Int(-1, 1), out var westNorthChunk), Is.True);
+            Assert.That(originChunk.tiles.Count, Is.GreaterThan(0));
+            Assert.That(eastChunk.tiles.Count, Is.GreaterThan(0));
+            Assert.That(northEastChunk.tiles.Count, Is.GreaterThan(0));
+            Assert.That(westChunk.tiles.Count, Is.GreaterThan(0));
+            Assert.That(westNorthChunk.tiles.Count, Is.GreaterThan(0));
+
+            Assert.That(controller.SavePlacedPiecesToDisk(), Is.True);
+            controller.ClearPlacedPieces();
+            Assert.That(controller.PlacedPieceCount, Is.EqualTo(0));
+
+            Assert.That(controller.LoadPlacedPiecesFromDisk(), Is.True);
+            Assert.That(controller.PlacedPieceCount, Is.EqualTo(pieceCountBeforeSave));
+            Assert.That(controller.LastDiagnostics.hasErrors, Is.False, controller.LastDiagnostics.Summary);
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(32, 0), out var restoredBoundaryHousePiece), Is.True);
+            Assert.That(restoredBoundaryHousePiece.recordId, Is.EqualTo(boundaryHousePiece.recordId));
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(32, 31), out var restoredRoadMarker), Is.True);
+            Assert.That(restoredRoadMarker.recordId, Is.EqualTo(roadMarker.recordId));
+            Assert.That(controller.TryGetTopPieceAtGlobalTile(new Vector2Int(-1, 32), out var restoredNegativeBoundaryPiece), Is.True);
+            Assert.That(restoredNegativeBoundaryPiece.recordId, Is.EqualTo(negativeBoundaryPiece.recordId));
+
+            if (hadExistingSave)
+            {
+                File.Copy(backupPath, savePath, true);
+                File.Delete(backupPath);
+            }
+            else if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator LocalDevAutoEntry_ReachesPlayableField()
         {
             DeepStakeDevLaunchOptions.SetEditorOverrides(true, true, "playmode-autorun");

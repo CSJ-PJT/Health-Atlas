@@ -57,6 +57,7 @@ namespace DeepStake.Construction
         private Vector2Int previewLocalTile;
         private int nextRecordId = 1;
         private string persistenceStatus = "Persistence ready";
+        private ModularConstructionDataDiagnostics lastDiagnostics = new ModularConstructionDataDiagnostics();
 
         public float TileSizeMeters
         {
@@ -76,6 +77,11 @@ namespace DeepStake.Construction
         public int PlacedPieceCount
         {
             get { return placedPieces.Count; }
+        }
+
+        public ModularConstructionDataDiagnostics LastDiagnostics
+        {
+            get { return lastDiagnostics; }
         }
 
         public string SaveFilePath
@@ -101,11 +107,30 @@ namespace DeepStake.Construction
 
         private void Update()
         {
+            if (!CanPollLegacyInput())
+            {
+                return;
+            }
+
             HandlePieceSelection();
             HandleRotation();
             HandlePersistenceInput();
             UpdatePreview();
             HandlePlacementInput();
+        }
+
+        private static bool CanPollLegacyInput()
+        {
+            if (Application.isBatchMode)
+            {
+                return false;
+            }
+
+#if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+            return false;
+#else
+            return true;
+#endif
         }
 
         private void OnGUI()
@@ -330,8 +355,16 @@ namespace DeepStake.Construction
                     chunks = new List<ModularConstructionChunk>(chunkRecords)
                 };
 
+                lastDiagnostics = ValidateConstructionData(saveData.pieces, saveData.chunks);
+                if (lastDiagnostics.hasErrors)
+                {
+                    persistenceStatus = "Save blocked: " + lastDiagnostics.Summary;
+                    Debug.LogError("Modular construction data failed validation before save: " + lastDiagnostics.Summary);
+                    return false;
+                }
+
                 File.WriteAllText(savePath, JsonUtility.ToJson(saveData, true));
-                persistenceStatus = "Saved " + placedPieces.Count + " pieces";
+                persistenceStatus = "Saved " + placedPieces.Count + " pieces | " + lastDiagnostics.Summary;
                 return true;
             }
             catch (Exception exception)
@@ -358,6 +391,7 @@ namespace DeepStake.Construction
                 ClearPlacedPieces();
 
                 var highestRecordId = 0;
+                var skippedInvalidRecords = 0;
                 var recordsToLoad = GetRecordsToLoad(saveData);
                 if (recordsToLoad != null)
                 {
@@ -366,6 +400,7 @@ namespace DeepStake.Construction
                         if (!Enum.TryParse(savedRecord.pieceId, out ModularBuildPieceId pieceId) ||
                             !definitions.TryGetValue(pieceId, out var definition))
                         {
+                            skippedInvalidRecords++;
                             continue;
                         }
 
@@ -416,8 +451,9 @@ namespace DeepStake.Construction
                         highestRecordId = Mathf.Max(highestRecordId, record.recordId);
                         var recordChunk = new Vector2Int(record.chunkX, record.chunkY);
                         var recordLocalTile = new Vector2Int(record.tileX, record.tileY);
-                        if (!IsPlacementValid(pieceId, recordChunk, recordLocalTile, record.rotation))
+                        if (!IsRecordOriginInChunkBounds(record) || !IsPlacementValid(pieceId, recordChunk, recordLocalTile, record.rotation))
                         {
+                            skippedInvalidRecords++;
                             continue;
                         }
 
@@ -426,7 +462,14 @@ namespace DeepStake.Construction
                 }
 
                 nextRecordId = highestRecordId + 1;
+                lastDiagnostics = ValidateCurrentConstructionData();
                 persistenceStatus = "Loaded " + placedPieces.Count + " pieces";
+                if (skippedInvalidRecords > 0)
+                {
+                    persistenceStatus += " | skipped " + skippedInvalidRecords + " invalid";
+                }
+
+                persistenceStatus += " | " + lastDiagnostics.Summary;
                 return true;
             }
             catch (Exception exception)
@@ -485,9 +528,344 @@ namespace DeepStake.Construction
             return records;
         }
 
+        public ModularConstructionDataDiagnostics ValidateCurrentConstructionData()
+        {
+            return ValidateConstructionData(placedPieces, chunkRecords);
+        }
+
+        public bool TryGetChunkSnapshot(Vector2Int chunk, out ModularConstructionChunk snapshot)
+        {
+            if (!chunks.TryGetValue(chunk, out var source))
+            {
+                snapshot = null;
+                return false;
+            }
+
+            snapshot = CloneChunk(source);
+            return true;
+        }
+
+        public bool TryApplyChunkSnapshot(ModularConstructionChunk snapshot)
+        {
+            if (snapshot == null)
+            {
+                return false;
+            }
+
+            var incoming = CloneChunk(snapshot);
+            var importDiagnostics = ValidateConstructionData(null, new List<ModularConstructionChunk> { incoming });
+            if (importDiagnostics.invalidChunkTiles > 0 || importDiagnostics.outOfRangeTileReferences > 0)
+            {
+                lastDiagnostics = importDiagnostics;
+                return false;
+            }
+
+            var chunkKey = new Vector2Int(incoming.chunkX, incoming.chunkY);
+            RemoveChunkRecords(chunkKey);
+
+            var records = GetRecordsToLoad(new ModularConstructionPrototypeSaveData
+            {
+                chunks = new List<ModularConstructionChunk> { incoming }
+            });
+
+            if (records == null)
+            {
+                lastDiagnostics = ValidateCurrentConstructionData();
+                return true;
+            }
+
+            var loadedAny = false;
+            foreach (var record in records)
+            {
+                if (!Enum.TryParse(record.pieceId, out ModularBuildPieceId pieceId) ||
+                    !definitions.TryGetValue(pieceId, out _) ||
+                    !IsRecordOriginInChunkBounds(record) ||
+                    !IsPlacementValid(pieceId, new Vector2Int(record.chunkX, record.chunkY), new Vector2Int(record.tileX, record.tileY), NormalizeRotation(record.rotation)))
+                {
+                    continue;
+                }
+
+                AddRecord(NormalizeLoadedRecord(record, pieceId));
+                nextRecordId = Mathf.Max(nextRecordId, record.recordId + 1);
+                loadedAny = true;
+            }
+
+            lastDiagnostics = ValidateCurrentConstructionData();
+            return loadedAny;
+        }
+
+        public bool BuildSettlementScaleValidationScenario()
+        {
+            ClearPlacedPieces();
+
+            var allPlaced = true;
+            allPlaced &= BuildScenarioHouse(new Vector2Int(28, 0));
+            allPlaced &= BuildScenarioHouse(new Vector2Int(34, 34));
+            allPlaced &= BuildScenarioHouse(new Vector2Int(-2, 30));
+
+            for (var x = 24; x <= 38; x += 2)
+            {
+                allPlaced &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, new Vector2Int(x, 31), 0);
+            }
+
+            for (var y = -2; y <= 38; y += 2)
+            {
+                allPlaced &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.Fence, new Vector2Int(24, y), 90);
+                allPlaced &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.Fence, new Vector2Int(40, y), 90);
+            }
+
+            for (var x = 26; x <= 38; x += 2)
+            {
+                if (x == 32)
+                {
+                    allPlaced &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.Gate, new Vector2Int(x, -3), 0);
+                    continue;
+                }
+
+                allPlaced &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.Fence, new Vector2Int(x, -3), 0);
+            }
+
+            for (var x = 26; x <= 38; x += 2)
+            {
+                allPlaced &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.Fence, new Vector2Int(x, 40), 0);
+            }
+
+            lastDiagnostics = ValidateCurrentConstructionData();
+            persistenceStatus = "Settlement validation scenario " + (allPlaced && !lastDiagnostics.hasErrors ? "ready" : "invalid") + " | " + lastDiagnostics.Summary;
+            return allPlaced && !lastDiagnostics.hasErrors;
+        }
+
         public static string GetSaveFilePath()
         {
             return Path.Combine(Application.persistentDataPath, "DeepStake3D", "modular-construction-prototype.json");
+        }
+
+        private PlacedBuildPiece NormalizeLoadedRecord(PlacedBuildPiece savedRecord, ModularBuildPieceId pieceId)
+        {
+            var definition = definitions[pieceId];
+            var record = savedRecord;
+            if (record.recordId <= 0)
+            {
+                record.recordId = nextRecordId++;
+            }
+
+            record.rotation = NormalizeRotation(record.rotation);
+            if (record.footprintWidthTiles <= 0 || record.footprintDepthTiles <= 0)
+            {
+                var footprint = RotateFootprint(definition.footprintTiles, record.rotation);
+                record.footprintWidthTiles = footprint.x;
+                record.footprintDepthTiles = footprint.y;
+            }
+
+            if (string.IsNullOrEmpty(record.state) || record.state == "intact")
+            {
+                record.state = StateBuilt;
+            }
+
+            if (record.state == StateBuilt && record.durability <= 0f)
+            {
+                record.durability = FullDurability;
+            }
+            else
+            {
+                record.durability = Mathf.Clamp(record.durability, 0f, FullDurability);
+            }
+
+            if (string.IsNullOrEmpty(record.resourceCostKey))
+            {
+                record.resourceCostKey = definition.resourceCostKey;
+            }
+
+            if (record.resourceCostUnits <= 0)
+            {
+                record.resourceCostUnits = definition.resourceCostUnits;
+            }
+
+            if (string.IsNullOrEmpty(record.buildRequirementKey))
+            {
+                record.buildRequirementKey = definition.buildRequirementKey;
+                record.buildRequirementSatisfied = true;
+            }
+
+            return record;
+        }
+
+        private ModularConstructionDataDiagnostics ValidateConstructionData(
+            IReadOnlyList<PlacedBuildPiece> sourceRecords,
+            IReadOnlyList<ModularConstructionChunk> chunkData)
+        {
+            var diagnostics = new ModularConstructionDataDiagnostics();
+            var sourceIds = new HashSet<int>();
+            var duplicateIds = new HashSet<int>();
+            if (sourceRecords != null)
+            {
+                diagnostics.sourceRecordCount = sourceRecords.Count;
+                foreach (var record in sourceRecords)
+                {
+                    if (record.recordId > 0 && !sourceIds.Add(record.recordId))
+                    {
+                        duplicateIds.Add(record.recordId);
+                    }
+
+                    if (!IsRecordOriginInChunkBounds(record))
+                    {
+                        diagnostics.outOfRangeTileReferences++;
+                    }
+                }
+            }
+
+            diagnostics.duplicateRecordIds = duplicateIds.Count;
+
+            if (chunkData != null)
+            {
+                diagnostics.chunkCount = chunkData.Count;
+                foreach (var chunk in chunkData)
+                {
+                    if (chunk == null || chunk.tiles == null)
+                    {
+                        continue;
+                    }
+
+                    diagnostics.tileCount += chunk.tiles.Count;
+                    foreach (var tile in chunk.tiles)
+                    {
+                        if (tile == null)
+                        {
+                            diagnostics.invalidChunkTiles++;
+                            continue;
+                        }
+
+                        var localTile = new Vector2Int(tile.tileX, tile.tileY);
+                        if (!IsLocalTileInChunkBounds(localTile))
+                        {
+                            diagnostics.invalidChunkTiles++;
+                        }
+
+                        if (tile.pieces == null)
+                        {
+                            continue;
+                        }
+
+                        foreach (var record in tile.pieces)
+                        {
+                            diagnostics.chunkPieceReferences++;
+                            if (!IsRecordOriginInChunkBounds(record))
+                            {
+                                diagnostics.outOfRangeTileReferences++;
+                            }
+
+                            if (sourceRecords != null && record.recordId > 0 && !sourceIds.Contains(record.recordId))
+                            {
+                                diagnostics.orphanedChunkReferences++;
+                            }
+
+                            var occupied = DoesRecordOccupyChunkTile(record, chunk, localTile);
+                            if (!occupied)
+                            {
+                                diagnostics.missingChunkReferences++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            diagnostics.hasErrors = diagnostics.duplicateRecordIds > 0 ||
+                diagnostics.invalidChunkTiles > 0 ||
+                diagnostics.outOfRangeTileReferences > 0 ||
+                diagnostics.missingChunkReferences > 0 ||
+                diagnostics.orphanedChunkReferences > 0;
+            return diagnostics;
+        }
+
+        private bool DoesRecordOccupyChunkTile(PlacedBuildPiece record, ModularConstructionChunk chunk, Vector2Int localTile)
+        {
+            var originChunk = new Vector2Int(record.chunkX, record.chunkY);
+            var originLocalTile = new Vector2Int(record.tileX, record.tileY);
+            var footprintTiles = new Vector2Int(record.footprintWidthTiles, record.footprintDepthTiles);
+            foreach (var occupied in EnumerateOccupiedTiles(originChunk, originLocalTile, footprintTiles))
+            {
+                if (occupied.chunk.x == chunk.chunkX &&
+                    occupied.chunk.y == chunk.chunkY &&
+                    occupied.localTile == localTile)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsRecordOriginInChunkBounds(PlacedBuildPiece record)
+        {
+            return IsLocalTileInChunkBounds(new Vector2Int(record.tileX, record.tileY));
+        }
+
+        private bool IsLocalTileInChunkBounds(Vector2Int localTile)
+        {
+            return localTile.x >= 0 &&
+                localTile.y >= 0 &&
+                localTile.x < chunkSizeTiles &&
+                localTile.y < chunkSizeTiles;
+        }
+
+        private static ModularConstructionChunk CloneChunk(ModularConstructionChunk source)
+        {
+            var clone = new ModularConstructionChunk(source.chunkX, source.chunkY);
+            if (source.tiles == null)
+            {
+                return clone;
+            }
+
+            foreach (var tile in source.tiles)
+            {
+                if (tile == null)
+                {
+                    continue;
+                }
+
+                var cloneTile = new ModularConstructionTile(tile.tileX, tile.tileY);
+                if (tile.pieces != null)
+                {
+                    cloneTile.pieces.AddRange(tile.pieces);
+                }
+
+                clone.tiles.Add(cloneTile);
+            }
+
+            return clone;
+        }
+
+        private void RemoveChunkRecords(Vector2Int chunkKey)
+        {
+            for (var index = placedPieces.Count - 1; index >= 0; index--)
+            {
+                var record = placedPieces[index];
+                var touchesChunk = false;
+                foreach (var occupied in EnumerateOccupiedTiles(
+                    new Vector2Int(record.chunkX, record.chunkY),
+                    new Vector2Int(record.tileX, record.tileY),
+                    new Vector2Int(record.footprintWidthTiles, record.footprintDepthTiles)))
+                {
+                    if (occupied.chunk == chunkKey)
+                    {
+                        touchesChunk = true;
+                        break;
+                    }
+                }
+
+                if (!touchesChunk)
+                {
+                    continue;
+                }
+
+                RemoveRecordFromTiles(record);
+                if (spawnedByRecordId.TryGetValue(record.recordId, out var spawned) && spawned != null)
+                {
+                    Destroy(spawned);
+                }
+
+                spawnedByRecordId.Remove(record.recordId);
+            }
         }
 
         private bool TryDismantleTopPieceAt(Vector2Int chunk, Vector2Int localTile)
@@ -577,6 +955,28 @@ namespace DeepStake.Construction
             }
 
             return true;
+        }
+
+        private bool BuildScenarioHouse(Vector2Int origin)
+        {
+            var placed = true;
+
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, origin, 0);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, origin + new Vector2Int(2, 0), 0);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, origin + new Vector2Int(0, 2), 0);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, origin + new Vector2Int(2, 2), 0);
+
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.WindowWall, origin + new Vector2Int(0, 4), 0);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.WallSegment, origin + new Vector2Int(2, 4), 0);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.WallSegment, origin + new Vector2Int(0, -1), 0);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.DoorFrame, origin + new Vector2Int(2, -1), 0);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.Door, origin + new Vector2Int(2, -1), 0);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.CornerWall, origin + new Vector2Int(4, 0), 90);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.WallSegment, origin + new Vector2Int(4, 2), 90);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.WallSegment, origin + new Vector2Int(-1, 0), 90);
+            placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.WindowWall, origin + new Vector2Int(-1, 2), 90);
+
+            return placed;
         }
 
         private void SpawnDemoBuilding()
