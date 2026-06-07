@@ -126,4 +126,90 @@ namespace DeepStake.Construction
             }
         }
     }
+
+    public sealed class ModularConstructionChunkSummary
+    {
+        public int chunkX;
+        public int chunkY;
+        public int tileCount;
+        public int pieceReferences;
+        public int uniqueRecordCount;
+        public int boundaryReferenceCount;
+
+        public ModularConstructionChunkSummary(
+            int chunkX,
+            int chunkY,
+            int tileCount,
+            int pieceReferences,
+            int uniqueRecordCount,
+            int boundaryReferenceCount)
+        {
+            this.chunkX = chunkX;
+            this.chunkY = chunkY;
+            this.tileCount = tileCount;
+            this.pieceReferences = pieceReferences;
+            this.uniqueRecordCount = uniqueRecordCount;
+            this.boundaryReferenceCount = boundaryReferenceCount;
+        }
+    }
+
+    public sealed class ModularConstructionChunkRecordGroup
+    {
+        public int chunkX;
+        public int chunkY;
+        public List<PlacedBuildPiece> records = new List<PlacedBuildPiece>();
+        public List<PlacedBuildPiece> originRecords = new List<PlacedBuildPiece>();
+        public List<PlacedBuildPiece> boundaryRecords = new List<PlacedBuildPiece>();
+
+        public ModularConstructionChunkRecordGroup(int chunkX, int chunkY)
+        {
+            this.chunkX = chunkX;
+            this.chunkY = chunkY;
+        }
+
+        public int RecordCount
+        {
+            get { return records.Count; }
+        }
+
+        public int OriginRecordCount
+        {
+            get { return originRecords.Count; }
+        }
+
+        public int BoundaryRecordCount
+        {
+            get { return boundaryRecords.Count; }
+        }
+    }
+
+    public sealed class ModularConstructionWorldChunkSummary
+    {
+        public int chunkCount;
+        public int tileCount;
+        public int pieceReferences;
+        public int uniqueRecordCount;
+        public int boundarySpanningRecordCount;
+        public int minChunkX;
+        public int minChunkY;
+        public int maxChunkX;
+        public int maxChunkY;
+        public bool hasErrors;
+        public string diagnosticsSummary;
+        public List<ModularConstructionChunkSummary> chunks = new List<ModularConstructionChunkSummary>();
+
+        public string Summary
+        {
+            get
+            {
+                return "chunks=" + chunkCount +
+                    " tiles=" + tileCount +
+                    " refs=" + pieceReferences +
+                    " uniqueRecords=" + uniqueRecordCount +
+                    " boundarySpanningRecords=" + boundarySpanningRecordCount +
+                    " bounds=(" + minChunkX + "," + minChunkY + ")-(" + maxChunkX + "," + maxChunkY + ")" +
+                    " errors=" + hasErrors;
+            }
+        }
+    }
 }

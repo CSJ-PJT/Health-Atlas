@@ -594,6 +594,171 @@ namespace DeepStake.Construction
             return loadedAny;
         }
 
+        public List<Vector2Int> GetOccupiedChunkCoordinates()
+        {
+            var coordinates = new List<Vector2Int>(chunks.Keys);
+            coordinates.Sort(CompareChunkCoordinates);
+            return coordinates;
+        }
+
+        public List<ModularConstructionChunk> GetChunkSnapshotsInRange(Vector2Int minChunk, Vector2Int maxChunk)
+        {
+            var normalizedMin = new Vector2Int(Mathf.Min(minChunk.x, maxChunk.x), Mathf.Min(minChunk.y, maxChunk.y));
+            var normalizedMax = new Vector2Int(Mathf.Max(minChunk.x, maxChunk.x), Mathf.Max(minChunk.y, maxChunk.y));
+            var snapshots = new List<ModularConstructionChunk>();
+
+            foreach (var chunk in GetOccupiedChunkCoordinates())
+            {
+                if (chunk.x < normalizedMin.x ||
+                    chunk.y < normalizedMin.y ||
+                    chunk.x > normalizedMax.x ||
+                    chunk.y > normalizedMax.y)
+                {
+                    continue;
+                }
+
+                if (TryGetChunkSnapshot(chunk, out var snapshot))
+                {
+                    snapshots.Add(snapshot);
+                }
+            }
+
+            return snapshots;
+        }
+
+        public List<PlacedBuildPiece> GetRecordsTouchingChunk(Vector2Int chunk)
+        {
+            var records = new List<PlacedBuildPiece>();
+            if (!chunks.TryGetValue(chunk, out var chunkData))
+            {
+                return records;
+            }
+
+            var seenRecordIds = new HashSet<int>();
+            foreach (var tile in chunkData.tiles)
+            {
+                if (tile?.pieces == null)
+                {
+                    continue;
+                }
+
+                foreach (var record in tile.pieces)
+                {
+                    if (record.recordId > 0 && !seenRecordIds.Add(record.recordId))
+                    {
+                        continue;
+                    }
+
+                    records.Add(record);
+                }
+            }
+
+            records.Sort(ComparePlacedRecords);
+            return records;
+        }
+
+        public List<ModularConstructionChunkRecordGroup> BuildChunkRecordGroups()
+        {
+            var groups = new List<ModularConstructionChunkRecordGroup>();
+            foreach (var chunk in GetOccupiedChunkCoordinates())
+            {
+                var group = new ModularConstructionChunkRecordGroup(chunk.x, chunk.y);
+                foreach (var record in GetRecordsTouchingChunk(chunk))
+                {
+                    group.records.Add(record);
+                    if (record.chunkX == chunk.x && record.chunkY == chunk.y)
+                    {
+                        group.originRecords.Add(record);
+                    }
+                    else
+                    {
+                        group.boundaryRecords.Add(record);
+                    }
+                }
+
+                groups.Add(group);
+            }
+
+            return groups;
+        }
+
+        public ModularConstructionWorldChunkSummary BuildChunkWorldSummary()
+        {
+            var summary = new ModularConstructionWorldChunkSummary();
+            var diagnostics = ValidateCurrentConstructionData();
+            summary.hasErrors = diagnostics.hasErrors;
+            summary.diagnosticsSummary = diagnostics.Summary;
+
+            var occupiedChunks = GetOccupiedChunkCoordinates();
+            summary.chunkCount = occupiedChunks.Count;
+            summary.tileCount = diagnostics.tileCount;
+            summary.pieceReferences = diagnostics.chunkPieceReferences;
+            summary.uniqueRecordCount = placedPieces.Count;
+
+            if (occupiedChunks.Count > 0)
+            {
+                summary.minChunkX = occupiedChunks[0].x;
+                summary.maxChunkX = occupiedChunks[0].x;
+                summary.minChunkY = occupiedChunks[0].y;
+                summary.maxChunkY = occupiedChunks[0].y;
+            }
+
+            var boundarySpanningRecordIds = new HashSet<int>();
+            foreach (var chunk in occupiedChunks)
+            {
+                summary.minChunkX = Mathf.Min(summary.minChunkX, chunk.x);
+                summary.maxChunkX = Mathf.Max(summary.maxChunkX, chunk.x);
+                summary.minChunkY = Mathf.Min(summary.minChunkY, chunk.y);
+                summary.maxChunkY = Mathf.Max(summary.maxChunkY, chunk.y);
+
+                if (!chunks.TryGetValue(chunk, out var chunkData))
+                {
+                    continue;
+                }
+
+                var chunkRecordIds = new HashSet<int>();
+                var pieceReferences = 0;
+                var boundaryReferences = 0;
+                foreach (var tile in chunkData.tiles)
+                {
+                    if (tile?.pieces == null)
+                    {
+                        continue;
+                    }
+
+                    pieceReferences += tile.pieces.Count;
+                    foreach (var record in tile.pieces)
+                    {
+                        if (record.recordId > 0)
+                        {
+                            chunkRecordIds.Add(record.recordId);
+                        }
+
+                        if (RecordSpansMultipleChunks(record))
+                        {
+                            boundarySpanningRecordIds.Add(record.recordId);
+                        }
+
+                        if (record.chunkX != chunk.x || record.chunkY != chunk.y)
+                        {
+                            boundaryReferences++;
+                        }
+                    }
+                }
+
+                summary.chunks.Add(new ModularConstructionChunkSummary(
+                    chunk.x,
+                    chunk.y,
+                    chunkData.tiles.Count,
+                    pieceReferences,
+                    chunkRecordIds.Count,
+                    boundaryReferences));
+            }
+
+            summary.boundarySpanningRecordCount = boundarySpanningRecordIds.Count;
+            return summary;
+        }
+
         public bool BuildSettlementScaleValidationScenario()
         {
             ClearPlacedPieces();
@@ -632,6 +797,33 @@ namespace DeepStake.Construction
 
             lastDiagnostics = ValidateCurrentConstructionData();
             persistenceStatus = "Settlement validation scenario " + (allPlaced && !lastDiagnostics.hasErrors ? "ready" : "invalid") + " | " + lastDiagnostics.Summary;
+            return allPlaced && !lastDiagnostics.hasErrors;
+        }
+
+        public bool BuildRegionalChunkWorldValidationScenario()
+        {
+            ClearPlacedPieces();
+
+            var allPlaced = true;
+            allPlaced &= BuildSettlementCluster(new Vector2Int(28, 0));
+            allPlaced &= BuildSettlementCluster(new Vector2Int(66, 66));
+            allPlaced &= BuildSettlementCluster(new Vector2Int(-34, 62));
+            allPlaced &= BuildSettlementCluster(new Vector2Int(94, -34));
+            allPlaced &= BuildSettlementCluster(new Vector2Int(-66, -34));
+
+            for (var x = -32; x <= 96; x += 8)
+            {
+                TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, new Vector2Int(x, 31), 0);
+            }
+
+            for (var y = -32; y <= 96; y += 8)
+            {
+                TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, new Vector2Int(31, y), 0);
+            }
+
+            lastDiagnostics = ValidateCurrentConstructionData();
+            var chunkSummary = BuildChunkWorldSummary();
+            persistenceStatus = "Regional chunk world scenario " + (allPlaced && !lastDiagnostics.hasErrors ? "ready" : "invalid") + " | " + chunkSummary.Summary;
             return allPlaced && !lastDiagnostics.hasErrors;
         }
 
@@ -795,6 +987,22 @@ namespace DeepStake.Construction
             return false;
         }
 
+        private bool RecordSpansMultipleChunks(PlacedBuildPiece record)
+        {
+            var originChunk = new Vector2Int(record.chunkX, record.chunkY);
+            var originLocalTile = new Vector2Int(record.tileX, record.tileY);
+            var footprintTiles = new Vector2Int(record.footprintWidthTiles, record.footprintDepthTiles);
+            foreach (var occupied in EnumerateOccupiedTiles(originChunk, originLocalTile, footprintTiles))
+            {
+                if (occupied.chunk != originChunk)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private bool IsRecordOriginInChunkBounds(PlacedBuildPiece record)
         {
             return IsLocalTileInChunkBounds(new Vector2Int(record.tileX, record.tileY));
@@ -833,6 +1041,36 @@ namespace DeepStake.Construction
             }
 
             return clone;
+        }
+
+        private static int CompareChunkCoordinates(Vector2Int left, Vector2Int right)
+        {
+            var yComparison = left.y.CompareTo(right.y);
+            return yComparison != 0 ? yComparison : left.x.CompareTo(right.x);
+        }
+
+        private static int ComparePlacedRecords(PlacedBuildPiece left, PlacedBuildPiece right)
+        {
+            var recordComparison = left.recordId.CompareTo(right.recordId);
+            if (recordComparison != 0)
+            {
+                return recordComparison;
+            }
+
+            var chunkComparison = left.chunkY.CompareTo(right.chunkY);
+            if (chunkComparison != 0)
+            {
+                return chunkComparison;
+            }
+
+            chunkComparison = left.chunkX.CompareTo(right.chunkX);
+            if (chunkComparison != 0)
+            {
+                return chunkComparison;
+            }
+
+            var tileComparison = left.tileY.CompareTo(right.tileY);
+            return tileComparison != 0 ? tileComparison : left.tileX.CompareTo(right.tileX);
         }
 
         private void RemoveChunkRecords(Vector2Int chunkKey)
@@ -975,6 +1213,25 @@ namespace DeepStake.Construction
             placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.WallSegment, origin + new Vector2Int(4, 2), 90);
             placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.WallSegment, origin + new Vector2Int(-1, 0), 90);
             placed &= TryPlacePieceAtGlobalTile(ModularBuildPieceId.WindowWall, origin + new Vector2Int(-1, 2), 90);
+
+            return placed;
+        }
+
+        private bool BuildSettlementCluster(Vector2Int origin)
+        {
+            var placed = true;
+            placed &= BuildScenarioHouse(origin);
+            placed &= BuildScenarioHouse(origin + new Vector2Int(8, 8));
+
+            for (var x = origin.x - 6; x <= origin.x + 20; x += 4)
+            {
+                TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, new Vector2Int(x, origin.y + 6), 0);
+            }
+
+            for (var y = origin.y - 6; y <= origin.y + 20; y += 4)
+            {
+                TryPlacePieceAtGlobalTile(ModularBuildPieceId.FloorTile, new Vector2Int(origin.x + 6, y), 0);
+            }
 
             return placed;
         }

@@ -633,6 +633,146 @@ namespace DeepStake.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator ModularConstructionPrototype_ReportsChunkWorldSummaryAndRangeSnapshots()
+        {
+            var savePath = ModularConstructionPrototypeController.GetSaveFilePath();
+            var backupPath = savePath + ".playmode-backup";
+            var hadExistingSave = File.Exists(savePath);
+
+            if (hadExistingSave)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? ".");
+                File.Copy(savePath, backupPath, true);
+                File.Delete(savePath);
+            }
+
+            yield return LoadScene(ModularConstructionScene);
+            yield return WaitFrames(2);
+
+            var controller = Object.FindFirstObjectByType<ModularConstructionPrototypeController>();
+            Assert.That(controller, Is.Not.Null);
+            Assert.That(controller.BuildSettlementScaleValidationScenario(), Is.True);
+
+            var occupiedChunks = controller.GetOccupiedChunkCoordinates();
+            var summaryBeforeSave = controller.BuildChunkWorldSummary();
+            Assert.That(summaryBeforeSave.hasErrors, Is.False, summaryBeforeSave.diagnosticsSummary);
+            Assert.That(summaryBeforeSave.chunkCount, Is.EqualTo(occupiedChunks.Count));
+            Assert.That(summaryBeforeSave.uniqueRecordCount, Is.EqualTo(controller.PlacedPieceCount));
+            Assert.That(summaryBeforeSave.boundarySpanningRecordCount, Is.GreaterThan(0));
+            Assert.That(summaryBeforeSave.minChunkX, Is.LessThanOrEqualTo(-1));
+            Assert.That(summaryBeforeSave.maxChunkX, Is.GreaterThanOrEqualTo(1));
+            Assert.That(summaryBeforeSave.maxChunkY, Is.GreaterThanOrEqualTo(1));
+
+            var rangeSnapshots = controller.GetChunkSnapshotsInRange(new Vector2Int(1, 1), new Vector2Int(0, 0));
+            Assert.That(rangeSnapshots.Count, Is.GreaterThanOrEqualTo(3));
+            foreach (var snapshot in rangeSnapshots)
+            {
+                Assert.That(snapshot.chunkX, Is.InRange(0, 1));
+                Assert.That(snapshot.chunkY, Is.InRange(0, 1));
+                Assert.That(snapshot.tiles.Count, Is.GreaterThan(0));
+            }
+
+            rangeSnapshots[0].tiles.Clear();
+            Assert.That(controller.BuildChunkWorldSummary().tileCount, Is.EqualTo(summaryBeforeSave.tileCount));
+
+            Assert.That(controller.SavePlacedPiecesToDisk(), Is.True);
+            controller.ClearPlacedPieces();
+            Assert.That(controller.LoadPlacedPiecesFromDisk(), Is.True);
+
+            var summaryAfterLoad = controller.BuildChunkWorldSummary();
+            Assert.That(summaryAfterLoad.hasErrors, Is.False, summaryAfterLoad.diagnosticsSummary);
+            Assert.That(summaryAfterLoad.chunkCount, Is.EqualTo(summaryBeforeSave.chunkCount));
+            Assert.That(summaryAfterLoad.tileCount, Is.EqualTo(summaryBeforeSave.tileCount));
+            Assert.That(summaryAfterLoad.pieceReferences, Is.EqualTo(summaryBeforeSave.pieceReferences));
+            Assert.That(summaryAfterLoad.uniqueRecordCount, Is.EqualTo(summaryBeforeSave.uniqueRecordCount));
+            Assert.That(summaryAfterLoad.boundarySpanningRecordCount, Is.EqualTo(summaryBeforeSave.boundarySpanningRecordCount));
+
+            if (hadExistingSave)
+            {
+                File.Copy(backupPath, savePath, true);
+                File.Delete(backupPath);
+            }
+            else if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ModularConstructionPrototype_GroupsRegionalConstructionRecordsByChunk()
+        {
+            var savePath = ModularConstructionPrototypeController.GetSaveFilePath();
+            var backupPath = savePath + ".playmode-backup";
+            var hadExistingSave = File.Exists(savePath);
+
+            if (hadExistingSave)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? ".");
+                File.Copy(savePath, backupPath, true);
+                File.Delete(savePath);
+            }
+
+            yield return LoadScene(ModularConstructionScene);
+            yield return WaitFrames(2);
+
+            var controller = Object.FindFirstObjectByType<ModularConstructionPrototypeController>();
+            Assert.That(controller, Is.Not.Null);
+            Assert.That(controller.BuildRegionalChunkWorldValidationScenario(), Is.True);
+
+            var groupsBeforeSave = controller.BuildChunkRecordGroups();
+            var summaryBeforeSave = controller.BuildChunkWorldSummary();
+            Assert.That(summaryBeforeSave.hasErrors, Is.False, summaryBeforeSave.diagnosticsSummary);
+            Assert.That(summaryBeforeSave.chunkCount, Is.GreaterThanOrEqualTo(12));
+            Assert.That(summaryBeforeSave.uniqueRecordCount, Is.GreaterThanOrEqualTo(120));
+            Assert.That(summaryBeforeSave.boundarySpanningRecordCount, Is.GreaterThanOrEqualTo(8));
+            Assert.That(summaryBeforeSave.minChunkX, Is.LessThanOrEqualTo(-2));
+            Assert.That(summaryBeforeSave.maxChunkX, Is.GreaterThanOrEqualTo(3));
+            Assert.That(summaryBeforeSave.minChunkY, Is.LessThanOrEqualTo(-2));
+            Assert.That(summaryBeforeSave.maxChunkY, Is.GreaterThanOrEqualTo(2));
+            Assert.That(groupsBeforeSave.Count, Is.EqualTo(summaryBeforeSave.chunkCount));
+
+            var groupsWithBoundaryRecords = 0;
+            foreach (var group in groupsBeforeSave)
+            {
+                Assert.That(group.RecordCount, Is.GreaterThan(0));
+                Assert.That(group.OriginRecordCount + group.BoundaryRecordCount, Is.EqualTo(group.RecordCount));
+                if (group.BoundaryRecordCount > 0)
+                {
+                    groupsWithBoundaryRecords++;
+                }
+            }
+
+            Assert.That(groupsWithBoundaryRecords, Is.GreaterThanOrEqualTo(3));
+
+            var centralRecords = controller.GetRecordsTouchingChunk(new Vector2Int(0, 0));
+            var farRecords = controller.GetRecordsTouchingChunk(new Vector2Int(3, -2));
+            Assert.That(centralRecords.Count, Is.GreaterThan(0));
+            Assert.That(farRecords.Count, Is.GreaterThan(0));
+
+            Assert.That(controller.SavePlacedPiecesToDisk(), Is.True);
+            controller.ClearPlacedPieces();
+            Assert.That(controller.LoadPlacedPiecesFromDisk(), Is.True);
+
+            var groupsAfterLoad = controller.BuildChunkRecordGroups();
+            var summaryAfterLoad = controller.BuildChunkWorldSummary();
+            Assert.That(summaryAfterLoad.hasErrors, Is.False, summaryAfterLoad.diagnosticsSummary);
+            Assert.That(summaryAfterLoad.chunkCount, Is.EqualTo(summaryBeforeSave.chunkCount));
+            Assert.That(summaryAfterLoad.uniqueRecordCount, Is.EqualTo(summaryBeforeSave.uniqueRecordCount));
+            Assert.That(summaryAfterLoad.boundarySpanningRecordCount, Is.EqualTo(summaryBeforeSave.boundarySpanningRecordCount));
+            Assert.That(groupsAfterLoad.Count, Is.EqualTo(groupsBeforeSave.Count));
+
+            if (hadExistingSave)
+            {
+                File.Copy(backupPath, savePath, true);
+                File.Delete(backupPath);
+            }
+            else if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator LocalDevAutoEntry_ReachesPlayableField()
         {
             DeepStakeDevLaunchOptions.SetEditorOverrides(true, true, "playmode-autorun");
