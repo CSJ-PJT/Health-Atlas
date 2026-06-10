@@ -172,8 +172,8 @@ const Setup = () => {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
       <div className="w-full max-w-2xl space-y-6">
         <div className="space-y-2 text-center">
-          <img src="/app-icon.png" alt="Logo" className="mx-auto h-20 w-20" />
-          <h1 className="text-3xl font-bold">Roboheart Healthcare</h1>
+          <img src="/app-icon.png" alt="RH 헬스케어 로고" className="mx-auto h-20 w-20" />
+          <h1 className="text-3xl font-bold">RH 헬스케어</h1>
           <p className="text-muted-foreground">초기 설정을 시작합니다.</p>
         </div>
 
@@ -201,19 +201,19 @@ const Setup = () => {
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="api-key">OpenAI API Key</Label>
+                  <Label htmlFor="api-key">OpenAI API 키</Label>
                   <Input id="api-key" type="password" placeholder="sk-..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="project-id">OpenAI Project ID</Label>
+                  <Label htmlFor="project-id">OpenAI 프로젝트 ID</Label>
                   <Input id="project-id" type="text" placeholder="proj_..." value={projectId} onChange={(e) => setProjectId(e.target.value)} />
                 </div>
               </div>
 
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>1. OpenAI Platform에서 API Key를 생성합니다.</p>
-                <p>2. 프로젝트를 만들고 Project ID를 확인합니다.</p>
+                <p>1. OpenAI 플랫폼에서 API 키를 생성합니다.</p>
+                <p>2. 프로젝트를 만들고 프로젝트 ID를 확인합니다.</p>
                 <p>3. 두 값을 입력하면 AI 코치와 예측 기능을 바로 사용할 수 있습니다.</p>
               </div>
 
@@ -249,7 +249,7 @@ const Setup = () => {
         <Card className="bg-accent/10">
           <CardContent className="pt-6 text-sm">
             <p className="font-semibold">소셜 연동 안내</p>
-            <p className="mt-2 text-muted-foreground">Kakao 로그인은 RH Healthcare 도메인과 Redirect URI가 정확히 맞아야 정상 동작합니다.</p>
+            <p className="mt-2 text-muted-foreground">Kakao 로그인은 RH 헬스케어 도메인과 Redirect URI가 정확히 맞아야 정상 동작합니다.</p>
           </CardContent>
         </Card>
       </div>

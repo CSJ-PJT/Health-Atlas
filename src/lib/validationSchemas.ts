@@ -31,7 +31,7 @@ export const nicknameSchema = z
 export const apiKeySchema = z
   .string()
   .min(1, { message: "API Key를 입력해 주세요." })
-  .startsWith("sk-", { message: "올바른 OpenAI API Key 형식이 아닙니다." })
+  .startsWith("sk-", { message: "올바른 OpenAI API 키 형식이 아닙니다." })
   .transform(sanitizeString);
 
 export const projectIdSchema = z

@@ -1,54 +1,54 @@
-# Supabase Project Setup
+# Supabase 프로젝트 설정
 
-Current project ref:
+현재 RH 헬스케어 프로젝트 ref:
 
-- `ahdslmqkntopkokbceap`
+- `wazxzogbnmgqdrnussvc`
 
-Current client config:
+현재 클라이언트 설정:
 
-- `VITE_SUPABASE_URL=https://ahdslmqkntopkokbceap.supabase.co`
-- `VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_m166iZKz03bLYsft8Xgwrw_C28PpR6A`
+- `VITE_SUPABASE_URL=https://wazxzogbnmgqdrnussvc.supabase.co`
+- `VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_kxG6ju6yg6ECsaiYeuoaRg_G4MzLqm3`
 
-## Required local setup
+## 로컬 설정 절차
 
-1. Login to Supabase CLI
+1. Supabase CLI에 로그인합니다.
 
 ```powershell
 supabase login
 ```
 
-Or set an access token:
+또는 access token을 환경 변수로 설정합니다.
 
 ```powershell
 $env:SUPABASE_ACCESS_TOKEN="<your-access-token>"
 ```
 
-2. Link this repo to the project
+2. 이 저장소를 RH 헬스케어 프로젝트에 연결합니다.
 
 ```powershell
-npx supabase link --project-ref ahdslmqkntopkokbceap
+npx supabase link --project-ref wazxzogbnmgqdrnussvc
 ```
 
-3. Push local migrations to the new project
+3. 로컬 마이그레이션을 새 프로젝트 DB에 적용합니다.
 
 ```powershell
 npx supabase db push
 ```
 
-4. If Edge Functions are used, deploy them after secrets are configured
+4. Edge Function을 사용하는 경우 secrets를 설정한 뒤 배포합니다.
 
 ```powershell
 npx supabase functions deploy send-health-data --no-verify-jwt
 ```
 
-## Important notes
+## 중요 메모
 
-- This repo already includes local migrations under [`supabase/migrations`](./supabase/migrations).
-- A new migration for app state snapshots was added:
+- 이 저장소에는 [`supabase/migrations`](./supabase/migrations) 아래에 로컬 마이그레이션이 포함되어 있습니다.
+- 앱 상태 스냅샷용 마이그레이션도 포함되어 있습니다.
   - [`supabase/migrations/20260403090000_add_app_state_snapshots.sql`](./supabase/migrations/20260403090000_add_app_state_snapshots.sql)
-- Until `db push` is completed on the new project, the app may fall back to local storage for social/feed/profile snapshot data and some Supabase-backed screens may not be fully available.
+- 새 프로젝트에서 `db push`가 완료되기 전에는 소셜, 피드, 프로필 스냅샷 데이터가 로컬 저장소로 대체될 수 있고 일부 Supabase 기반 화면이 완전히 동작하지 않을 수 있습니다.
 
-## Minimum tables expected by the app
+## 앱이 기대하는 최소 테이블
 
 - `profiles`
 - `health_data`
@@ -56,6 +56,8 @@ npx supabase functions deploy send-health-data --no-verify-jwt
 - `openai_credentials`
 - `app_state_snapshots`
 
-## Current blocker
+## 현재 상태
 
-- `npx supabase link --project-ref ahdslmqkntopkokbceap` fails without `SUPABASE_ACCESS_TOKEN`
+- 새 RH 헬스케어 프로젝트는 연결되어 있습니다.
+- 마이그레이션은 새 프로젝트에 적용되어 있습니다.
+- `send-health-data` Edge Function은 새 프로젝트에 배포되어 있습니다.

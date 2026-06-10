@@ -29,7 +29,7 @@ export const appleHealthProvider: HealthProvider = {
     let connected = available;
 
     if (!config.appId || !config.teamId || !config.redirectUri) {
-      issues.push("Apple Health App ID, Team ID, Redirect URI 설정이 필요합니다.");
+      issues.push("애플 헬스 앱 ID, 팀 ID, Redirect URI 설정이 필요합니다.");
     }
 
     if (available && !hasAppleHealthBridgeConfig() && !isMockHealthDataEnabled()) {

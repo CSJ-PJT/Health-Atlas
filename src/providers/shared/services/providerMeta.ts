@@ -10,7 +10,7 @@ export const PROVIDER_META: Record<
 > = {
   samsung: {
     label: "Samsung Health",
-    subtitle: "Samsung Health Sync GPT",
+    subtitle: "삼성 헬스 동기화 GPT",
     shortLabel: "Samsung",
   },
   garmin: {

@@ -34,9 +34,9 @@ export const Header = ({ showNav = false }: HeaderProps) => {
         <div className="container px-3">
           <div className="flex min-h-[4.5rem] items-center justify-between gap-2 py-2">
             <Link to="/" className="flex min-w-0 flex-1 items-center gap-2 transition-opacity hover:opacity-80">
-              <img src="/app-icon.png" alt="Logo" className="h-10 w-10 rounded-2xl" />
+              <img src="/app-icon.png" alt="RH 헬스케어 로고" className="h-10 w-10 rounded-2xl" />
               <div className="min-w-0 flex-1">
-                <h1 className="text-xl font-bold leading-tight text-foreground sm:text-3xl">RH Healthcare</h1>
+                <h1 className="text-xl font-bold leading-tight text-foreground sm:text-3xl">RH 헬스케어</h1>
               </div>
             </Link>
 
@@ -47,7 +47,7 @@ export const Header = ({ showNav = false }: HeaderProps) => {
                 className="flex flex-col items-center transition-opacity hover:opacity-80"
               >
                 <Avatar className="h-7 w-7 border border-primary/20">
-                  <AvatarImage src={avatarUrl} alt={nickname || "profile"} />
+                  <AvatarImage src={avatarUrl} alt={nickname || "프로필"} />
                   <AvatarFallback>{(nickname || "U").slice(0, 1)}</AvatarFallback>
                 </Avatar>
                 <span className="mt-1 max-w-[64px] truncate text-[10px] text-muted-foreground">
