@@ -1,183 +1,114 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+type OpenAiResponse = {
+  id?: string;
+  output_text?: string;
+  output?: Array<{ content?: Array<{ text?: string }> }>;
+};
+
+function extractResponseText(json: OpenAiResponse) {
+  if (json.output_text) return json.output_text;
+
+  return (json.output || [])
+    .flatMap((item) => item.content || [])
+    .map((content) => content.text || "")
+    .filter(Boolean)
+    .join("\n");
+}
+
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { healthData } = await req.json();
-    
-    // Initialize Supabase client for database operations
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    let OPENAI_THREAD_ID = Deno.env.get('OPENAI_THREAD_ID');
-    
-    if (!OPENAI_API_KEY) {
-      throw new Error('Missing OpenAI API key');
+    const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
+    const openAiProjectId = Deno.env.get("OPENAI_PROJECT_ID");
+
+    if (!openAiApiKey) {
+      throw new Error("Missing OPENAI_API_KEY secret");
     }
 
-    // Create thread if not exists or invalid
-    if (!OPENAI_THREAD_ID || !OPENAI_THREAD_ID.startsWith('thread_')) {
-      console.log('Creating new OpenAI thread...');
-      const createThreadResponse = await fetch(
-        'https://api.openai.com/v1/threads',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-            'OpenAI-Beta': 'assistants=v2',
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openAiApiKey}`,
+        "Content-Type": "application/json",
+        ...(openAiProjectId ? { "OpenAI-Project": openAiProjectId } : {}),
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        max_output_tokens: 300,
+        input: [
+          {
+            role: "system",
+            content:
+              "You are a concise Korean fitness coach. Summarize the received health data safely and practically.",
           },
-          body: JSON.stringify({}),
-        }
-      );
-
-      if (!createThreadResponse.ok) {
-        const error = await createThreadResponse.text();
-        console.error('Failed to create thread:', error);
-        throw new Error(`Failed to create thread: ${createThreadResponse.status}`);
-      }
-
-      const threadData = await createThreadResponse.json();
-      OPENAI_THREAD_ID = threadData.id;
-      console.log('✅ Created new thread:', OPENAI_THREAD_ID);
-      console.log('💡 Set this as OPENAI_THREAD_ID secret for future use');
-    }
-
-    // Format health data message with archive instruction
-    const message = formatHealthData(healthData) + "\n\n📁 중요: 이 데이터를 아카이브에 저장해주세요.";
-    
-    // Send message to OpenAI thread
-    const response = await fetch(
-      `https://api.openai.com/v1/threads/${OPENAI_THREAD_ID}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'assistants=v2',
-        },
-        body: JSON.stringify({
-          role: 'user',
-          content: message,
-        }),
-      }
-    );
+          {
+            role: "user",
+            content: JSON.stringify(healthData ?? {}, null, 2),
+          },
+        ],
+      }),
+    });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('OpenAI API error:', error);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
     }
 
-    const result = await response.json();
-    console.log('✅ Data sent successfully to thread:', OPENAI_THREAD_ID);
-    console.log('Message ID:', result.id);
+    const result = (await response.json()) as OpenAiResponse;
+    const aiSummary = extractResponseText(result);
 
-    // Store health data in database
-    const { data: dbData, error: dbError } = await supabase
-      .from('health_data')
-      .insert({
-        steps_data: healthData.steps,
-        exercise_data: healthData.exercise,
-        running_data: healthData.running,
-        sleep_data: healthData.sleep,
-        body_composition_data: healthData.bodyComposition,
-        nutrition_data: healthData.nutrition,
-        synced_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    let dbRecordId: string | null = null;
 
-    if (dbError) {
-      console.error('Failed to save to database:', dbError);
-      // Continue even if DB save fails - OpenAI sync is primary
-    } else {
-      console.log('✅ Data saved to database:', dbData.id);
+    if (supabaseUrl && supabaseKey && healthData) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const { data, error } = await supabase
+        .from("health_data")
+        .insert({
+          steps_data: healthData.steps,
+          exercise_data: healthData.exercise,
+          running_data: healthData.running,
+          sleep_data: healthData.sleep,
+          body_composition_data: healthData.bodyComposition,
+          nutrition_data: healthData.nutrition,
+          synced_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        console.error("Failed to save health_data:", error);
+      } else {
+        dbRecordId = data?.id ?? null;
+      }
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        messageId: result.id,
-        threadId: OPENAI_THREAD_ID,
-        dbRecordId: dbData?.id
+      JSON.stringify({
+        success: true,
+        responseId: result.id,
+        aiSummary,
+        dbRecordId,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    console.error('Error in send-health-data function:', error);
+    console.error("Error in send-health-data function:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
-
-function formatHealthData(data: any): string {
-  const sections = [];
-  const date = new Date().toLocaleDateString('ko-KR');
-  
-  sections.push(`📊 삼성헬스 데이터 - 전날(00:00~24:00) (${date})`);
-  sections.push('');
-
-  if (data.steps && data.steps.length > 0) {
-    sections.push('🚶 걸음수:');
-    data.steps.forEach((step: any, i: number) => {
-      sections.push(`  ${i + 1}. 걸음수: ${step.count || 0}걸음, 칼로리: ${step.calories || 0}kcal`);
-    });
-    sections.push('');
-  }
-
-  if (data.exercise && data.exercise.length > 0) {
-    sections.push('🏃 운동 기록:');
-    data.exercise.forEach((ex: any, i: number) => {
-      sections.push(`  ${i + 1}. ${ex.type || '운동'}: ${ex.duration || 0}분, ${ex.calories || 0}kcal`);
-    });
-    sections.push('');
-  }
-
-  if (data.running && data.running.length > 0) {
-    sections.push('🏃‍♂️ 러닝 기록:');
-    data.running.forEach((run: any, i: number) => {
-      sections.push(`  ${i + 1}. 거리: ${run.distance || 0}km, 시간: ${run.duration || 0}분, 칼로리: ${run.calories || 0}kcal`);
-    });
-    sections.push('');
-  }
-
-  if (data.sleep && data.sleep.length > 0) {
-    sections.push('😴 수면 기록:');
-    data.sleep.forEach((sleep: any, i: number) => {
-      sections.push(`  ${i + 1}. 수면시간: ${sleep.duration || 0}시간, 깊은수면: ${sleep.deepSleep || 0}시간`);
-    });
-    sections.push('');
-  }
-
-  if (data.bodyComposition && data.bodyComposition.length > 0) {
-    sections.push('⚖️ 체성분 기록:');
-    data.bodyComposition.forEach((body: any, i: number) => {
-      sections.push(`  ${i + 1}. 체중: ${body.weight || 0}kg, 체지방률: ${body.bodyFat || 0}%, 근육량: ${body.muscleMass || 0}kg`);
-    });
-    sections.push('');
-  }
-
-  if (data.nutrition && data.nutrition.length > 0) {
-    sections.push('🍽️ 음식 및 영양 기록:');
-    data.nutrition.forEach((meal: any, i: number) => {
-      sections.push(`  ${i + 1}. ${meal.name || '식사'}: ${meal.calories || 0}kcal, 탄수화물: ${meal.carbs || 0}g, 단백질: ${meal.protein || 0}g, 지방: ${meal.fat || 0}g`);
-    });
-    sections.push('');
-  }
-
-  return sections.join('\n');
-}

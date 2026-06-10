@@ -1,4 +1,4 @@
-project_id = "ahdslmqkntopkokbceap"
+project_id = "wazxzogbnmgqdrnussvc"
 
 [functions.send-health-data]
 verify_jwt = false
