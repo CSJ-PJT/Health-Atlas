@@ -15,7 +15,7 @@ type ResponseItem = {
 async function getApiKey() {
   const { apiKey } = await getResolvedOpenAiCredentials();
   if (!apiKey) {
-    throw new Error("OpenAI API Key가 설정되어 있지 않습니다.");
+    throw new Error("OpenAI API 키가 설정되어 있지 않습니다.");
   }
   return apiKey;
 }
@@ -68,7 +68,7 @@ export async function sendAiCoachMessage(input: string, context: string) {
             content: [
               {
                 type: "input_text",
-                text: "You are a concise Korean fitness coach. Use the health context and answer in Korean with practical, safe, actionable guidance.",
+                text: "당신은 간결하게 답하는 한국어 피트니스 코치입니다. 건강 데이터 맥락을 바탕으로 실천 가능하고 안전한 조언을 한국어로 답하세요.",
               },
             ],
           },

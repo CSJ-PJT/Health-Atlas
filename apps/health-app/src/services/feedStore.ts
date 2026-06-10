@@ -95,7 +95,7 @@ function buildSvgPlaceholder(title: string, accent: string, detail: string) {
       <rect width="900" height="900" rx="48" fill="url(#g)"/>
       <circle cx="710" cy="180" r="120" fill="rgba(255,255,255,0.55)"/>
       <circle cx="180" cy="760" r="150" fill="rgba(255,255,255,0.4)"/>
-      <text x="70" y="130" fill="#37215a" font-family="Arial" font-size="40" font-weight="700">RH Healthcare Feed</text>
+      <text x="70" y="130" fill="#37215a" font-family="Arial" font-size="40" font-weight="700">RH 헬스케어 피드</text>
       <text x="70" y="420" fill="#2d1951" font-family="Arial" font-size="74" font-weight="700">${title}</text>
       <text x="70" y="500" fill="#4b2d7a" font-family="Arial" font-size="34">${detail}</text>
     </svg>

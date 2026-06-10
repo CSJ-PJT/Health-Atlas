@@ -50,7 +50,7 @@ serve(async (req) => {
           {
             role: "system",
             content:
-              "You are a concise Korean fitness coach. Summarize the received health data safely and practically.",
+              "당신은 간결하게 답하는 한국어 피트니스 코치입니다. 전달받은 건강 데이터를 안전하고 실용적인 관점에서 한국어로 요약하세요.",
           },
           {
             role: "user",

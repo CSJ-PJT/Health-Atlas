@@ -63,7 +63,7 @@ function buildVideoThumb(label: string) {
       <rect width="900" height="900" rx="48" fill="url(#g)"/>
       <circle cx="450" cy="450" r="160" fill="rgba(255,255,255,0.82)"/>
       <polygon points="410,360 560,450 410,540" fill="#6f48c9"/>
-      <text x="70" y="130" fill="#432770" font-family="Arial" font-size="40" font-weight="700">RH Healthcare Video</text>
+      <text x="70" y="130" fill="#432770" font-family="Arial" font-size="40" font-weight="700">RH 헬스케어 영상</text>
       <text x="70" y="760" fill="#4d2f80" font-family="Arial" font-size="34">${label}</text>
     </svg>
   `;

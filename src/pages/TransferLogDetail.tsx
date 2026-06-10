@@ -195,8 +195,8 @@ const TransferLogDetail = () => {
                   )}
                   {log.log_type === "GPT 연동" && (
                     <>
-                      <li>Setup 메뉴에서 OpenAI API Key가 올바르게 설정되어 있는지 확인하세요.</li>
-                      <li>OpenAI API Key가 유효하고 충분한 크레딧이 있는지 확인하세요.</li>
+                      <li>설정 메뉴에서 OpenAI API 키가 올바르게 설정되어 있는지 확인하세요.</li>
+                      <li>OpenAI API 키가 유효하고 충분한 크레딧이 있는지 확인하세요.</li>
                       <li>인터넷 연결 상태를 확인하세요.</li>
                       <li>삼성헬스 연동이 먼저 완료되어 있는지 확인하세요.</li>
                     </>
