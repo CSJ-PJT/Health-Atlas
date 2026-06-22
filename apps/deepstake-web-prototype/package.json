@@ -1,0 +1,27 @@
+{
+  "name": "@deepstake/web-prototype",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 --port 3090",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port 3090",
+    "typecheck": "tsc --noEmit",
+    "test:api": "node scripts/world-api-smoke-test.mjs",
+    "test:ui": "node scripts/world-ui-smoke-test.mjs",
+    "test:world": "npm run test:api && npm run test:ui"
+  },
+  "dependencies": {
+    "next": "^14.2.23",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.5",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "playwright": "^1.61.0",
+    "typescript": "^5.8.3"
+  }
+}
