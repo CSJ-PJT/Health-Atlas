@@ -88,6 +88,30 @@ export default function HomePage() {
     ? "Unsaved changes are waiting. Save the area before leaving."
     : "The settlement area is saved and ready.";
   const hasSettlementVista = activeStructures.length > 0;
+  const settlementObjectives = payload
+    ? [
+        {
+          label: "Keep the settlement saved",
+          done: payload.diagnostics.dirtyChunks === 0,
+          detail: payload.diagnostics.dirtyChunks ? `${payload.diagnostics.dirtyChunks} area update(s) waiting` : "Area saved"
+        },
+        {
+          label: "Connect the main paths",
+          done: payload.diagnostics.connectivityIssues === 0,
+          detail: payload.diagnostics.connectivityIssues ? `${payload.diagnostics.connectivityIssues} path issue(s)` : "Roads connected"
+        },
+        {
+          label: "Hold four build areas",
+          done: payload.diagnostics.occupiedChunks >= 4,
+          detail: `${payload.diagnostics.occupiedChunks}/4 areas occupied`
+        },
+        {
+          label: "Stabilize structure rules",
+          done: payload.diagnostics.requirementIssues === 0,
+          detail: payload.diagnostics.requirementIssues ? `${payload.diagnostics.requirementIssues} build issue(s)` : "No build issues"
+        }
+      ]
+    : [];
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -311,6 +335,15 @@ export default function HomePage() {
             <span>Current Goal</span>
             <strong>Expand the settlement block</strong>
             <small>Choose a piece, tap open ground, then save the area.</small>
+          </div>
+          <div className="objective-tracker" aria-label="Settlement objectives">
+            <span>Settlement Objectives</span>
+            {settlementObjectives.map((objective) => (
+              <div className={objective.done ? "objective done" : "objective pending"} key={objective.label}>
+                <strong>{objective.done ? "✓" : "•"} {objective.label}</strong>
+                <small>{objective.detail}</small>
+              </div>
+            ))}
           </div>
           <div className="quick-palette compact-palette">
             {QUICK_PIECES.map((piece, index) => (

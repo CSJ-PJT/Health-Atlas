@@ -41,7 +41,9 @@ try {
   const statusCards = await page.locator(".player-status-bar span").count();
   const previewModels = await page.locator(".village-tile.selected .preview-model").count();
   const lastActionCards = await page.locator(".last-action-card").count();
+  const objectives = await page.locator(".objective-tracker .objective").count();
   const pageText = await page.locator("body").innerText();
+  const normalizedPageText = pageText.toLowerCase();
 
   assert(mapTiles > 0, "settlement map should render clickable tiles");
   assert(structureModels > 0, "settlement map should render spatial structures");
@@ -49,7 +51,9 @@ try {
   assert(statusCards >= 4, "player-facing settlement status should render");
   assert(previewModels >= 1, "selected empty build tile should show a structure preview ghost");
   assert(lastActionCards >= 1, "player-facing last action feedback should render");
+  assert(objectives >= 4, "settlement objective tracker should render player-facing goals");
   assert(pageText.includes("Current Goal"), "player-facing current goal should render");
+  assert(normalizedPageText.includes("settlement objectives"), "settlement objectives should be visible");
   assert(pageText.includes("Expand the settlement block"), "settlement objective should be visible");
   assert(pageText.includes("Load Area"), "load action should use player-facing area language");
   assert(pageText.includes("Save Area"), "save action should use player-facing area language");

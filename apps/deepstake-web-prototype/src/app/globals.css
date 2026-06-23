@@ -885,6 +885,47 @@ button:disabled {
   font-size: 0.95rem;
 }
 
+.objective-tracker {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 0.85rem;
+  background: rgba(2, 6, 23, 0.34);
+  padding: 0.7rem;
+}
+
+.objective-tracker > span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.objective {
+  display: grid;
+  gap: 0.08rem;
+  border-left: 3px solid rgba(245, 158, 11, 0.8);
+  padding-left: 0.55rem;
+}
+
+.objective.done {
+  border-left-color: rgba(74, 222, 128, 0.88);
+}
+
+.objective strong {
+  color: #f8fafc;
+  font-size: 0.82rem;
+}
+
+.objective.done strong {
+  color: #bbf7d0;
+}
+
+.objective small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 .compact-palette {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
