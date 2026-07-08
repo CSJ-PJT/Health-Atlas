@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "npm run dev:health",
     "dev:health": "npm run dev -w @health-sync/health-app",
+    "dev:health-web": "npm run dev -w @health-atlas/health-web",
+    "build:health-web": "npm run build -w @health-atlas/health-web",
+    "preview:health-web": "npm run preview -w @health-atlas/health-web",
     "dev:game": "npm run dev -w @health-sync/fifth-dawn-game",
     "dev:fifth-dawn": "npm run dev:game",
     "dev:deepstake-web": "npm run dev -w @deepstake/web-prototype",
