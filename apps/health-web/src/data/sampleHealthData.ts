@@ -1,49 +1,146 @@
-import type { ActivityMetric, BodyMetric, HealthSummary, SleepMetric, SyncStatus } from "../types";
+import type { HealthDashboardData, HealthTrendPoint } from "../types";
 
-export const healthSummary: HealthSummary = {
-  dateLabel: "오늘",
-  totalScore: 82,
-  steps: 9420,
-  activeCalories: 610,
-  restingHeartRate: 58,
-};
-
-export const bodyMetric: BodyMetric = {
-  label: "체중",
-  value: "68.4 kg",
-  trend: "최근 7일 평균 대비 -0.3 kg",
-};
-
-export const activityMetric: ActivityMetric = {
-  label: "운동",
-  durationMinutes: 48,
-  distanceKm: 7.2,
-  intensity: "moderate",
-};
-
-export const sleepMetric: SleepMetric = {
-  label: "수면",
-  durationHours: 7.1,
-  quality: "steady",
-};
-
-export const syncStatuses: SyncStatus[] = [
+const trend: HealthTrendPoint[] = [
   {
-    source: "최근 동기화 상태",
-    status: "pending",
-    message: "Android 앱 데이터 연결 대기 중",
-    updatedAt: "sample data",
+    date: "2026-07-02",
+    score: 76,
+    steps: 8120,
+    activeCalories: 520,
+    restingHeartRate: 61,
+    weightKg: 68.9,
+    sleepHours: 6.6,
+    activityMinutes: 34,
+    source: "sample preview",
+    syncedAt: "sample data",
+    statusMessage: "샘플 기반 미리보기 데이터",
   },
   {
-    source: "Supabase 연결 상태",
-    status: "inactive",
-    message: "환경 변수가 없으면 비활성으로 표시",
-    updatedAt: "build-time check",
+    date: "2026-07-03",
+    score: 81,
+    steps: 9340,
+    activeCalories: 610,
+    restingHeartRate: 59,
+    weightKg: 68.8,
+    sleepHours: 7.0,
+    activityMinutes: 45,
+    source: "sample preview",
+    syncedAt: "sample data",
+    statusMessage: "샘플 기반 미리보기 데이터",
   },
   {
-    source: "Android Health Connect 연동 예정",
-    status: "pending",
-    message: "기존 native layer 또는 Android 앱에서 수집한 데이터를 API/Supabase로 연결 예정",
-    updatedAt: "planned",
+    date: "2026-07-04",
+    score: 78,
+    steps: 8740,
+    activeCalories: 560,
+    restingHeartRate: 60,
+    weightKg: 68.7,
+    sleepHours: 6.8,
+    activityMinutes: 39,
+    source: "sample preview",
+    syncedAt: "sample data",
+    statusMessage: "샘플 기반 미리보기 데이터",
+  },
+  {
+    date: "2026-07-05",
+    score: 84,
+    steps: 10280,
+    activeCalories: 680,
+    restingHeartRate: 58,
+    weightKg: 68.5,
+    sleepHours: 7.4,
+    activityMinutes: 52,
+    source: "sample preview",
+    syncedAt: "sample data",
+    statusMessage: "샘플 기반 미리보기 데이터",
+  },
+  {
+    date: "2026-07-06",
+    score: 79,
+    steps: 8990,
+    activeCalories: 575,
+    restingHeartRate: 59,
+    weightKg: 68.5,
+    sleepHours: 6.9,
+    activityMinutes: 41,
+    source: "sample preview",
+    syncedAt: "sample data",
+    statusMessage: "샘플 기반 미리보기 데이터",
+  },
+  {
+    date: "2026-07-07",
+    score: 86,
+    steps: 11140,
+    activeCalories: 720,
+    restingHeartRate: 57,
+    weightKg: 68.4,
+    sleepHours: 7.5,
+    activityMinutes: 58,
+    source: "sample preview",
+    syncedAt: "sample data",
+    statusMessage: "샘플 기반 미리보기 데이터",
+  },
+  {
+    date: "2026-07-08",
+    score: 82,
+    steps: 9420,
+    activeCalories: 610,
+    restingHeartRate: 58,
+    weightKg: 68.4,
+    sleepHours: 7.1,
+    activityMinutes: 48,
+    source: "sample preview",
+    syncedAt: "sample data",
+    statusMessage: "샘플 기반 미리보기 데이터",
   },
 ];
+
+const summary = trend[trend.length - 1];
+
+export const sampleHealthDashboardData: HealthDashboardData = {
+  mode: "sample",
+  source: "sample preview",
+  syncedAt: "sample data",
+  statusMessage: "Supabase 연결 전에도 대시보드 구조를 검토할 수 있는 샘플 미리보기입니다.",
+  summary,
+  trend,
+  bodyMetrics: trend.map(({ date, weightKg, source, syncedAt }) => ({
+    date,
+    weightKg,
+    source,
+    syncedAt,
+  })),
+  activityMetrics: trend.map(({ date, steps, activeCalories, activityMinutes, source, syncedAt }) => ({
+    date,
+    steps,
+    activeCalories,
+    activityMinutes,
+    source,
+    syncedAt,
+  })),
+  sleepMetrics: trend.map(({ date, sleepHours, source, syncedAt }) => ({
+    date,
+    sleepHours,
+    source,
+    syncedAt,
+  })),
+  syncStatuses: [
+    {
+      source: "Android Health Connect",
+      status: "pending",
+      syncedAt: "planned",
+      statusMessage: "Android 앱이 수집하고 Supabase에 저장하는 흐름을 준비 중입니다.",
+    },
+    {
+      source: "Supabase",
+      status: "inactive",
+      syncedAt: "build-time check",
+      statusMessage: "환경 변수가 없으면 샘플 미리보기로 실행됩니다.",
+    },
+    {
+      source: "Last Sync",
+      status: "pending",
+      syncedAt: "sample data",
+      statusMessage: "실제 동기화 시각은 Supabase health_data.synced_at에서 읽습니다.",
+    },
+  ],
+};

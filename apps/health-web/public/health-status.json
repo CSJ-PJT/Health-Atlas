@@ -1,0 +1,19 @@
+{
+  "service": "health-web",
+  "surface": "/health/",
+  "status": "ready",
+  "dataSourceModes": ["sample", "supabase", "unconfigured", "error"],
+  "supabase": {
+    "mode": "read-only",
+    "requiredEnv": [
+      "VITE_SUPABASE_PROJECT_ID",
+      "VITE_SUPABASE_URL",
+      "VITE_SUPABASE_PUBLISHABLE_KEY"
+    ],
+    "clientKeyPolicy": "publishable-key-only"
+  },
+  "androidHealthConnect": {
+    "role": "collect-and-sync",
+    "webRole": "read-and-display"
+  }
+}

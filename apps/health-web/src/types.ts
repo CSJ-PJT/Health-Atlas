@@ -1,33 +1,72 @@
+export type HealthDataSourceMode = "sample" | "supabase" | "unconfigured" | "error";
+
 export type HealthSummary = {
-  dateLabel: string;
-  totalScore: number;
+  date: string;
+  score: number;
   steps: number;
   activeCalories: number;
   restingHeartRate: number;
+  weightKg: number;
+  sleepHours: number;
+  activityMinutes: number;
+  source: string;
+  syncedAt: string;
+  statusMessage: string;
 };
 
 export type BodyMetric = {
-  label: string;
-  value: string;
-  trend: string;
+  date: string;
+  weightKg: number;
+  source: string;
+  syncedAt: string;
 };
 
 export type ActivityMetric = {
-  label: string;
-  durationMinutes: number;
-  distanceKm: number;
-  intensity: "low" | "moderate" | "high";
+  date: string;
+  steps: number;
+  activeCalories: number;
+  activityMinutes: number;
+  source: string;
+  syncedAt: string;
 };
 
 export type SleepMetric = {
-  label: string;
-  durationHours: number;
-  quality: "needs-attention" | "steady" | "restorative";
+  date: string;
+  sleepHours: number;
+  source: string;
+  syncedAt: string;
 };
 
 export type SyncStatus = {
   source: string;
-  status: "connected" | "pending" | "inactive";
-  message: string;
-  updatedAt: string;
+  status: "connected" | "pending" | "inactive" | "error";
+  syncedAt: string;
+  statusMessage: string;
+};
+
+export type HealthTrendPoint = {
+  date: string;
+  score: number;
+  steps: number;
+  activeCalories: number;
+  restingHeartRate: number;
+  weightKg: number;
+  sleepHours: number;
+  activityMinutes: number;
+  source: string;
+  syncedAt: string;
+  statusMessage: string;
+};
+
+export type HealthDashboardData = {
+  mode: HealthDataSourceMode;
+  source: string;
+  syncedAt: string;
+  statusMessage: string;
+  summary: HealthSummary;
+  trend: HealthTrendPoint[];
+  bodyMetrics: BodyMetric[];
+  activityMetrics: ActivityMetric[];
+  sleepMetrics: SleepMetric[];
+  syncStatuses: SyncStatus[];
 };

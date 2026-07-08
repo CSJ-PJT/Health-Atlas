@@ -18,7 +18,9 @@ Current exclusions:
 - No direct import from `apps/health-app`.
 - No Android or Capacitor runtime.
 - No direct Health Connect browser integration.
-- No Supabase client initialization yet.
+- Supabase client initialization is isolated in `src/services/supabaseHealthRepository.ts`.
+- The browser client uses only `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- Failed Supabase reads fall back to sample preview state instead of crashing the app.
 - No game, Unity, Fifth Dawn, or DeepStake code in the build graph.
 
 Future public environment variables:
