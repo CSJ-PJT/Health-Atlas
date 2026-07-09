@@ -9,7 +9,7 @@ function formatNumber(value: number) {
 }
 
 function formatDate(value: string) {
-  if (value === "sample data" || value === "planned" || value === "unconfigured") {
+  if (value === "sample data" || value === "planned" || value === "planning" || value === "unconfigured") {
     return value;
   }
 
@@ -24,6 +24,15 @@ function formatDate(value: string) {
     hour: value.includes("T") ? "2-digit" : undefined,
     minute: value.includes("T") ? "2-digit" : undefined,
   }).format(date);
+}
+
+function todayLabel() {
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(new Date());
 }
 
 function average(values: number[]) {
@@ -51,14 +60,28 @@ function sourceLabel(mode: HealthDataSourceMode) {
 function sourceHint(mode: HealthDataSourceMode) {
   switch (mode) {
     case "supabase":
-      return "health_data read-only";
+      return "publishable key read-only";
     case "unconfigured":
-      return "env required";
+      return "sample mode";
     case "error":
       return "fallback preview";
     case "sample":
     default:
       return "sample data";
+  }
+}
+
+function sourceMessage(mode: HealthDataSourceMode) {
+  switch (mode) {
+    case "supabase":
+      return "Supabase health_data에서 읽은 최근 데이터를 표시합니다.";
+    case "unconfigured":
+      return "환경변수가 없으면 sample mode로 동작합니다.";
+    case "error":
+      return "Supabase 연결 실패로 sample data 기반 preview를 표시합니다.";
+    case "sample":
+    default:
+      return "현재는 sample data 기반 preview입니다.";
   }
 }
 
@@ -70,22 +93,35 @@ function StatusPill({ status }: { status: SyncStatus["status"] }) {
 
 function SourceBadge({ mode }: { mode: HealthDataSourceMode }) {
   return (
-    <div className={`source-badge ${mode}`} aria-label="데이터 소스">
+    <div className={`source-badge ${mode}`} aria-label="데이터 출처">
       <span>{sourceLabel(mode)}</span>
       <small>{sourceHint(mode)}</small>
     </div>
   );
 }
 
-function MiniBars({ values }: { values: number[] }) {
+function MiniBars({ values, tone = "blue" }: { values: number[]; tone?: "blue" | "green" | "violet" }) {
   const max = Math.max(...values, 1);
 
   return (
-    <div className="mini-bars" aria-hidden="true">
+    <div className={`mini-bars ${tone}`} aria-hidden="true">
       {values.map((value, index) => (
         <span key={`${value}-${index}`} style={{ height: `${Math.max(12, (value / max) * 100)}%` }} />
       ))}
     </div>
+  );
+}
+
+function EmptyNotice({ mode }: { mode: HealthDataSourceMode }) {
+  if (mode === "supabase") {
+    return null;
+  }
+
+  return (
+    <section className={`notice-panel ${mode}`} aria-label="데이터 상태 안내">
+      <strong>{sourceMessage(mode)}</strong>
+      <p>Android 앱에서 수집한 데이터가 Supabase에 저장되면 이 화면은 실제 데이터 기준으로 전환됩니다.</p>
+    </section>
   );
 }
 
@@ -114,6 +150,7 @@ function App() {
   }, []);
 
   const recentTrend = dashboardData.trend.slice(-7);
+  const hasTrend = recentTrend.length > 0;
   const sevenDaySummary = useMemo(() => {
     const first = recentTrend[0];
     const latest = recentTrend[recentTrend.length - 1];
@@ -128,104 +165,152 @@ function App() {
 
   const { summary } = dashboardData;
 
+  const todayCards = [
+    { label: "컨디션 점수", value: `${summary.score}`, meta: "/ 100", tone: "strong" },
+    { label: "걸음 수", value: formatNumber(summary.steps), meta: "steps", tone: "default" },
+    { label: "활동 칼로리", value: formatNumber(summary.activeCalories), meta: "kcal", tone: "default" },
+    { label: "안정 심박", value: summary.restingHeartRate > 0 ? `${summary.restingHeartRate}` : "대기", meta: "bpm", tone: "default" },
+    { label: "수면 시간", value: summary.sleepHours > 0 ? `${summary.sleepHours.toFixed(1)}` : "대기", meta: "hours", tone: "default" },
+    { label: "체중", value: summary.weightKg > 0 ? `${summary.weightKg.toFixed(1)}` : "대기", meta: "kg", tone: "default" },
+  ];
+
   return (
     <main className="app-shell">
-      <section className="hero">
+      <header className="app-header" aria-label="Health Atlas header">
         <div>
-          <p className="eyebrow">Atlas / health</p>
-          <h1>Health Atlas</h1>
-          <p className="subtitle">Android Health Connect에서 수집한 건강 데이터를 Supabase를 거쳐 웹에서 읽는 경량 대시보드</p>
+          <p className="eyebrow">Health Atlas</p>
+          <h1>일간 건강 대시보드</h1>
+          <p className="subtitle">건강·운동·수면 데이터를 매일 확인하는 읽기 중심 웹 대시보드입니다.</p>
         </div>
-        <div className="hero-side">
+        <div className="header-meta">
+          <span>{todayLabel()}</span>
           <SourceBadge mode={dashboardData.mode} />
-          <div className="hero-score" aria-label="오늘 건강 점수">
-            <span>{summary.score}</span>
-            <small>/ 100</small>
-          </div>
+          <small>마지막 동기화 {formatDate(dashboardData.syncedAt)}</small>
         </div>
-      </section>
+      </header>
 
       <section className="banner" aria-live="polite">
         <strong>{isLoading ? "데이터 소스 확인 중" : sourceLabel(dashboardData.mode)}</strong>
         <span>{dashboardData.statusMessage}</span>
       </section>
 
-      <section className="grid metrics-grid" aria-label="Health Atlas 상태 카드">
-        <article className="card highlight">
-          <span className="card-label">오늘 건강 요약</span>
-          <strong>{formatNumber(summary.steps)} 걸음</strong>
-          <p>{formatNumber(summary.activeCalories)} kcal 활동 · 안정 심박 {summary.restingHeartRate || "-"} bpm</p>
-        </article>
+      <EmptyNotice mode={dashboardData.mode} />
 
-        <article className="card">
-          <span className="card-label">체중</span>
-          <strong>{summary.weightKg > 0 ? `${summary.weightKg.toFixed(1)} kg` : "대기"}</strong>
-          <p>최근 7일 변화 {sevenDaySummary.weightChangeKg >= 0 ? "+" : ""}{sevenDaySummary.weightChangeKg.toFixed(1)} kg</p>
-        </article>
+      <section className="section-block" aria-labelledby="today-summary-title">
+        <div className="section-heading">
+          <div>
+            <span className="card-label">Today Summary</span>
+            <h2 id="today-summary-title">오늘 상태</h2>
+          </div>
+          <p>출처: {summary.source} · 기준 {formatDate(summary.syncedAt)}</p>
+        </div>
 
-        <article className="card">
-          <span className="card-label">운동</span>
-          <strong>{summary.activityMinutes}분</strong>
-          <p>7일 평균 {sevenDaySummary.averageActivityMinutes}분 · {formatNumber(summary.activeCalories)} kcal</p>
-        </article>
-
-        <article className="card">
-          <span className="card-label">수면</span>
-          <strong>{summary.sleepHours > 0 ? `${summary.sleepHours.toFixed(1)}시간` : "대기"}</strong>
-          <p>최근 7일 평균 {sevenDaySummary.averageSleepHours.toFixed(1)}시간</p>
-        </article>
+        <div className="grid metrics-grid" aria-label="오늘 건강 요약 카드">
+          {todayCards.map((card) => (
+            <article className={`card ${card.tone}`} key={card.label}>
+              <span className="card-label">{card.label}</span>
+              <strong>{card.value}</strong>
+              <p>{card.meta}</p>
+            </article>
+          ))}
+        </div>
       </section>
 
-      <section className="grid insight-grid" aria-label="최근 7일 요약">
-        <article className="insight-panel">
+      <section className="section-block" aria-labelledby="week-summary-title">
+        <div className="section-heading">
           <div>
-            <span className="card-label">최근 7일 요약</span>
-            <strong>{formatNumber(sevenDaySummary.averageSteps)} 걸음</strong>
-            <p>평균 걸음 · 평균 운동 {sevenDaySummary.averageActivityMinutes}분 · 평균 수면 {sevenDaySummary.averageSleepHours.toFixed(1)}시간</p>
+            <span className="card-label">Last 7 Days</span>
+            <h2 id="week-summary-title">최근 7일 요약</h2>
           </div>
-          <MiniBars values={recentTrend.map((point) => point.steps)} />
-        </article>
+          <p>무거운 차트 라이브러리 없이 CSS 미니 차트로 추세만 보여줍니다.</p>
+        </div>
 
-        <article className="insight-panel">
-          <div>
-            <span className="card-label">스코어 추세</span>
-            <strong>{summary.score}점</strong>
-            <p>{formatDate(summary.syncedAt)} 기준 · {summary.source}</p>
+        {hasTrend ? (
+          <div className="grid insight-grid">
+            <article className="insight-panel">
+              <div>
+                <span className="card-label">평균 걸음</span>
+                <strong>{formatNumber(sevenDaySummary.averageSteps)}</strong>
+                <p>최근 7일 걸음 수 평균</p>
+              </div>
+              <MiniBars values={recentTrend.map((point) => point.steps)} />
+            </article>
+            <article className="insight-panel">
+              <div>
+                <span className="card-label">평균 운동 시간</span>
+                <strong>{sevenDaySummary.averageActivityMinutes}분</strong>
+                <p>활동 시간 기준</p>
+              </div>
+              <MiniBars values={recentTrend.map((point) => point.activityMinutes)} tone="green" />
+            </article>
+            <article className="insight-panel">
+              <div>
+                <span className="card-label">평균 수면</span>
+                <strong>{sevenDaySummary.averageSleepHours.toFixed(1)}시간</strong>
+                <p>수면 기록 기준</p>
+              </div>
+              <MiniBars values={recentTrend.map((point) => point.sleepHours)} tone="violet" />
+            </article>
+            <article className="insight-panel">
+              <div>
+                <span className="card-label">체중 변화</span>
+                <strong>
+                  {sevenDaySummary.weightChangeKg >= 0 ? "+" : ""}
+                  {sevenDaySummary.weightChangeKg.toFixed(1)} kg
+                </strong>
+                <p>최근 기록 대비 변화</p>
+              </div>
+              <MiniBars values={recentTrend.map((point) => point.weightKg)} tone="green" />
+            </article>
           </div>
-          <MiniBars values={recentTrend.map((point) => point.score)} />
-        </article>
+        ) : (
+          <div className="empty-state">
+            <strong>최근 7일 데이터가 없습니다.</strong>
+            <span>Supabase에 health_data가 저장되면 7일 요약이 표시됩니다.</span>
+          </div>
+        )}
       </section>
 
-      <section className="grid status-grid" aria-label="연동 상태">
-        {dashboardData.syncStatuses.map((status) => (
-          <article className="status-card" key={status.source}>
-            <div className="status-heading">
-              <span>{status.source}</span>
-              <StatusPill status={status.status} />
-            </div>
-            <p>{status.statusMessage}</p>
-            <small>{formatDate(status.syncedAt)}</small>
-          </article>
-        ))}
+      <section className="section-block" aria-labelledby="sync-title">
+        <div className="section-heading">
+          <div>
+            <span className="card-label">Sync Status</span>
+            <h2 id="sync-title">동기화 상태</h2>
+          </div>
+          <p>Android, Supabase, Web Dashboard의 연결 상태를 분리해서 표시합니다.</p>
+        </div>
+
+        <div className="grid status-grid" aria-label="연동 상태">
+          {dashboardData.syncStatuses.map((status) => (
+            <article className="status-card" key={status.source}>
+              <div className="status-heading">
+                <span>{status.source}</span>
+                <StatusPill status={status.status} />
+              </div>
+              <p>{status.statusMessage}</p>
+              <small>{formatDate(status.syncedAt)}</small>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="flow-section" aria-label="Health Atlas 데이터 흐름">
         <div>
-          <span className="card-label">데이터 흐름</span>
-          <h2>Android 앱에서 수집 → Supabase 저장 → Web 대시보드 표시</h2>
+          <span className="card-label">Data Flow</span>
+          <h2>Android 수집 → Supabase 저장 → Web 표시</h2>
         </div>
         <ol className="flow-list">
           <li>
-            <strong>Android Health Connect</strong>
-            <span>걸음, 운동, 수면, 체중 권한을 받아 로컬에서 정규화합니다.</span>
+            <strong>Android 앱</strong>
+            <span>Health Connect 권한으로 걸음, 운동, 수면, 체중 데이터를 수집합니다.</span>
           </li>
           <li>
             <strong>Supabase</strong>
-            <span>사용자별 RLS가 적용된 health_data에 저장하고 Web은 read-only로 조회합니다.</span>
+            <span>브라우저는 publishable key만 사용하고, service role key는 클라이언트에서 사용하지 않습니다.</span>
           </li>
           <li>
-            <strong>Health Web</strong>
-            <span>최근 요약과 추세를 표시하고 실패 시 샘플 미리보기로 유지됩니다.</span>
+            <strong>Web Dashboard</strong>
+            <span>환경변수가 없거나 조회가 실패하면 sample mode로 유지되어 화면이 깨지지 않습니다.</span>
           </li>
         </ol>
       </section>

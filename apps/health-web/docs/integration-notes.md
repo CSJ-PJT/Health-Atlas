@@ -23,6 +23,19 @@ Current exclusions:
 - Failed Supabase reads fall back to sample preview state instead of crashing the app.
 - No game, Unity, Fifth Dawn, or DeepStake code in the build graph.
 
+Dashboard data source states:
+
+- `sample`: sample data based preview.
+- `supabase`: Supabase `health_data` read succeeded with a publishable key.
+- `unconfigured`: required public Supabase environment variables are missing.
+- `error`: Supabase is configured but the read failed, so the UI falls back to sample data.
+
+ArchiveOS status handoff:
+
+- Keep `public/health-status.json` available under `/health/health-status.json`.
+- ArchiveOS can read `statusModel`, `lastKnownMode`, and `archiveOs` to distinguish sample, Supabase, unconfigured, and error states.
+- Health Web must remain read-only and must not expose service role keys.
+
 Future public environment variables:
 
 ```env
