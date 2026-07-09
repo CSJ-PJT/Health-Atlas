@@ -125,7 +125,7 @@ export const sampleHealthDashboardData: HealthDashboardData = {
   })),
   syncStatuses: [
     {
-      source: "Android Health Connect",
+      source: "Android 앱",
       status: "pending",
       syncedAt: "planned",
       statusMessage: "Android 앱이 수집하고 Supabase에 저장하는 흐름을 준비 중입니다.",
@@ -137,10 +137,16 @@ export const sampleHealthDashboardData: HealthDashboardData = {
       statusMessage: "환경 변수가 없으면 샘플 미리보기로 실행됩니다.",
     },
     {
-      source: "Last Sync",
+      source: "Web Dashboard",
       status: "pending",
       syncedAt: "sample data",
       statusMessage: "실제 동기화 시각은 Supabase health_data.synced_at에서 읽습니다.",
+    },
+    {
+      source: "다음 연결 단계",
+      status: "pending",
+      syncedAt: "planning",
+      statusMessage: "Android 수집, Supabase 저장, Web 읽기 흐름을 인증/RLS 정책에 맞춰 연결합니다.",
     },
   ],
 };

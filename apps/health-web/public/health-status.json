@@ -2,7 +2,14 @@
   "service": "health-web",
   "surface": "/health/",
   "status": "ready",
+  "lastKnownMode": "sample",
   "dataSourceModes": ["sample", "supabase", "unconfigured", "error"],
+  "statusModel": {
+    "sample": "Sample Preview",
+    "supabase": "Supabase Connected",
+    "unconfigured": "Supabase Unconfigured",
+    "error": "Sync Error"
+  },
   "supabase": {
     "mode": "read-only",
     "requiredEnv": [
@@ -15,5 +22,10 @@
   "androidHealthConnect": {
     "role": "collect-and-sync",
     "webRole": "read-and-display"
+  },
+  "archiveOs": {
+    "planned": true,
+    "statusReader": "read health-status.json and app data source mode",
+    "notes": "Health Web remains read-only and falls back to sample mode when Supabase is unavailable."
   }
 }
