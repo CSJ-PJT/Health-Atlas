@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/brand/health-atlas-lockup.svg" width="900" alt="Health Atlas" />
+</p>
+
 # RH Healthcare Monorepo
 
 RH Healthcare와 연동형 게임 클라이언트를 함께 관리하는 모노레포입니다.
