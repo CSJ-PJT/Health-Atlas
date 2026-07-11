@@ -1,0 +1,22 @@
+{
+  "name": "mcp-codex-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local MCP bridge for ChatGPT <-> Codex task orchestration",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "check": "node --check src/index.mjs",
+    "orchestrator": "node src/orchestrator.mjs",
+    "dev:bridge": "concurrently -k -n MCP,ORCH -c cyan,magenta \"npm:start\" \"npm:orchestrator\"",
+    "gpt:bridge": "node src/gpt-session-bridge.mjs",
+    "dev:all": "concurrently -k -n MCP,ORCH,GPT -c cyan,magenta,green \"npm:start\" \"npm:orchestrator\" \"npm:gpt:bridge\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
