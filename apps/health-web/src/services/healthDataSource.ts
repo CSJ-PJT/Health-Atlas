@@ -23,9 +23,7 @@ export async function loadHealthDashboardData(): Promise<HealthDashboardData> {
 
   try {
     return await fetchSupabaseHealthDashboardData(env);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Supabase read failed.";
-
+  } catch {
     return {
       ...sampleHealthDashboardData,
       mode: "error",
@@ -33,7 +31,8 @@ export async function loadHealthDashboardData(): Promise<HealthDashboardData> {
       syncStatuses: buildSyncStatuses({
         mode: "error",
         syncedAt: sampleHealthDashboardData.syncedAt,
-        message,
+        // Do not render provider or database error details in the public UI.
+        message: "Supabase read request did not complete. Verify sign-in, RLS, and the Android sync job.",
         isConfigured: true,
       }),
     };
