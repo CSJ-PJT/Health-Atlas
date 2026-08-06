@@ -3,7 +3,12 @@
   "surface": "/health/",
   "status": "ready",
   "lastKnownMode": "sample",
-  "dataSourceModes": ["sample", "supabase", "unconfigured", "error"],
+  "dataSourceModes": [
+    "sample",
+    "supabase",
+    "unconfigured",
+    "error"
+  ],
   "statusModel": {
     "sample": "Sample Preview",
     "supabase": "Supabase Connected",
@@ -11,7 +16,7 @@
     "error": "Sync Error"
   },
   "supabase": {
-    "mode": "read-only",
+    "mode": "auth-required",
     "requiredEnv": [
       "VITE_SUPABASE_PROJECT_ID",
       "VITE_SUPABASE_URL",
@@ -25,7 +30,7 @@
   },
   "archiveOs": {
     "planned": true,
-    "statusReader": "read health-status.json and app data source mode",
-    "notes": "Health Web remains read-only and falls back to sample mode when Supabase is unavailable."
+    "statusReader": "read health-status.json and health dashboard mode",
+    "notes": "Health Web requires authenticated session for actual data; sample remains explicit preview only."
   }
 }

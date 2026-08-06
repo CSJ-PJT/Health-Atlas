@@ -12,7 +12,7 @@ const trend: HealthTrendPoint[] = [
     activityMinutes: 34,
     source: "sample preview",
     syncedAt: "sample data",
-    statusMessage: "샘플 기반 미리보기 데이터",
+    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
   },
   {
     date: "2026-07-03",
@@ -25,7 +25,7 @@ const trend: HealthTrendPoint[] = [
     activityMinutes: 45,
     source: "sample preview",
     syncedAt: "sample data",
-    statusMessage: "샘플 기반 미리보기 데이터",
+    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
   },
   {
     date: "2026-07-04",
@@ -38,7 +38,7 @@ const trend: HealthTrendPoint[] = [
     activityMinutes: 39,
     source: "sample preview",
     syncedAt: "sample data",
-    statusMessage: "샘플 기반 미리보기 데이터",
+    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
   },
   {
     date: "2026-07-05",
@@ -51,7 +51,7 @@ const trend: HealthTrendPoint[] = [
     activityMinutes: 52,
     source: "sample preview",
     syncedAt: "sample data",
-    statusMessage: "샘플 기반 미리보기 데이터",
+    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
   },
   {
     date: "2026-07-06",
@@ -64,7 +64,7 @@ const trend: HealthTrendPoint[] = [
     activityMinutes: 41,
     source: "sample preview",
     syncedAt: "sample data",
-    statusMessage: "샘플 기반 미리보기 데이터",
+    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
   },
   {
     date: "2026-07-07",
@@ -77,7 +77,7 @@ const trend: HealthTrendPoint[] = [
     activityMinutes: 58,
     source: "sample preview",
     syncedAt: "sample data",
-    statusMessage: "샘플 기반 미리보기 데이터",
+    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
   },
   {
     date: "2026-07-08",
@@ -90,7 +90,7 @@ const trend: HealthTrendPoint[] = [
     activityMinutes: 48,
     source: "sample preview",
     syncedAt: "sample data",
-    statusMessage: "샘플 기반 미리보기 데이터",
+    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
   },
 ];
 
@@ -98,9 +98,10 @@ const summary = trend[trend.length - 1];
 
 export const sampleHealthDashboardData: HealthDashboardData = {
   mode: "sample",
+  loadMode: "backend_unavailable",
   source: "sample preview",
   syncedAt: "sample data",
-  statusMessage: "Supabase 연결 전에도 대시보드 구조를 검토할 수 있는 샘플 미리보기입니다.",
+  statusMessage: "실제 데이터 조회 실패 시 샘플 미리보기가 필요합니다.",
   summary,
   trend,
   bodyMetrics: trend.map(({ date, weightKg, source, syncedAt }) => ({
@@ -123,30 +124,5 @@ export const sampleHealthDashboardData: HealthDashboardData = {
     source,
     syncedAt,
   })),
-  syncStatuses: [
-    {
-      source: "Android 앱",
-      status: "pending",
-      syncedAt: "planned",
-      statusMessage: "Android 앱이 수집하고 Supabase에 저장하는 흐름을 준비 중입니다.",
-    },
-    {
-      source: "Supabase",
-      status: "inactive",
-      syncedAt: "build-time check",
-      statusMessage: "환경 변수가 없으면 샘플 미리보기로 실행됩니다.",
-    },
-    {
-      source: "Web Dashboard",
-      status: "pending",
-      syncedAt: "sample data",
-      statusMessage: "실제 동기화 시각은 Supabase health_data.synced_at에서 읽습니다.",
-    },
-    {
-      source: "다음 연결 단계",
-      status: "pending",
-      syncedAt: "planning",
-      statusMessage: "Android 수집, Supabase 저장, Web 읽기 흐름을 인증/RLS 정책에 맞춰 연결합니다.",
-    },
-  ],
+  syncStatuses: [],
 };

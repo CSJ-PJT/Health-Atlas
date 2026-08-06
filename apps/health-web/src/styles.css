@@ -192,6 +192,11 @@ h2 {
   text-align: right;
 }
 
+.section-heading .error-state {
+  margin: 0;
+  color: #b45309;
+}
+
 .grid {
   display: grid;
   gap: 14px;
@@ -363,6 +368,58 @@ h2 {
 .empty-state span {
   color: #64748b;
   line-height: 1.55;
+}
+
+.notice-panel .login-form {
+  margin-top: 8px;
+  display: grid;
+  gap: 10px;
+  width: min(520px, 100%);
+}
+
+.notice-panel label {
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-size: 0.92rem;
+}
+
+.notice-panel input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.notice-panel button,
+.section-block button,
+.action-row button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  background: #172033;
+  color: white;
+}
+
+.notice-panel button:disabled,
+.section-block button:disabled,
+.action-row button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.action-row .danger {
+  background: #b91c1c;
 }
 
 @media (max-width: 1080px) {

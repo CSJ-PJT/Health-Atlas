@@ -1,8 +1,10 @@
 export type HealthDataSourceMode = "sample" | "supabase" | "unconfigured" | "error";
 
+export type HealthLoadMode = "loading" | "signed_out" | "signed_in" | "backend_unavailable" | "error";
+
 export type HealthSummary = {
   date: string;
-  score: number;
+  score: number | null;
   steps: number;
   activeCalories: number;
   restingHeartRate: number;
@@ -46,7 +48,7 @@ export type SyncStatus = {
 
 export type HealthTrendPoint = {
   date: string;
-  score: number;
+  score: number | null;
   steps: number;
   activeCalories: number;
   restingHeartRate: number;
@@ -60,6 +62,7 @@ export type HealthTrendPoint = {
 
 export type HealthDashboardData = {
   mode: HealthDataSourceMode;
+  loadMode: HealthLoadMode;
   source: string;
   syncedAt: string;
   statusMessage: string;
@@ -70,3 +73,13 @@ export type HealthDashboardData = {
   sleepMetrics: SleepMetric[];
   syncStatuses: SyncStatus[];
 };
+
+export type HealthQueryStatus =
+  | "AUTH_REQUIRED"
+  | "SESSION_EXPIRED"
+  | "BACKEND_INACTIVE"
+  | "SCHEMA_UNAVAILABLE"
+  | "PERMISSION_DENIED"
+  | "NO_DATA"
+  | "NETWORK_ERROR"
+  | "UNKNOWN";

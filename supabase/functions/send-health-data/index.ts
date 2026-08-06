@@ -1,114 +1,161 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+type HealthPayload = {
+  syncedAt?: string;
+  steps?: unknown;
+  exercise?: unknown;
+  running?: unknown;
+  sleep?: unknown;
+  bodyComposition?: unknown;
+  nutrition?: unknown;
 };
 
-type OpenAiResponse = {
-  id?: string;
-  output_text?: string;
-  output?: Array<{ content?: Array<{ text?: string }> }>;
+type JsonError = {
+  error: string;
 };
 
-function extractResponseText(json: OpenAiResponse) {
-  if (json.output_text) return json.output_text;
+const ALLOWED_ORIGINS = Deno.env.get("ALLOWED_ORIGINS")?.split(",").map((value) => value.trim()).filter(Boolean) ?? ["*"];
+const MAX_PAYLOAD_BYTES = 180 * 1024;
 
-  return (json.output || [])
-    .flatMap((item) => item.content || [])
-    .map((content) => content.text || "")
-    .filter(Boolean)
-    .join("\n");
+function corsHeaders(origin: string | null) {
+  const allowedAny = ALLOWED_ORIGINS.includes("*");
+  const allowed = Boolean(origin && ALLOWED_ORIGINS.includes(origin));
+
+  return {
+    "Access-Control-Allow-Origin": allowedAny || allowed ? (origin ?? "*") : "",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
+function jsonResponse(payload: JsonError | Record<string, unknown>, status = 200, origin: string | null = null) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      ...corsHeaders(origin),
+      "Content-Type": "application/json; charset=utf-8",
+    },
+  });
+}
+
+function extractToken(req: Request) {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader) {
+    return null;
+  }
+
+  const [type, token] = authHeader.split(" ");
+  if (!type || type.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+
+  return token.trim();
+}
+
+function normalizePayload(payload: unknown): HealthPayload {
+  if (!payload || typeof payload !== "object") {
+    return {};
+  }
+
+  return payload as HealthPayload;
+}
+
+function validatePayload(payload: HealthPayload) {
+  const raw = JSON.stringify(payload ?? {});
+  if (raw.length > MAX_PAYLOAD_BYTES) {
+    throw new Error("PAYLOAD_TOO_LARGE");
+  }
+
+  const syncedAtValue = payload.syncedAt ? new Date(payload.syncedAt) : new Date();
+  if (Number.isNaN(syncedAtValue.getTime()) || syncedAtValue.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
+    throw new Error("INVALID_SYNCED_AT");
+  }
+
+  return {
+    syncedAt: syncedAtValue.toISOString(),
+    steps: payload.steps ?? null,
+    exercise: payload.exercise ?? null,
+    running: payload.running ?? null,
+    sleep: payload.sleep ?? null,
+    bodyComposition: payload.bodyComposition ?? null,
+    nutrition: payload.nutrition ?? null,
+  };
 }
 
 serve(async (req) => {
+  const origin = req.headers.get("origin");
+
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    const hasNoOriginOrAllowed = !origin || ALLOWED_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes(origin);
+    if (!hasNoOriginOrAllowed) {
+      return new Response(null, { status: 403 });
+    }
+    return new Response(null, { headers: corsHeaders(origin) });
   }
 
   try {
-    const { healthData } = await req.json();
-    const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
-    const openAiProjectId = Deno.env.get("OPENAI_PROJECT_ID");
-
-    if (!openAiApiKey) {
-      throw new Error("Missing OPENAI_API_KEY secret");
+    const token = extractToken(req);
+    if (!token) {
+    const allowOrigin = !origin || ALLOWED_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes(origin);
+    if (!allowOrigin) {
+      return jsonResponse({ error: "ORIGIN_NOT_ALLOWED" }, 403, origin);
     }
-
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openAiApiKey}`,
-        "Content-Type": "application/json",
-        ...(openAiProjectId ? { "OpenAI-Project": openAiProjectId } : {}),
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        max_output_tokens: 300,
-        input: [
-          {
-            role: "system",
-            content:
-              "당신은 간결하게 답하는 한국어 피트니스 코치입니다. 전달받은 건강 데이터를 안전하고 실용적인 관점에서 한국어로 요약하세요.",
-          },
-          {
-            role: "user",
-            content: JSON.stringify(healthData ?? {}, null, 2),
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
-    }
-
-    const result = (await response.json()) as OpenAiResponse;
-    const aiSummary = extractResponseText(result);
+    return jsonResponse({ error: "MISSING_AUTHORIZATION" }, 401, origin);
+  }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    let dbRecordId: string | null = null;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (supabaseUrl && supabaseKey && healthData) {
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const { data, error } = await supabase
-        .from("health_data")
-        .insert({
-          steps_data: healthData.steps,
-          exercise_data: healthData.exercise,
-          running_data: healthData.running,
-          sleep_data: healthData.sleep,
-          body_composition_data: healthData.bodyComposition,
-          nutrition_data: healthData.nutrition,
-          synced_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-
-      if (error) {
-        console.error("Failed to save health_data:", error);
-      } else {
-        dbRecordId = data?.id ?? null;
-      }
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return jsonResponse({ error: "SUPABASE_CONFIG_MISSING" }, 500, origin);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        responseId: result.id,
-        aiSummary,
-        dbRecordId,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+    const authResult = await adminClient.auth.getUser(token);
+    const user = authResult.data.user;
+
+    if (!user || !user.id) {
+      return jsonResponse({ error: "INVALID_AUTH_TOKEN" }, 401, origin);
+    }
+
+    const body = await req.json().catch(() => ({} as HealthPayload));
+    const payload = normalizePayload(body?.healthData ?? body);
+    const normalized = validatePayload(payload);
+
+    const { data, error } = await adminClient.rpc("health_ingest_daily", {
+      p_user_id: user.id,
+      p_synced_at: normalized.syncedAt,
+      p_steps_data: normalized.steps,
+      p_exercise_data: normalized.exercise,
+      p_running_data: normalized.running,
+      p_sleep_data: normalized.sleep,
+      p_body_composition_data: normalized.bodyComposition,
+      p_nutrition_data: normalized.nutrition,
+    });
+
+    if (error) {
+      return jsonResponse({ error: "DB_WRITE_FAILED" }, 502, origin);
+    }
+
+    const result = data as { ok?: boolean; health_id?: string | null } | null;
+    return jsonResponse(
+      {
+        success: Boolean(result?.ok),
+        upserted: true,
+        health_id: result?.health_id ?? null,
+      },
+      200,
+      origin,
     );
   } catch (error) {
-    console.error("Error in send-health-data function:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    const raw = error instanceof Error ? error.message : "UNKNOWN_ERROR";
+
+    const status =
+      raw === "PAYLOAD_TOO_LARGE" || raw === "INVALID_SYNCED_AT"
+        ? 400
+        : 500;
+    return jsonResponse({ error: raw }, status, origin);
   }
 });
