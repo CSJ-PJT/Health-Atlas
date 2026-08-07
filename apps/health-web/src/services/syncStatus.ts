@@ -1,4 +1,4 @@
-import type { HealthDataSourceMode, HealthLoadMode, SyncStatus } from "../types";
+﻿import type { HealthDataSourceMode, HealthLoadMode, SyncStatus } from "../types";
 
 export type SyncSourceStatusMode = "connected" | "pending" | "inactive" | "error";
 
@@ -44,8 +44,8 @@ export function buildSyncStatuses(input: SyncStatusInput): SyncStatus[] {
       syncedAt: "planning",
       statusMessage:
         input.loadMode === "signed_in"
-          ? "마지막 동기화된 Android 업로드 결과를 대시보드에서 반영 대기 중입니다."
-          : "Android 로그인/권한 승인 후 동기화 상태를 확인할 수 있습니다.",
+          ? "Android 앱에서 수집한 최신 데이터는 동기화 시간 기준으로 반영됩니다."
+          : "Android 연결을 확인 중입니다.",
     },
     {
       source: "Supabase",
@@ -54,7 +54,7 @@ export function buildSyncStatuses(input: SyncStatusInput): SyncStatus[] {
       statusMessage:
         input.isConfigured
           ? input.message
-          : "Supabase URL 또는 Publishable Key가 설정되지 않아 조회가 일시 중단되었습니다.",
+          : "Supabase URL 또는 Publishable Key 설정이 필요해 연결 상태를 확인할 수 없습니다.",
     },
     {
       source: "Health Web",
@@ -62,14 +62,14 @@ export function buildSyncStatuses(input: SyncStatusInput): SyncStatus[] {
       syncedAt: input.syncedAt,
       statusMessage:
         input.mode === "supabase"
-          ? "조회한 건을 기반으로 최근 수치와 추세를 표시합니다."
-          : "안전한 조회 경로에서 데이터가 준비되는 대로 화면이 갱신됩니다.",
+          ? "대시보드가 인증 사용자 기준 데이터로 표시됩니다."
+          : "실제 데이터 연결이 준비되면 즉시 실제 값으로 전환됩니다.",
     },
     {
       source: "Sync Pipeline",
       status: "pending",
       syncedAt: "planning",
-      statusMessage: "Android 수집, 업로드, 대시보드 반영 순서를 점검해 운영 동기화 지연을 감지합니다.",
+      statusMessage: "Android 동기화와 Supabase 저장이 모두 정상 연결되면 파이프라인 상태가 갱신됩니다.",
     },
   ];
 }

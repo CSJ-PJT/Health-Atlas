@@ -1,4 +1,4 @@
-import { createClient, type Session } from "@supabase/supabase-js";
+﻿import { createClient, type Session } from "@supabase/supabase-js";
 
 import type {
   HealthDashboardData,
@@ -53,10 +53,10 @@ function parseFiniteNumber(value: unknown): number | null {
   return null;
 }
 
-function asNonNegativeNumber(value: unknown): number {
+function asNonNegativeNumber(value: unknown): number | null {
   const num = parseFiniteNumber(value);
   if (num === null || num < 0) {
-    return 0;
+    return null;
   }
   return Math.round(num * 100) / 100;
 }
@@ -82,10 +82,16 @@ function mapPoint(row: RpcDashboardRow): HealthTrendPoint {
     weightKg,
     sleepHours,
     source: row.source ?? "health_dashboard",
-    statusMessage: "인증 사용자용 정제 데이터",
+    statusMessage: "",
   };
 
-  const hasMeaningfulValue = steps > 0 || activityMinutes > 0 || sleepHours > 0 || weightKg > 0;
+  const safeSteps = steps ?? 0;
+  const safeActivityMinutes = activityMinutes ?? 0;
+  const safeSleepHours = sleepHours ?? 0;
+  const safeWeightKg = weightKg ?? 0;
+  const safeHeartRate = restingHeartRate ?? 0;
+
+  const hasMeaningfulValue = safeSteps > 0 || safeActivityMinutes > 0 || safeSleepHours > 0 || safeWeightKg > 0;
   if (!hasMeaningfulValue) {
     return {
       ...point,
@@ -93,10 +99,10 @@ function mapPoint(row: RpcDashboardRow): HealthTrendPoint {
     };
   }
 
-  const stepScore = Math.min(40, Math.round((steps / 10000) * 40));
-  const activityScore = Math.min(25, Math.round((activityMinutes / 60) * 25));
-  const sleepScore = Math.min(25, Math.round((sleepHours / 8) * 25));
-  const heartScore = restingHeartRate > 0 && restingHeartRate <= 65 ? 10 : 6;
+  const stepScore = Math.min(40, Math.round((safeSteps / 10000) * 40));
+  const activityScore = Math.min(25, Math.round((safeActivityMinutes / 60) * 25));
+  const sleepScore = Math.min(25, Math.round((safeSleepHours / 8) * 25));
+  const heartScore = safeHeartRate > 0 && safeHeartRate <= 65 ? 10 : 6;
 
   return {
     ...point,
@@ -109,7 +115,7 @@ function buildSummary(latest: HealthTrendPoint): HealthSummary {
     date: latest.date,
     syncedAt: latest.syncedAt,
     source: latest.source,
-    statusMessage: "최근 1일 요약",
+    statusMessage: "최근 동기화 기록",
     steps: latest.steps,
     activeCalories: latest.activeCalories,
     activityMinutes: latest.activityMinutes,
@@ -222,7 +228,7 @@ export async function fetchSupabaseHealthDashboardData(
   }
 
   if (!session.access_token) {
-    throw new Error("health_rpc:AUTH_REQUIRED:세션 정보가 불완전합니다.");
+    throw new Error("health_rpc:AUTH_REQUIRED:인증이 만료되었습니다.");
   }
 
   const client = createPublicClient(env);
@@ -232,12 +238,12 @@ export async function fetchSupabaseHealthDashboardData(
     const status = classifyError(error as ErrorCode);
     const friendlyMessage =
       status === "SCHEMA_UNAVAILABLE"
-        ? "백엔드 조회 함수를 사용할 수 없습니다."
+        ? "서비스 스키마를 확인할 수 없습니다."
         : status === "AUTH_REQUIRED"
-          ? "로그인 세션이 필요합니다."
+          ? "로그인이 필요합니다."
           : status === "PERMISSION_DENIED"
-            ? "조회 권한이 없어 현재 계정 데이터만 표시합니다."
-            : "Supabase 조회 중 오류가 발생했습니다.";
+            ? "현재 계정으로 조회할 수 있는 데이터가 없습니다."
+            : "Supabase 조회에 실패했습니다.";
 
     throw new Error(`health_rpc:${status}:${friendlyMessage}`);
   }
@@ -248,18 +254,18 @@ export async function fetchSupabaseHealthDashboardData(
       loadMode: "error",
       source: "health_get_dashboard",
       syncedAt: new Date().toISOString(),
-      statusMessage: "동기화된 건강 데이터가 없습니다.",
+      statusMessage: "동기화된 건강 기록이 없습니다.",
       summary: {
         date: new Date().toISOString().slice(0, 10),
         syncedAt: new Date().toISOString(),
         source: "health_get_dashboard",
-        statusMessage: "동기화 데이터 없음",
-        steps: 0,
-        activeCalories: 0,
-        activityMinutes: 0,
-        restingHeartRate: 0,
-        weightKg: 0,
-        sleepHours: 0,
+        statusMessage: "데이터 없음",
+        steps: null,
+        activeCalories: null,
+        activityMinutes: null,
+        restingHeartRate: null,
+        weightKg: null,
+        sleepHours: null,
         score: null,
       },
       trend: [],
@@ -270,7 +276,7 @@ export async function fetchSupabaseHealthDashboardData(
         mode: "error",
         loadMode: "error",
         syncedAt: new Date().toISOString(),
-        message: "동기화된 데이터가 없습니다.",
+        message: "데이터가 없습니다.",
         isConfigured: env.isSupabaseConfigured,
       }),
     };
@@ -280,7 +286,7 @@ export async function fetchSupabaseHealthDashboardData(
   const trend = rawRows.map(mapPoint).filter((point) => Boolean(point.syncedAt));
 
   if (trend.length === 0) {
-    throw new Error("health_rpc:NO_DATA:조회 응답을 해석할 수 없습니다.");
+    throw new Error("health_rpc:NO_DATA:요약 데이터가 비어있습니다.");
   }
 
   const ordered = trend.reverse();
@@ -292,7 +298,7 @@ export async function fetchSupabaseHealthDashboardData(
     loadMode: "signed_in",
     source: "health_get_dashboard",
     syncedAt: latest.syncedAt,
-    statusMessage: session.user?.id ? "실제 인증 사용자 데이터만 표시했습니다." : "세션이 불완전합니다.",
+    statusMessage: session.user?.id ? "실제 건강 데이터 기준으로 표시합니다." : "로그인 정보가 확인되지 않습니다.",
     summary,
     trend: ordered,
     bodyMetrics: ordered.map(({ date, weightKg, source, syncedAt }) => ({
@@ -319,7 +325,7 @@ export async function fetchSupabaseHealthDashboardData(
       mode: "supabase",
       loadMode: "signed_in",
       syncedAt: latest.syncedAt,
-      message: "Supabase 인증 조회가 정상 동작합니다.",
+      message: "Supabase 연결이 정상입니다.",
       isConfigured: env.isSupabaseConfigured,
     }),
   };

@@ -9,12 +9,15 @@ export type HealthWebEnvStatus = HealthWebEnv & {
   hasSupabaseUrl: boolean;
   hasPublishableKey: boolean;
   isSupabaseConfigured: boolean;
+  isSamplePreviewEnabled: boolean;
 };
 
 export function getHealthWebEnv(): HealthWebEnvStatus {
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefined;
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+  const rawSamplePreview = import.meta.env.VITE_ENABLE_SAMPLE_PREVIEW as string | undefined;
+  const isSamplePreviewEnabled = import.meta.env.DEV ? rawSamplePreview === "true" : false;
 
   const hasProjectId = Boolean(projectId);
   const hasSupabaseUrl = Boolean(supabaseUrl);
@@ -31,5 +34,6 @@ export function getHealthWebEnv(): HealthWebEnvStatus {
     // Project ID is useful as metadata but must not prevent a valid read-only
     // dashboard from attempting its configured connection.
     isSupabaseConfigured: hasSupabaseUrl && hasPublishableKey,
+    isSamplePreviewEnabled,
   };
 }

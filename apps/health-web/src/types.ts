@@ -5,12 +5,12 @@ export type HealthLoadMode = "loading" | "signed_out" | "signed_in" | "backend_u
 export type HealthSummary = {
   date: string;
   score: number | null;
-  steps: number;
-  activeCalories: number;
-  restingHeartRate: number;
-  weightKg: number;
-  sleepHours: number;
-  activityMinutes: number;
+  steps: number | null;
+  activeCalories: number | null;
+  restingHeartRate: number | null;
+  weightKg: number | null;
+  sleepHours: number | null;
+  activityMinutes: number | null;
   source: string;
   syncedAt: string;
   statusMessage: string;
@@ -18,23 +18,23 @@ export type HealthSummary = {
 
 export type BodyMetric = {
   date: string;
-  weightKg: number;
+  weightKg: number | null;
   source: string;
   syncedAt: string;
 };
 
 export type ActivityMetric = {
   date: string;
-  steps: number;
-  activeCalories: number;
-  activityMinutes: number;
+  steps: number | null;
+  activeCalories: number | null;
+  activityMinutes: number | null;
   source: string;
   syncedAt: string;
 };
 
 export type SleepMetric = {
   date: string;
-  sleepHours: number;
+  sleepHours: number | null;
   source: string;
   syncedAt: string;
 };
@@ -49,12 +49,12 @@ export type SyncStatus = {
 export type HealthTrendPoint = {
   date: string;
   score: number | null;
-  steps: number;
-  activeCalories: number;
-  restingHeartRate: number;
-  weightKg: number;
-  sleepHours: number;
-  activityMinutes: number;
+  steps: number | null;
+  activeCalories: number | null;
+  restingHeartRate: number | null;
+  weightKg: number | null;
+  sleepHours: number | null;
+  activityMinutes: number | null;
   source: string;
   syncedAt: string;
   statusMessage: string;
