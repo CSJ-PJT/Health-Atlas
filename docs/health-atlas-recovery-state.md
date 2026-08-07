@@ -4,8 +4,8 @@
 - CURRENT BRANCH: `fix/health-atlas-live-sync`
 - BASE MAIN: `origin/main` (`ddf22f7`)
 - LOCAL START HEAD: `4d7f4e165497242472565fcc86f6a4cf85f2da52`
-- CURRENT HEAD: `7ae798f05d6c66dac2f704211306bbf5a41b6627`
-- REMOTE HEAD: `origin/fix/health-atlas-live-sync` (`4d7f4e1`) (local ahead 3)
+- CURRENT HEAD: `77a20bb25b23c7e9489feeaa97c11d36079e2204`
+- REMOTE HEAD: `origin/fix/health-atlas-live-sync` (`4d7f4e1`) (local ahead 4)
 
 ## 마지막 완료 Gate
 - Gate 0: Git/브랜치/원격 기본 상태 점검 완료
@@ -71,3 +71,5 @@
 
 ## NEXT COMMAND
 - SUPABASE_ACCESS_TOKEN 또는 OCI API credential 확보 후 `supabase link`, `supabase migration list --linked`, DB 검사(RLS/RPC/health_data) 재개
+
+
