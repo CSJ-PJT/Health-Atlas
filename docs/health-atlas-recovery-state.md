@@ -1,59 +1,73 @@
 ﻿# Health Atlas Recovery State
 
 ## 현재 작업 복구
-- 현재 Branch: `fix/health-atlas-live-sync`
-- Base Main: `origin/main` (`ddf22f7`)
-- 시작 HEAD: `4d7f4e165497242472565fcc86f6a4cf85f2da52`
-- 현재 HEAD: `3af139a5f8bd2f1e5f3f7d0f5f1e6f6e4a0f3d2b`
-- Remote Feature: `origin/fix/health-atlas-live-sync` (local ahead 1)
+- CURRENT BRANCH: `fix/health-atlas-live-sync`
+- BASE MAIN: `origin/main` (`ddf22f7`)
+- LOCAL START HEAD: `4d7f4e165497242472565fcc86f6a4cf85f2da52`
+- CURRENT HEAD: `7ae798f05d6c66dac2f704211306bbf5a41b6627`
+- REMOTE HEAD: `origin/fix/health-atlas-live-sync` (`4d7f4e1`) (local ahead 3)
 
 ## 마지막 완료 Gate
-- Gate 0: Git/branch/remote 상태 확인 완료
-- Gate 1: local 상태 재확인 및 운영 기준선 조회 완료
-- Gate 2: 건강 계약 정합성 패치 반영 및 커밋 완료 (`eb3cec8`)
+- Gate 0: Git/브랜치/원격 기본 상태 점검 완료
+- Gate 1: 운영 기준선 및 로컬 상태 재확인 완료
+- Gate 2: 인증 계약 정합성 패치 반영 및 체크포인트 문서화 (`eb3cec8`)
+- Gate 2.5: 현재 변경 파일 점검 및 회복 상태 동기화 완료
 
 ## 현재 운영 상태
-- URL: `https://161.33.17.84/health/` (HTTP 200)
-- `health-status.json`: status=`waiting_backend`, publicDashboard=`true`, liveData=`false`
-- `index.html` 기준: `/health/assets/index-C8KzMeNX.js`, `/health/assets/index-phMhBGPF.css`
-- maintenance 페이지 존재: `/health/maintenance/index.html`
+- URL: `https://161.33.17.84/health/`
+- HTTP: `200`
+- `health-status.json`(운영): status=`maintenance`, publicDashboard=`false`, sampleDataEnabled=`false`
+- 현재 `index`: `/health/assets/index-C8KzMeNX.js`, `/health/assets/index-phMhBGPF.css`
+- Console/네트워크: SSH는 연결 즉시 종료 상태
 
 ## Supabase 상태
-- project_id: `wazxzogbnmgqdrnussvc`
+- 프로젝트 ref: `wazxzogbnmgqdrnussvc`
+- 프로젝트 URL: `https://wazxzogbnmgqdrnussvc.supabase.co`
+- supabase CLI: 설치됨 (`2.111.0`)
+- `supabase projects list`: 실패 (`LegacyPlatformAuthRequiredError` 토큰 미제공)
+- `supabase link --project-ref ...`: 실패 (`LegacyPlatformAuthRequiredError`)
+- `migration list --linked`: 실패 (`LegacyProjectNotLinkedError`)
 - `supabase status`: 로컬 컨테이너 미연결 (`No such container`)
-- `migration list --linked`: 미연결 (`Cannot find project ref`)
-- 원격 API/DB 상태 검증은 추가 필요
 
 ## Migration 상태
-- 신규 migration 추가: `supabase/migrations/20260807093000_align_health_contracts.sql`
-- 이전 migration 중 `health_ingest_daily(p_user_id...)` 잔존 (본 migration으로 상위 덮어쓰기)
+- 신규 migration: `supabase/migrations/20260807093000_align_health_contracts.sql`
+- 핵심 포인트: `health_get_dashboard(integer)`(권한: authenticated), `health_ingest_daily(...)`(권한: service_role)
+- `search_path`가 `public`로 고정된 상태 확인됨
 
 ## Android 상태
-- `apps/health-app/src/providers/shared/services/healthDataRepository.ts`의 저장 payload를 `null` 기반으로 보강
-- `saveHealthSnapshot`에서 세션 체크 추가
-- 실제 기기 Android E2E는 미실행
+- `apps/health-app/src/providers/shared/services/healthDataRepository.ts`에서 세션 미존재 시 업로드 차단 처리
+- 업로드 payload는 `healthData` 래핑 후 Edge Function 직접 호출
+- 실제 디바이스 E2E: 미실행(작업 환경상 대기)
 
 ## Web 상태
-- 로그인 UX 문구 정리 및 에러 문구 가드 강화
-- 실제 데이터 부재 시 마지막 동기화 표시를 `없음`으로 변경
-- `health-status.json` 실동작 전 상태로 설정
+- `env.ts`, `supabaseHealthRepository.ts`, `syncStatus.ts`, `healthDataSource.ts`가 인증 기반 분기 및 오류 상태를 사용하도록 반영
+- sample preview는 dev-only로만 허용
+- 운영에서 fake/샘플 숫자 노출 차단 기준은 유지 중
 
 ## Edge Function 상태
-- `supabase/functions/send-health-data/index.ts`: `health_ingest_daily` 호출에서 `p_user_id` 제거
-- `supabase/config.toml`: `verify_jwt = true`
-- 배포/검증: 미배포
+- `supabase/functions/send-health-data/index.ts` 에서 `Authorization` 검사 활성
+- `SUPABASE_SERVICE_ROLE_KEY` 기반 admin client 사용
+- `verify_jwt`: true (`supabase/config.toml`)
+- 배포 상태: 미배포
 
 ## OCI 상태
-- Test-NetConnection 161.33.17.84:22 = True
-- ssh -vvv handshake: TCP 연결 후 `Connection closed by 161.33.17.84 port 22`
-- 키 로드/인증 단계 종료 가능성 높음, 배포 불가 상태
+- SSH reachability: `Test-NetConnection 161.33.17.84:22` 성공
+- `ssh` 시도: TCP 연결 후 `Connection closed by 161.33.17.84 port 22`
+- 키 후보:
+  - `C:\Users\dan18\Downloads\OCI_SSH.key` (SHA256: bM1ML...)
+  - `C:\Users\dan18\OneDrive\바탕 화면\Keys\OCI_SSH.key` (SHA256: f90wU...)
+- 정체 확인: 인증 직전 종료로 인해 서버측 key 정책/접근 정책 추가 진단 필요
 
 ## Git 상태
-- 로컬 ahead: 1 commit
-- 원격 푸시: 시도했으나 타임아웃으로 미완료
-- 관련 commit: `eb3cec8`
+- local ahead: 3
+- 수정 파일: `apps/health-web/src/services/{env.ts,supabaseHealthRepository.ts,syncStatus.ts,types.ts}`
+- 미추적: `apps/health-web/public/maintenance/`, `apps/health-web/src/services/healthSamplePreview.ts`, `artifacts/`, `docs/health-atlas-restore-runbook.md`
+- 마지막 커밋: `7ae798f` (`docs: record updated recovery checkpoint`)
 
 ## 남은 blocker
-- Supabase 프로젝트 ACTIVE 및 live 데이터 검증 미완료
-- Android 실기기 E2E 미완료
-- SSH 인증 복구 전 운영 배포 보류
+- SSH 사용자 인증 복구 전 원자적 운영 배포 불가
+- Supabase CLI 토큰/OCI API 인증 미구성으로 원격 DB·RLS·RPC 실제 상태 미확인
+- Android 실디바이스 및 통합 E2E 미완료
+
+## NEXT COMMAND
+- SUPABASE_ACCESS_TOKEN 또는 OCI API credential 확보 후 `supabase link`, `supabase migration list --linked`, DB 검사(RLS/RPC/health_data) 재개
