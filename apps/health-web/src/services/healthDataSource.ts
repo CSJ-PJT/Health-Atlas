@@ -1,5 +1,4 @@
-import { sampleHealthDashboardData } from "../data/sampleHealthData";
-import type { HealthDashboardData } from "../types";
+﻿import type { HealthDashboardData } from "../types";
 import { getHealthWebEnv } from "./env";
 import { buildSyncStatuses } from "./syncStatus";
 import {
@@ -13,66 +12,108 @@ type LoadOptions = {
   preferSample?: boolean;
 };
 
-function toLoadModeForError(message: string) {
+type DashboardMode = "signed_in" | "signed_out" | "backend_unavailable" | "error";
+
+function toLoadModeForError(message: string): DashboardMode {
   const status = statusMessageFromError(message);
 
   if (status === "AUTH_REQUIRED" || status === "SESSION_EXPIRED") {
-    return "signed_out" as const;
+    return "signed_out";
   }
 
   if (status === "BACKEND_INACTIVE" || status === "SCHEMA_UNAVAILABLE") {
-    return "backend_unavailable" as const;
+    return "backend_unavailable";
   }
 
   if (status === "NO_DATA") {
-    return "error" as const;
+    return "error";
   }
 
-  return "error" as const;
+  return "error";
 }
 
 function normalizeErrorMessage(message: string) {
   if (!message) {
-    return "실제 데이터 조회 실패";
+    return "건강 데이터 조회에 실패했습니다.";
   }
 
-  return message.includes("health_rpc:")
-    ? message.split(":").slice(2).join(":")
-    : message;
+  return message.includes("health_rpc:") ? message.split(":").slice(2).join(":") : message;
+}
+
+async function getSampleDashboard() {
+  if (!import.meta.env.DEV) {
+    throw new Error("SAMPLE_NOT_ALLOWED");
+  }
+
+  const module = await import("../data/sampleHealthData");
+  const previewText = await import("./healthSamplePreview");
+  return {
+    ...(module.sampleHealthDashboardData as HealthDashboardData),
+    statusMessage: previewText.samplePreviewMessages.disabled.mode,
+    loadMode: "backend_unavailable",
+    mode: "sample",
+  } as HealthDashboardData;
+}
+
+function buildEmptyDashboard(supabaseConfigured: boolean, loadMode: DashboardMode): HealthDashboardData {
+  const unknownSync = "";
+
+  return {
+    mode: "error",
+    loadMode,
+    source: "health_get_dashboard",
+    syncedAt: unknownSync,
+    statusMessage: "건강 데이터 동기화가 준비 중입니다.",
+    summary: {
+      date: new Date().toISOString().slice(0, 10),
+      score: null,
+      steps: null,
+      activeCalories: null,
+      activityMinutes: null,
+      restingHeartRate: null,
+      weightKg: null,
+      sleepHours: null,
+      source: "health_get_dashboard",
+      syncedAt: unknownSync,
+      statusMessage: "동기화된 데이터가 없습니다.",
+    },
+    trend: [],
+    bodyMetrics: [],
+    activityMetrics: [],
+    sleepMetrics: [],
+    syncStatuses: buildSyncStatuses({
+      mode: "error",
+      loadMode,
+      syncedAt: unknownSync,
+      message: supabaseConfigured ? "연결이 완료되면 최근 데이터가 반영됩니다." : "Supabase 설정이 필요합니다.",
+      isConfigured: supabaseConfigured,
+    }),
+  };
 }
 
 export async function loadHealthDashboardData({ preferSample = false }: LoadOptions = {}): Promise<HealthDashboardData> {
   const env = getHealthWebEnv();
 
   if (!env.isSupabaseConfigured) {
-    return {
-      ...sampleHealthDashboardData,
-      mode: "unconfigured",
-      loadMode: "backend_unavailable",
-      statusMessage: "로그인 환경이 준비되지 않아 샘플 데이터만 표시합니다.",
-      syncStatuses: buildSyncStatuses({
-        mode: "unconfigured",
-        loadMode: "backend_unavailable",
-        syncedAt: sampleHealthDashboardData.syncedAt,
-        message: "환경 설정 값을 확인하세요.",
-        isConfigured: false,
-      }),
-    };
+    if (env.isSamplePreviewEnabled && import.meta.env.DEV && preferSample) {
+      return getSampleDashboard();
+    }
+
+    return buildEmptyDashboard(false, "backend_unavailable");
   }
 
   const { session } = await getHealthAuthSession(env);
   if (!session) {
     return {
-      ...sampleHealthDashboardData,
-      mode: "error",
+      ...buildEmptyDashboard(true, "signed_out"),
       loadMode: "signed_out",
       source: "health_get_dashboard",
-      statusMessage: "로그인 후 실제 건강 데이터를 확인할 수 있습니다.",
+    statusMessage: "로그인 필요",
       syncStatuses: buildSyncStatuses({
         mode: "error",
         loadMode: "signed_out",
-        syncedAt: sampleHealthDashboardData.syncedAt,
-        message: "세션이 필요합니다. 로그인 후 확인하세요.",
+        syncedAt: "",
+        message: "로그인이 필요합니다.",
         isConfigured: true,
       }),
     };
@@ -81,19 +122,20 @@ export async function loadHealthDashboardData({ preferSample = false }: LoadOpti
   try {
     return await fetchSupabaseHealthDashboardData(env, session);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "데이터 로드 중 알 수 없는 오류가 발생했습니다.";
+    const message = error instanceof Error ? error.message : "요청 중 예외가 발생했습니다.";
 
-    if (preferSample) {
+    if (preferSample && env.isSamplePreviewEnabled && import.meta.env.DEV) {
+      const previewText = await import("./healthSamplePreview");
       return {
-        ...sampleHealthDashboardData,
+        ...(await getSampleDashboard()),
         mode: "sample",
         loadMode: "backend_unavailable",
-        statusMessage: "요청한 샘플 모드입니다. 실제 데이터와는 별도 표시됩니다.",
+        statusMessage: previewText.samplePreviewMessages.disabled.toSample,
         syncStatuses: buildSyncStatuses({
           mode: "sample",
-          loadMode: "backend_unavailable",
-          syncedAt: sampleHealthDashboardData.syncedAt,
-          message: "샘플 미리보기 모드",
+        loadMode: "backend_unavailable",
+          syncedAt: "",
+          message: previewText.samplePreviewMessages.disabled.request,
           isConfigured: env.isSupabaseConfigured,
         }),
       };
@@ -101,7 +143,7 @@ export async function loadHealthDashboardData({ preferSample = false }: LoadOpti
 
     const loadMode = toLoadModeForError(message);
     return {
-      ...sampleHealthDashboardData,
+      ...buildEmptyDashboard(env.isSupabaseConfigured, loadMode),
       mode: "error",
       loadMode,
       source: "health_get_dashboard",
@@ -109,7 +151,7 @@ export async function loadHealthDashboardData({ preferSample = false }: LoadOpti
       syncStatuses: buildSyncStatuses({
         mode: "error",
         loadMode,
-        syncedAt: sampleHealthDashboardData.syncedAt,
+        syncedAt: "",
         message,
         isConfigured: env.isSupabaseConfigured,
       }),

@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 type HealthPayload = {
@@ -63,24 +63,27 @@ function normalizePayload(payload: unknown): HealthPayload {
 }
 
 function validatePayload(payload: HealthPayload) {
-  const raw = JSON.stringify(payload ?? {});
+  const source = payload as HealthPayload;
+  const raw = JSON.stringify(source ?? {});
+
   if (raw.length > MAX_PAYLOAD_BYTES) {
     throw new Error("PAYLOAD_TOO_LARGE");
   }
 
-  const syncedAtValue = payload.syncedAt ? new Date(payload.syncedAt) : new Date();
-  if (Number.isNaN(syncedAtValue.getTime()) || syncedAtValue.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
+  const syncedAtValue = source.syncedAt ? new Date(source.syncedAt) : new Date();
+  const now = Date.now();
+  if (Number.isNaN(syncedAtValue.getTime()) || syncedAtValue.getTime() > now + 24 * 60 * 60 * 1000) {
     throw new Error("INVALID_SYNCED_AT");
   }
 
   return {
     syncedAt: syncedAtValue.toISOString(),
-    steps: payload.steps ?? null,
-    exercise: payload.exercise ?? null,
-    running: payload.running ?? null,
-    sleep: payload.sleep ?? null,
-    bodyComposition: payload.bodyComposition ?? null,
-    nutrition: payload.nutrition ?? null,
+    steps: source.steps ?? null,
+    exercise: source.exercise ?? null,
+    running: source.running ?? null,
+    sleep: source.sleep ?? null,
+    bodyComposition: source.bodyComposition ?? null,
+    nutrition: source.nutrition ?? null,
   };
 }
 
@@ -98,48 +101,48 @@ serve(async (req) => {
   try {
     const token = extractToken(req);
     if (!token) {
-    const allowOrigin = !origin || ALLOWED_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes(origin);
-    if (!allowOrigin) {
-      return jsonResponse({ error: "ORIGIN_NOT_ALLOWED" }, 403, origin);
+      const allowOrigin = !origin || ALLOWED_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes(origin);
+      if (!allowOrigin) {
+        return jsonResponse({ error: "ORIGIN_NOT_ALLOWED" }, 403, origin);
+      }
+      return jsonResponse({ error: "MISSING_AUTHORIZATION" }, 401, origin);
     }
-    return jsonResponse({ error: "MISSING_AUTHORIZATION" }, 401, origin);
-  }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
     if (!supabaseUrl || !supabaseServiceKey) {
       return jsonResponse({ error: "SUPABASE_CONFIG_MISSING" }, 500, origin);
     }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
-    const authResult = await adminClient.auth.getUser(token);
-    const user = authResult.data.user;
-
-    if (!user || !user.id) {
+    const { data: authData, error: authError } = await adminClient.auth.getUser(token);
+    if (authError || !authData.user?.id) {
       return jsonResponse({ error: "INVALID_AUTH_TOKEN" }, 401, origin);
     }
 
     const body = await req.json().catch(() => ({} as HealthPayload));
-    const payload = normalizePayload(body?.healthData ?? body);
-    const normalized = validatePayload(payload);
+    const rawPayload = (body as { healthData?: unknown }).healthData ?? body;
+    const payload = validatePayload(rawPayload as HealthPayload);
 
-    const { data, error } = await adminClient.rpc("health_ingest_daily", {
-      p_user_id: user.id,
-      p_synced_at: normalized.syncedAt,
-      p_steps_data: normalized.steps,
-      p_exercise_data: normalized.exercise,
-      p_running_data: normalized.running,
-      p_sleep_data: normalized.sleep,
-      p_body_composition_data: normalized.bodyComposition,
-      p_nutrition_data: normalized.nutrition,
-    });
+    let rpcResult = null;
 
+    const callArgs = {
+      p_synced_at: payload.syncedAt,
+      p_steps_data: payload.steps,
+      p_exercise_data: payload.exercise,
+      p_running_data: payload.running,
+      p_sleep_data: payload.sleep,
+      p_body_composition_data: payload.bodyComposition,
+      p_nutrition_data: payload.nutrition,
+    };
+
+    const { data, error } = await adminClient.rpc("health_ingest_daily", callArgs);
     if (error) {
-      return jsonResponse({ error: "DB_WRITE_FAILED" }, 502, origin);
+      throw error;
     }
+    rpcResult = data;
 
-    const result = data as { ok?: boolean; health_id?: string | null } | null;
+    const result = rpcResult as { ok?: boolean; health_id?: string | null } | null;
     return jsonResponse(
       {
         success: Boolean(result?.ok),
@@ -153,9 +156,11 @@ serve(async (req) => {
     const raw = error instanceof Error ? error.message : "UNKNOWN_ERROR";
 
     const status =
-      raw === "PAYLOAD_TOO_LARGE" || raw === "INVALID_SYNCED_AT"
+      raw === "PAYLOAD_TOO_LARGE" || raw === "INVALID_SYNCED_AT" || raw === "MISSING_AUTHORIZATION"
         ? 400
-        : 500;
+        : raw === "INVALID_AUTH_TOKEN"
+          ? 401
+          : 500;
     return jsonResponse({ error: raw }, status, origin);
   }
 });

@@ -1,36 +1,7 @@
-{
-  "service": "health-web",
-  "surface": "/health/",
-  "status": "ready",
-  "lastKnownMode": "sample",
-  "dataSourceModes": [
-    "sample",
-    "supabase",
-    "unconfigured",
-    "error"
-  ],
-  "statusModel": {
-    "sample": "Sample Preview",
-    "supabase": "Supabase Connected",
-    "unconfigured": "Supabase Unconfigured",
-    "error": "Sync Error"
-  },
-  "supabase": {
-    "mode": "auth-required",
-    "requiredEnv": [
-      "VITE_SUPABASE_PROJECT_ID",
-      "VITE_SUPABASE_URL",
-      "VITE_SUPABASE_PUBLISHABLE_KEY"
-    ],
-    "clientKeyPolicy": "publishable-key-only"
-  },
-  "androidHealthConnect": {
-    "role": "collect-and-sync",
-    "webRole": "read-and-display"
-  },
-  "archiveOs": {
-    "planned": true,
-    "statusReader": "read health-status.json and health dashboard mode",
-    "notes": "Health Web requires authenticated session for actual data; sample remains explicit preview only."
-  }
+﻿{
+  "service": "Health Atlas",
+  "status": "waiting_backend",
+  "publicDashboard": true,
+  "liveData": false,
+  "message": "Authenticated health synchronization is being restored"
 }
