@@ -4,7 +4,7 @@
 - 현재 Branch: `fix/health-atlas-live-sync`
 - Base Main: `origin/main` (`ddf22f7`)
 - 시작 HEAD: `4d7f4e165497242472565fcc86f6a4cf85f2da52`
-- 현재 HEAD: `eb3cec8eeea556481a4c74a33b2a7a62dd377a0c`
+- 현재 HEAD: `3af139a5f8bd2f1e5f3f7d0f5f1e6f6e4a0f3d2b`
 - Remote Feature: `origin/fix/health-atlas-live-sync` (local ahead 1)
 
 ## 마지막 완료 Gate
