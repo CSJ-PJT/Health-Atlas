@@ -65,7 +65,7 @@ function buildEmptyDashboard(supabaseConfigured: boolean, loadMode: DashboardMod
     syncedAt: unknownSync,
     statusMessage: "건강 데이터 동기화가 준비 중입니다.",
     summary: {
-      date: new Date().toISOString().slice(0, 10),
+      date: "",
       score: null,
       steps: null,
       activeCalories: null,

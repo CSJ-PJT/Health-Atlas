@@ -110,7 +110,8 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !supabaseServiceKey) {
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
       return jsonResponse({ error: "SUPABASE_CONFIG_MISSING" }, 500, origin);
     }
 
@@ -124,6 +125,14 @@ serve(async (req) => {
     const rawPayload = (body as { healthData?: unknown }).healthData ?? body;
     const payload = validatePayload(rawPayload as HealthPayload);
 
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
+
     let rpcResult = null;
 
     const callArgs = {
@@ -136,7 +145,7 @@ serve(async (req) => {
       p_nutrition_data: payload.nutrition,
     };
 
-    const { data, error } = await adminClient.rpc("health_ingest_daily", callArgs);
+    const { data, error } = await userClient.rpc("health_ingest_daily", callArgs);
     if (error) {
       throw error;
     }

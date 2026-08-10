@@ -15,7 +15,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public, auth
 as $$
 declare
   v_limit integer := least(greatest(coalesce(p_limit, 30), 1), 90);
@@ -85,7 +85,7 @@ create or replace function public.health_ingest_daily(
 returns table (ok boolean, health_id uuid)
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public, auth
 as $$
 declare
   v_target_id uuid;
@@ -144,4 +144,17 @@ $$;
 revoke all on function public.health_ingest_daily(timestamptz, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) from public;
 revoke all on function public.health_ingest_daily(timestamptz, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) from anon;
 revoke all on function public.health_ingest_daily(timestamptz, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) from authenticated;
+grant execute on function public.health_ingest_daily(timestamptz, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) to authenticated;
 grant execute on function public.health_ingest_daily(timestamptz, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) to service_role;
+
+revoke insert, update, delete on table public.health_data from anon;
+revoke insert, update, delete on table public.health_data from authenticated;
+revoke select on table public.health_data from anon;
+grant select on table public.health_data to authenticated;
+
+drop policy if exists "Health data owner select" on public.health_data;
+create policy "Health data owner select"
+on public.health_data
+for select
+to authenticated
+using ((select auth.uid()) = user_id);

@@ -1,46 +1,117 @@
 # Health Atlas Recovery State
 
-## 작업 기준
+## Current Git
 - BRANCH: `fix/health-atlas-live-sync`
-- LOCAL_HEAD: `a1d2f2165cb9fc754b47a7567af308d3e64574fd`
-- REMOTE_FEATURE_HEAD: `origin/fix/health-atlas-live-sync` (`4d7f4e165497242472565fcc86f6a4cf85f2da52`)
-- ORIGIN_MAIN: `origin/main` (`ddf22f7a93db57fdba618e31695b4ee9541f4c6e`)
-- LOCAL_AHEAD: `6`
-- WORKTREE_STATUS: `?? apps/health-web/public/maintenance/, ?? apps/health-web/src/services/healthSamplePreview.ts, ?? artifacts/, ?? docs/health-atlas-restore-runbook.md`
+- LOCAL_HEAD: `82eec14b93ab2a57eaa2da9f9e86fe4c1f1219aa` before current checkpoint commit
+- REMOTE_HEAD: `origin/fix/health-atlas-live-sync` = `4d7f4e165497242472565fcc86f6a4cf85f2da52`
+- ORIGIN_MAIN: `ddf22f7a93db57fdba618e31695b4ee9541f4c6e`
+- LOCAL_AHEAD: `8` before current checkpoint commit
+- WORKTREE: Health Web, Edge Function, Supabase migrations, tests, and recovery docs modified; artifacts remain untracked and must not be committed.
 
-## 상태 스냅샷
-- SUPABASE_STATUS: `blocked_cli_missing` (`where.exe supabase` 미탐지)
-- SUPABASE_LINK_STATUS: `blocked_cli_missing`
-- SSH_STATUS: `tcp_open` (`Test-NetConnection 161.33.17.84 -Port 22`), `connection_closed_after_kex` in prior attempts, key candidate mismatch 미확정
-- OCI_API_STATUS: `blocked` (`oci` 미탐지, 공식 OCI API key는 Task/Gmail에 있으나 실행 수단 미확정)
-- EDGE_FUNCTION_STATUS: `source_verify_jwt_set` (`supabase/config.toml` 기준), `remote_deploy_unverified`
-- MIGRATION_STATUS: `20260807093000_align_health_contracts.sql exists`, `migration_apply_unverified` (remote link unavailable)
-- WEB_BUILD_STATUS: `not_checked`
-- OPERATING_ASSET: `https://161.33.17.84/health/` assets observed: `index-C8KzMeNX.js`, `index-phMhBGPF.css`
+## Supabase
+- SUPABASE_CAPACITY_BLOCKER: `RESOLVED`
+- HEALTH_PROJECT_RESTORE: `STARTED_EXTERNALLY`
+- HEALTH_PROJECT_LAST_STATUS: `COMING_UP`
+- HEALTH_PROJECT_CURRENT_STATUS: `ACTIVE_DB_REACHABLE`
+- PROJECT_REF: `wazxzogbnmgqdrnussvc`
+- PROJECT_NAME: `RH Healthcare`
+- TARGET_MATCH: `supabase/config.toml`, local `.env`, and deployed DB target all point to the Health project ref.
+- ARCHIVE_PROJECT_TOUCHED: `NO`
 
-## 공식 소스 정합
-- Task source: `C:\Users\dan18\OneDrive\바탕 화면\Task\Info\Server login info.txt` confirms `opc@161.33.17.84` and key path `C:\Users\dan18\Downloads\OCI_SSH.key`.
-- Gmail source: subject `OCI 기본정보` confirms `Route Atlas` host mapping and OCI API metadata block.
-- 키 후보: `C:\Users\dan18\Downloads\OCI_SSH.key` (`SHA256:bM1MLuiHgZ3NImA4g4O6psV70qZKl560EZuZjklA2cc`) and `C:\Users\dan18\OneDrive\바탕 화면\Keys\OCI_SSH.key` (`SHA256:f90wUd9c/meeVZPp6kQWCRw4FanJriioK/BNwsU23Pg`) evaluated.
+## Database
+- `public.health_data`: exists.
+- RLS: enabled.
+- Row count: `0`.
+- `user_id IS NULL`: `0`.
+- `user_id IS NOT NULL`: `0`.
+- Distinct users: `0`.
+- Latest synced_at: `NULL`.
+- Legacy unowned rows: none observed.
 
-## 완료 Gate
-- Gate 0~4: Git/remote baseline, Task/Gmail/키 후보 정합 완료
-- Gate 5 미완료: Git push 인증, OCI API/SSH 인증 루트(키 확정), Supabase 실인증·배포 전 단계
+## Migrations
+- Applied remote migration: `align_health_contracts` (`20260810075252`)
+- Applied remote migration: `harden_health_data_role_grants` (`20260810075331`)
+- Local tracked migration updated: `supabase/migrations/20260807093000_align_health_contracts.sql`
+- Local new migration: `supabase/migrations/20260810075319_harden_health_data_role_grants.sql`
+- `health_get_dashboard(p_limit integer)`: exists, no `p_user_id`, `auth.uid()` required, limit clamped 1-90, no raw JSONB return.
+- `health_ingest_daily(...)`: exists, no `p_user_id`, `auth.uid()` ownership, timestamp and payload size validation.
 
-## 인증/연결 진단
-- Git Push: HTTPS auth 타임아웃 반복. `ls-remote`는 public 조회는 통과, `push`는 응답 대기 타임아웃(인증 라운드 진입 없이).
-- Git Credential store: Windows Credential manager에 GitHub 계정 기록 없음.
-- SSH 인증 진단: `ssh -vvv` 출력에서 `SSH2_MSG_KEXINIT sent` 후 `Connection closed`로 종료, 사용자인증 단계 미도달.
-- 키 fingerprint: 공식 지문(`88:3c:09...`)과 일치 키 후보 미탐지.
-- `OCI Info.txt`, `Server login info.txt`, Gmail 본문은 user/host mapping은 일치하나 key/credential 단에서 불일치 추정.
+## RLS / IDOR
+- Anon REST direct access: `401`
+- No JWT Edge Function: `401`
+- Invalid JWT Edge Function: `401`
+- `authenticated`: `SELECT` only on `public.health_data`
+- `anon`: no table privileges on `public.health_data`
+- Direct browser write: blocked by table grants/RLS.
+- Cross-user ownership parameter: absent from dashboard and ingest RPC signatures.
 
-## Git 상태
-- 현재 remote ahead 관계: local ahead `6`, push 시도는 타임아웃으로 `authenticate/handshake` 대기 추정
-- `origin` URL: `https://github.com/CSJ-PJT/Health-Atlas.git`
+## Edge Function
+- Function: `send-health-data`
+- Remote version: `2`
+- Status: `ACTIVE`
+- Remote `verify_jwt`: `true`
+- Source updated to validate JWT with admin client, then call `health_ingest_daily` with the user's bearer token context.
+- Raw health payload logging: not present.
 
-## NEXT_STEP
-1. GitHub 인증 경로 보정 후 push 1회 단일 재시도
-2. OCI API 임시 인증 설정 생성 후 인스턴스 161.33.17.84 검증
-3. 필요시 OCI console 경로로 SSH 접근 복구
-4. Supabase CLI 또는 관리 경로 복구 후 migration/DB/RPC/rls 점검
-5. Health-web build/test 단계로 이동
+## Android
+- `apps/health-app/src/providers/shared/services/healthDataRepository.ts`
+- Session required before upload.
+- `send-health-data` function invoke path used.
+- Client payload does not set `user_id`.
+- Physical device E2E: `PENDING`
+
+## Web
+- Raw `health_data` read not used in Health Web.
+- Dashboard reads `health_get_dashboard`.
+- No-data sync timestamp fallback removed.
+- Production sample preview remains dev-only.
+- Root `.env` contains Health project production target; not committed.
+- Production build generated with process env from root `.env`.
+
+## Tests
+- `npm.cmd run test`: PASS
+- `npm.cmd run test:health-web`: PASS
+- `npm.cmd run test:health-auth`: PASS
+- `npm.cmd run test:health-contract`: PASS
+- `npm.cmd run test:health-rls`: PASS
+- `npm.cmd run typecheck:health`: PASS
+- `npm.cmd run typecheck:health-web`: PASS
+- `npm.cmd run build:health-web`: PASS
+- `npm.cmd run lint:health`: FAIL due existing unrelated Health App lint debt.
+- Health Web scoped ESLint: PASS.
+
+## Production Build
+- `apps/health-web/dist`: built.
+- Target ref present in JS bundle: `true`
+- Source maps: `0`
+- Service-role key in bundle: `0`
+- SSH private key in bundle: `0`
+
+## OCI
+- Host: `161.33.17.84`
+- User: `opc`
+- SSH key source: Task/Gmail official path `C:\Users\dan18\Downloads\OCI_SSH.key`
+- TCP 22: open.
+- SSH status: server closes after `SSH2_MSG_KEXINIT sent`, before user auth.
+- OCI CLI: not installed.
+- OCI Python SDK: not available in current Python stub.
+- OCI deploy: pending SSH/control-plane recovery.
+
+## Operating
+- `/health/`: HTTP `200`
+- `/health/health-status.json`: `status=maintenance`, `publicDashboard=false`, `sampleDataEnabled=false`
+- Current production JS target: not Health project; deployment pending.
+- Atlas regression: not yet rerun after deploy because deploy pending.
+
+## Next Command
+```powershell
+Set-Location "C:\Users\dan18\OneDrive\문서\Archive\Health-Atlas"
+$git="C:\Users\dan18\AppData\Local\ArchiveTools\MinGit\v2.55.0.windows.3\cmd\git.exe"
+& $git status --short
+npm.cmd run test:health-web
+npm.cmd run test:health-auth
+npm.cmd run test:health-contract
+npm.cmd run test:health-rls
+npm.cmd run build:health-web
+ssh -vvv -i "C:\Users\dan18\Downloads\OCI_SSH.key" -o IdentitiesOnly=yes -o ConnectTimeout=15 -o ConnectionAttempts=1 opc@161.33.17.84 "hostname && id"
+```

@@ -136,7 +136,7 @@ function App() {
       const next = await loadHealthDashboardData({});
       setDashboard(next);
     } catch (error) {
-      setEnvError(error instanceof Error ? error.message : "요청에 실패했습니다.");
+      setEnvError("건강 데이터 조회에 실패했습니다.");
     } finally {
       setPageState("ready");
     }

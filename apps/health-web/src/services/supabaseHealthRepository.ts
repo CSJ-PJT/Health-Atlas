@@ -62,8 +62,8 @@ function asNonNegativeNumber(value: unknown): number | null {
 }
 
 function mapPoint(row: RpcDashboardRow): HealthTrendPoint {
-  const date = row.date ?? new Date().toISOString().slice(0, 10);
-  const syncedAt = row.synced_at ?? new Date().toISOString();
+  const date = row.date ?? "";
+  const syncedAt = row.synced_at ?? "";
 
   const steps = asNonNegativeNumber(row.steps);
   const activeCalories = asNonNegativeNumber(row.active_calories);
@@ -253,11 +253,11 @@ export async function fetchSupabaseHealthDashboardData(
       mode: "error",
       loadMode: "error",
       source: "health_get_dashboard",
-      syncedAt: new Date().toISOString(),
+      syncedAt: "",
       statusMessage: "동기화된 건강 기록이 없습니다.",
       summary: {
-        date: new Date().toISOString().slice(0, 10),
-        syncedAt: new Date().toISOString(),
+        date: "",
+        syncedAt: "",
         source: "health_get_dashboard",
         statusMessage: "데이터 없음",
         steps: null,
@@ -275,7 +275,7 @@ export async function fetchSupabaseHealthDashboardData(
       syncStatuses: buildSyncStatuses({
         mode: "error",
         loadMode: "error",
-        syncedAt: new Date().toISOString(),
+        syncedAt: "",
         message: "데이터가 없습니다.",
         isConfigured: env.isSupabaseConfigured,
       }),
