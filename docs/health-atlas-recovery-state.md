@@ -2,11 +2,11 @@
 
 ## Current Git
 - BRANCH: `fix/health-atlas-live-sync`
-- LOCAL_HEAD: `82eec14b93ab2a57eaa2da9f9e86fe4c1f1219aa` before current checkpoint commit
+- LOCAL_HEAD: `28cc598ad00be8e96333c89a0e6c7c0ce276251e`
 - REMOTE_HEAD: `origin/fix/health-atlas-live-sync` = `4d7f4e165497242472565fcc86f6a4cf85f2da52`
 - ORIGIN_MAIN: `ddf22f7a93db57fdba618e31695b4ee9541f4c6e`
-- LOCAL_AHEAD: `8` before current checkpoint commit
-- WORKTREE: Health Web, Edge Function, Supabase migrations, tests, and recovery docs modified; artifacts remain untracked and must not be committed.
+- LOCAL_AHEAD: `9`
+- WORKTREE: `apps/health-web/public/maintenance/` and `artifacts/` remain untracked and must not be committed without separate review.
 
 ## Supabase
 - SUPABASE_CAPACITY_BLOCKER: `RESOLVED`
@@ -17,6 +17,7 @@
 - PROJECT_NAME: `RH Healthcare`
 - TARGET_MATCH: `supabase/config.toml`, local `.env`, and deployed DB target all point to the Health project ref.
 - ARCHIVE_PROJECT_TOUCHED: `NO`
+- GIT_PUSH: `FAILED_TIMEOUT`; local commits preserved, connector file API not used for lossy multi-commit reconstruction.
 
 ## Database
 - `public.health_data`: exists.
