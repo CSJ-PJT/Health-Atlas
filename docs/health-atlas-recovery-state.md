@@ -94,6 +94,11 @@
 - SSH key source: Task/Gmail official path `C:\Users\dan18\Downloads\OCI_SSH.key`
 - TCP 22: open.
 - SSH status: server closes after `SSH2_MSG_KEXINIT sent`, before user auth.
+- OCI API: PASS through temporary Node SDK and official API signing PEM.
+- Instance: `atlas-server`, state `RUNNING`, public IP `161.33.17.84`.
+- VNIC: `atlas-vnic`.
+- NSG: `0`.
+- Security List: default archive VCN list, SSH ingress rule present.
 - OCI CLI: not installed.
 - OCI Python SDK: not available in current Python stub.
 - OCI deploy: pending SSH/control-plane recovery.
