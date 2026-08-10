@@ -1,4 +1,4 @@
-package com.danchon.healthsync
+﻿package com.danchon.healthsync
 
 import android.content.Intent
 import android.net.Uri
@@ -33,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import androidx.health.connect.client.records.Record
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -66,9 +67,9 @@ class HealthConnectPlugin : Plugin() {
         }
     }
 
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
     // Required permissions (READ only)
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
     private fun requiredReadPermissions(): Set<String> = setOf(
         HealthPermission.getReadPermission(StepsRecord::class),
         HealthPermission.getReadPermission(DistanceRecord::class),
@@ -131,9 +132,9 @@ class HealthConnectPlugin : Plugin() {
         call.resolve(obj)
     }
 
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
     // permissions
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
     @PluginMethod
     override fun checkPermissions(call: PluginCall) {
         if (!ensureAvailableOrReject(call)) return
@@ -207,16 +208,10 @@ class HealthConnectPlugin : Plugin() {
         }
     }
 
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
     // readSummary(period)
-    // ─────────────────────────────────────────────
-    @PluginMethod
-    fun readSummary(call: PluginCall) {
-        if (!ensureAvailableOrReject(call)) return
-
-        val period = call.getString("period") ?: "today"
-
-        // optional: filter by data origin packages
+    // ?????????????????????????????????????????????
+    private fun requireOriginFilter(call: PluginCall): Set<DataOrigin>? {
         val originPackages = mutableListOf<String>()
         call.getArray("dataOriginPackages")?.let { arr ->
             for (i in 0 until arr.length()) {
@@ -228,11 +223,27 @@ class HealthConnectPlugin : Plugin() {
             if (!p.isNullOrBlank()) originPackages.add(p)
         }
 
-        val originFilter: Set<DataOrigin>? =
-            if (originPackages.isNotEmpty()) originPackages.map { DataOrigin(it) }.toSet()
-            else null
+        if (originPackages.isEmpty()) {
+            call.reject("SAMSUNG_HEALTH_DATA_ORIGIN_REQUIRED")
+            return null
+        }
 
-        scope.launch {
+        return originPackages.map { DataOrigin(it) }.toSet()
+    }
+
+    private fun samsungReadRequest(recordType: kotlin.reflect.KClass<out Record>, start: Instant, end: Instant, originFilter: Set<DataOrigin>) =
+        ReadRecordsRequest(
+            recordType = recordType,
+            timeRangeFilter = TimeRangeFilter.between(start, end),
+            dataOriginFilter = originFilter
+        )
+    @PluginMethod
+    fun readSummary(call: PluginCall) {
+        if (!ensureAvailableOrReject(call)) return
+
+        val period = call.getString("period") ?: "today"
+        val originFilter = requireOriginFilter(call) ?: return
+scope.launch {
             try {
                 val (start, end) = resolvePeriod(period)
                 val summary = buildSummary(start, end, originFilter)
@@ -251,7 +262,8 @@ class HealthConnectPlugin : Plugin() {
         scope.launch {
             try {
                 val (start, end) = resolvePeriod("today")
-                val snapshot = buildTodaySnapshot(start, end, null)
+                val originFilter = requireOriginFilter(call) ?: return@launch
+                val snapshot = buildTodaySnapshot(start, end, originFilter)
                 call.resolve(snapshot)
             } catch (e: Exception) {
                 Log.e("HealthConnectPlugin", "getTodaySnapshot error", e)
@@ -277,7 +289,7 @@ class HealthConnectPlugin : Plugin() {
                 val snapshot = buildTodaySnapshot(
                     Instant.parse(startIso),
                     Instant.parse(endIso),
-                    null
+                    requireOriginFilter(call) ?: return@launch
                 )
                 call.resolve(snapshot)
             } catch (e: Exception) {
@@ -316,7 +328,7 @@ class HealthConnectPlugin : Plugin() {
         }
     }
 
-    private suspend fun buildSummary(start: Instant, end: Instant, originFilter: Set<DataOrigin>?): JSObject {
+    private suspend fun buildSummary(start: Instant, end: Instant, originFilter: Set<DataOrigin>): JSObject {
         val c = getClient()
         val range = TimeRangeFilter.between(start, end)
 
@@ -327,22 +339,13 @@ class HealthConnectPlugin : Plugin() {
             TotalCaloriesBurnedRecord.ENERGY_TOTAL
         )
 
-        val agg = if (originFilter != null && originFilter.isNotEmpty()) {
-            c.aggregate(
-                AggregateRequest(
-                    metrics = metrics,
-                    timeRangeFilter = range,
-                    dataOriginFilter = originFilter
-                )
+        val agg = c.aggregate(
+            AggregateRequest(
+                metrics = metrics,
+                timeRangeFilter = range,
+                dataOriginFilter = originFilter
             )
-        } else {
-            c.aggregate(
-                AggregateRequest(
-                    metrics = metrics,
-                    timeRangeFilter = range
-                )
-            )
-        }
+        )
 
         val totalSteps = agg[StepsRecord.COUNT_TOTAL] ?: 0L
         val distanceMeter = agg[DistanceRecord.DISTANCE_TOTAL]?.inMeters ?: 0.0
@@ -357,8 +360,9 @@ class HealthConnectPlugin : Plugin() {
         if (activeCaloriesKcal == 0.0) {
             val rec = c.readRecords(
                 ReadRecordsRequest(
-                    ActiveCaloriesBurnedRecord::class,
-                    TimeRangeFilter.between(start, end)
+                    recordType = ActiveCaloriesBurnedRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end),
+                    dataOriginFilter = originFilter
                 )
             )
             activeCaloriesKcal = rec.records
@@ -367,8 +371,8 @@ class HealthConnectPlugin : Plugin() {
                 .sumOf { it.energy.inKilocalories }
         }
 
-        // 2) 최종 fallback: Samsung Health가 Active를 Health Connect에 안쓰는 케이스가 존재함
-        // -> 0으로 UI가 망가지는 것 방지용 (출처 플래그를 같이 내려서 UI에서 표시/라벨링 가능)
+        // 2) 理쒖쥌 fallback: Samsung Health媛 Active瑜?Health Connect???덉벐??耳?댁뒪媛 議댁옱??
+        // -> 0?쇰줈 UI媛 留앷?吏??寃?諛⑹???(異쒖쿂 ?뚮옒洹몃? 媛숈씠 ?대젮??UI?먯꽌 ?쒖떆/?쇰꺼留?媛??
         val activeCaloriesSource: String
         if (activeCaloriesKcal > 0.0) {
             activeCaloriesSource = "ACTIVE_CALORIES"
@@ -389,7 +393,7 @@ class HealthConnectPlugin : Plugin() {
         // Active time: walk/run/treadmill-run sessions duration sum
         val activeTimeMinutes = computeActiveTimeMinutes(exercisesArr)
 
-        // steps array (1건)
+        // steps array (1嫄?
         val stepsArray = JSArray().apply {
             val o = JSObject()
             o.put("count", totalSteps)
@@ -423,7 +427,7 @@ class HealthConnectPlugin : Plugin() {
         return out
     }
 
-    private suspend fun buildTodaySnapshot(start: Instant, end: Instant, originFilter: Set<DataOrigin>?): JSObject {
+    private suspend fun buildTodaySnapshot(start: Instant, end: Instant, originFilter: Set<DataOrigin>): JSObject {
         val summary = buildSummary(start, end, originFilter)
 
         val aggregate = JSObject().apply {
@@ -548,11 +552,10 @@ class HealthConnectPlugin : Plugin() {
         return total
     }
 
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
     // Readers
-    // ─────────────────────────────────────────────
-    private fun matchesOrigin(originFilter: Set<DataOrigin>?, recordOrigin: DataOrigin): Boolean {
-        if (originFilter == null || originFilter.isEmpty()) return true
+    // ?????????????????????????????????????????????
+    private fun matchesOrigin(originFilter: Set<DataOrigin>, recordOrigin: DataOrigin): Boolean {
         return originFilter.contains(recordOrigin)
     }
 
@@ -560,10 +563,10 @@ class HealthConnectPlugin : Plugin() {
         c: HealthConnectClient,
         start: Instant,
         end: Instant,
-        originFilter: Set<DataOrigin>?
+        originFilter: Set<DataOrigin>
     ): JSArray {
         val res = c.readRecords(
-            ReadRecordsRequest(HeartRateRecord::class, TimeRangeFilter.between(start, end))
+            ReadRecordsRequest(recordType = HeartRateRecord::class, timeRangeFilter = TimeRangeFilter.between(start, end), dataOriginFilter = originFilter)
         )
 
         val arr = JSArray()
@@ -583,12 +586,12 @@ class HealthConnectPlugin : Plugin() {
         c: HealthConnectClient,
         start: Instant,
         end: Instant,
-        originFilter: Set<DataOrigin>?
+        originFilter: Set<DataOrigin>
     ): JSObject {
         val weightArr = JSArray()
         val bodyFatArr = JSArray()
 
-        val w = c.readRecords(ReadRecordsRequest(WeightRecord::class, TimeRangeFilter.between(start, end)))
+        val w = c.readRecords(ReadRecordsRequest(recordType = WeightRecord::class, timeRangeFilter = TimeRangeFilter.between(start, end), dataOriginFilter = originFilter))
         for (r in w.records) {
             if (!matchesOrigin(originFilter, r.metadata.dataOrigin)) continue
             val obj = JSObject()
@@ -597,7 +600,7 @@ class HealthConnectPlugin : Plugin() {
             weightArr.put(obj)
         }
 
-        val f = c.readRecords(ReadRecordsRequest(BodyFatRecord::class, TimeRangeFilter.between(start, end)))
+        val f = c.readRecords(ReadRecordsRequest(recordType = BodyFatRecord::class, timeRangeFilter = TimeRangeFilter.between(start, end), dataOriginFilter = originFilter))
         for (r in f.records) {
             if (!matchesOrigin(originFilter, r.metadata.dataOrigin)) continue
             val obj = JSObject()
@@ -616,10 +619,10 @@ class HealthConnectPlugin : Plugin() {
         c: HealthConnectClient,
         start: Instant,
         end: Instant,
-        originFilter: Set<DataOrigin>?
+        originFilter: Set<DataOrigin>
     ): Pair<JSArray, Double> {
         val res = c.readRecords(
-            ReadRecordsRequest(SleepSessionRecord::class, TimeRangeFilter.between(start, end))
+            ReadRecordsRequest(recordType = SleepSessionRecord::class, timeRangeFilter = TimeRangeFilter.between(start, end), dataOriginFilter = originFilter)
         )
 
         val arr = JSArray()
@@ -644,10 +647,10 @@ class HealthConnectPlugin : Plugin() {
         c: HealthConnectClient,
         start: Instant,
         end: Instant,
-        originFilter: Set<DataOrigin>?
+        originFilter: Set<DataOrigin>
     ): Pair<JSArray, Double> {
         val res = c.readRecords(
-            ReadRecordsRequest(NutritionRecord::class, TimeRangeFilter.between(start, end))
+            ReadRecordsRequest(recordType = NutritionRecord::class, timeRangeFilter = TimeRangeFilter.between(start, end), dataOriginFilter = originFilter)
         )
 
         val arr = JSArray()
@@ -675,10 +678,10 @@ class HealthConnectPlugin : Plugin() {
         c: HealthConnectClient,
         start: Instant,
         end: Instant,
-        originFilter: Set<DataOrigin>?
+        originFilter: Set<DataOrigin>
     ): JSArray {
         val res = c.readRecords(
-            ReadRecordsRequest(ExerciseSessionRecord::class, TimeRangeFilter.between(start, end))
+            ReadRecordsRequest(recordType = ExerciseSessionRecord::class, timeRangeFilter = TimeRangeFilter.between(start, end), dataOriginFilter = originFilter)
         )
 
         val arr = JSArray()

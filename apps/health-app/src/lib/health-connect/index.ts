@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Health Connect Service
- * Kotlin 네이티브 플러그인과 연동하는 TypeScript 래퍼
+ * Kotlin ?ㅼ씠?곕툕 ?뚮윭洹몄씤怨??곕룞?섎뒗 TypeScript ?섑띁
  */
 
 import HealthConnect from './plugin';
@@ -9,7 +9,7 @@ export * from './types';
 export { HealthConnect };
 
 /**
- * Health Connect 사용 가능 여부 확인
+ * Health Connect ?ъ슜 媛???щ? ?뺤씤
  */
 export async function checkHealthConnectAvailability(): Promise<boolean> {
   try {
@@ -22,7 +22,7 @@ export async function checkHealthConnectAvailability(): Promise<boolean> {
 }
 
 /**
- * 권한 요청
+ * 沅뚰븳 ?붿껌
  */
 export async function requestPermissions(): Promise<boolean> {
   try {
@@ -35,7 +35,7 @@ export async function requestPermissions(): Promise<boolean> {
 }
 
 /**
- * 권한 상태 확인
+ * 沅뚰븳 ?곹깭 ?뺤씤
  */
 export async function checkPermissions() {
   try {
@@ -50,11 +50,11 @@ export async function checkPermissions() {
 }
 
 /**
- * 오늘의 건강 데이터 스냅샷 가져오기
+ * ?ㅻ뒛??嫄닿컯 ?곗씠???ㅻ깄??媛?몄삤湲?
  */
-export async function getTodayHealthData() {
+export async function getTodayHealthData(options?: { dataOriginPackage?: string; dataOriginPackages?: string[] }) {
   try {
-    return await HealthConnect.getTodaySnapshot();
+    return await HealthConnect.getTodaySnapshot(options);
   } catch (error) {
     console.error('Failed to get today health data:', error);
     throw error;
@@ -62,15 +62,16 @@ export async function getTodayHealthData() {
 }
 
 /**
- * 특정 기간의 건강 데이터 가져오기
- * @param startISO ISO 8601 형식 시작 시각 (예: "2025-11-21T00:00:00Z")
- * @param endISO ISO 8601 형식 종료 시각 (예: "2025-11-21T23:59:59Z")
+ * ?뱀젙 湲곌컙??嫄닿컯 ?곗씠??媛?몄삤湲?
+ * @param startISO ISO 8601 ?뺤떇 ?쒖옉 ?쒓컖 (?? "2025-11-21T00:00:00Z")
+ * @param endISO ISO 8601 ?뺤떇 醫낅즺 ?쒓컖 (?? "2025-11-21T23:59:59Z")
  */
-export async function getHealthDataForRange(startISO: string, endISO: string) {
+export async function getHealthDataForRange(startISO: string, endISO: string, options?: { dataOriginPackage?: string; dataOriginPackages?: string[] }) {
   try {
     return await HealthConnect.getSnapshotForRange({
       start: startISO,
       end: endISO,
+      ...options,
     });
   } catch (error) {
     console.error('Failed to get health data for range:', error);

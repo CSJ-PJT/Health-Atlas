@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Health Connect Plugin Types
- * Kotlin 플러그인에서 반환하는 모든 데이터 구조를 TypeScript로 정의
+ * Kotlin ?뚮윭洹몄씤?먯꽌 諛섑솚?섎뒗 紐⑤뱺 ?곗씠??援ъ“瑜?TypeScript濡??뺤쓽
  */
 
 // ============= Status & Permission Types =============

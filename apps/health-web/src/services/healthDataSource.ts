@@ -61,7 +61,7 @@ function buildEmptyDashboard(supabaseConfigured: boolean, loadMode: DashboardMod
   return {
     mode: "error",
     loadMode,
-    source: "Health Sync",
+    source: "Samsung Health",
     syncedAt: unknownSync,
     statusMessage: loadMode === "signed_out" ? "로그인 필요" : "최근 동기화 데이터가 없습니다.",
     summary: {
@@ -73,7 +73,7 @@ function buildEmptyDashboard(supabaseConfigured: boolean, loadMode: DashboardMod
       restingHeartRate: null,
       weightKg: null,
       sleepHours: null,
-      source: "Health Sync",
+      source: "Samsung Health",
       syncedAt: unknownSync,
       statusMessage: "최근 동기화 데이터가 없습니다.",
     },
@@ -107,7 +107,7 @@ export async function loadHealthDashboardData({ preferSample = false }: LoadOpti
     return {
       ...buildEmptyDashboard(true, "signed_out"),
       loadMode: "signed_out",
-      source: "Health Sync",
+      source: "Samsung Health",
       statusMessage: "로그인 필요",
       syncStatuses: buildSyncStatuses({
         mode: "error",

@@ -95,7 +95,7 @@ function mapPoint(row: RpcDashboardRow): HealthTrendPoint {
     restingHeartRate,
     weightKg,
     sleepHours,
-    source: row.source ?? "health_dashboard",
+    source: "Samsung Health",
     statusMessage: "",
   };
 
@@ -282,13 +282,13 @@ export async function fetchSupabaseHealthDashboardData(
     return {
       mode: "supabase",
       loadMode: "signed_in",
-      source: "Health Sync",
+      source: "Samsung Health",
       syncedAt: "",
       statusMessage: "최근 동기화 데이터가 없습니다.",
       summary: {
         date: "",
         syncedAt: "",
-        source: "Health Sync",
+        source: "Samsung Health",
         statusMessage: "최근 동기화 데이터가 없습니다.",
         steps: null,
         activeCalories: null,
@@ -326,7 +326,7 @@ export async function fetchSupabaseHealthDashboardData(
   return {
     mode: "supabase",
     loadMode: "signed_in",
-    source: "Health Sync",
+    source: "Samsung Health",
     syncedAt: latest.syncedAt,
     statusMessage: session.user?.id ? "실제 건강 데이터 기준으로 표시합니다." : "로그인 정보가 확인되지 않습니다.",
     summary,

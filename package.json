@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "0.0.0",
@@ -51,7 +51,8 @@
     "test:health-web": "node scripts/health-web-tests.mjs",
     "test:health-auth": "node scripts/health-auth-tests.mjs",
     "test:health-contract": "node scripts/health-contract-tests.mjs",
-    "test:health-rls": "node scripts/health-rls-tests.mjs"
+    "test:health-rls": "node scripts/health-rls-tests.mjs",
+    "test:health-samsung-only": "node scripts/health-samsung-only-tests.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.4",

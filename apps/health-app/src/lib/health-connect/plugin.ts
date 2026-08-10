@@ -1,4 +1,4 @@
-import { registerPlugin } from '@capacitor/core';
+﻿import { registerPlugin } from '@capacitor/core';
 import type {
   HealthConnectStatus,
   HealthConnectPermissionStatus,
@@ -8,27 +8,27 @@ import type {
 
 /**
  * Health Connect Plugin Interface
- * Capacitor 플러그인 메서드 정의
+ * Capacitor ?뚮윭洹몄씤 硫붿꽌???뺤쓽
  */
 export interface HealthConnectPlugin {
   ping(): Promise<{ value: string }>;
   /**
-   * Health Connect SDK 사용 가능 여부 확인
-   * @returns status 코드 및 상태 텍스트
+   * Health Connect SDK ?ъ슜 媛???щ? ?뺤씤
+   * @returns status 肄붾뱶 諛??곹깭 ?띿뒪??
    * - status: SDK_AVAILABLE(3), SDK_UNAVAILABLE(1), SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED(2)
    * - statusText: "AVAILABLE" | "UNAVAILABLE" | "PROVIDER_UPDATE_REQUIRED" | "UNKNOWN"
    */
   getStatus(): Promise<HealthConnectStatus>;
 
   /**
-   * Health Connect 권한 요청
-   * @returns 권한 요청 결과
+   * Health Connect 沅뚰븳 ?붿껌
+   * @returns 沅뚰븳 ?붿껌 寃곌낵
    */
   requestPermissions(): Promise<{ granted: boolean }>;
 
   /**
-   * 현재 부여된 Health Connect 권한 상태 확인
-   * @returns 권한 부여 상태 및 목록
+   * ?꾩옱 遺?щ맂 Health Connect 沅뚰븳 ?곹깭 ?뺤씤
+   * @returns 沅뚰븳 遺???곹깭 諛?紐⑸줉
    */
   checkPermissions(): Promise<HealthConnectPermissionStatus>;
   getPermissionStatus(): Promise<HealthConnectPermissionStatus>;
@@ -36,30 +36,30 @@ export interface HealthConnectPlugin {
   readSummary(options?: { period?: string; dataOriginPackage?: string; dataOriginPackages?: string[] }): Promise<unknown>;
 
   /**
-   * 오늘 하루(0시 ~ 현재) 전체 건강 데이터 스냅샷 가져오기
-   * @returns 오늘의 모든 건강 데이터
-   * - aggregate: 집계 데이터 (걸음수, 거리, 칼로리, 운동시간, 수면시간)
-   * - heartRate: 심박수 샘플 배열
-   * - exerciseSessions: 운동 세션 배열 (세션별 칼로리 포함)
-   * - sleepSessions: 수면 세션 배열 (제목, 시작/종료 시각, 메모)
-   * - weight: 체중 기록 배열
-   * - bodyFat: 체지방 기록 배열
-   * - vo2max: VO2Max 기록 배열
-   * - hydration: 수분 섭취 기록 배열
-   * - nutrition: 영양 기록 배열
+   * ?ㅻ뒛 ?섎（(0??~ ?꾩옱) ?꾩껜 嫄닿컯 ?곗씠???ㅻ깄??媛?몄삤湲?
+   * @returns ?ㅻ뒛??紐⑤뱺 嫄닿컯 ?곗씠??
+   * - aggregate: 吏묎퀎 ?곗씠??(嫄몄쓬?? 嫄곕━, 移쇰줈由? ?대룞?쒓컙, ?섎㈃?쒓컙)
+   * - heartRate: ?щ컯???섑뵆 諛곗뿴
+   * - exerciseSessions: ?대룞 ?몄뀡 諛곗뿴 (?몄뀡蹂?移쇰줈由??ы븿)
+   * - sleepSessions: ?섎㈃ ?몄뀡 諛곗뿴 (?쒕ぉ, ?쒖옉/醫낅즺 ?쒓컖, 硫붾え)
+   * - weight: 泥댁쨷 湲곕줉 諛곗뿴
+   * - bodyFat: 泥댁?諛?湲곕줉 諛곗뿴
+   * - vo2max: VO2Max 湲곕줉 諛곗뿴
+   * - hydration: ?섎텇 ??랬 湲곕줉 諛곗뿴
+   * - nutrition: ?곸뼇 湲곕줉 諛곗뿴
    */
-  getTodaySnapshot(): Promise<TodaySnapshot>;
+  getTodaySnapshot(options?: { dataOriginPackage?: string; dataOriginPackages?: string[] }): Promise<TodaySnapshot>;
 
   /**
-   * 임의 기간의 건강 데이터 스냅샷 가져오기 (향후 구현)
-   * @param options 시작/종료 시각 (ISO 8601 형식)
-   * @returns 해당 기간의 건강 데이터
+   * ?꾩쓽 湲곌컙??嫄닿컯 ?곗씠???ㅻ깄??媛?몄삤湲?(?ν썑 援ы쁽)
+   * @param options ?쒖옉/醫낅즺 ?쒓컖 (ISO 8601 ?뺤떇)
+   * @returns ?대떦 湲곌컙??嫄닿컯 ?곗씠??
    */
-  getSnapshotForRange(options: SnapshotRangeOptions): Promise<TodaySnapshot>;
+  getSnapshotForRange(options: SnapshotRangeOptions & { dataOriginPackage?: string; dataOriginPackages?: string[] }): Promise<TodaySnapshot>;
 }
 
 /**
- * Health Connect Plugin 등록
+ * Health Connect Plugin ?깅줉
  */
 const HealthConnect = registerPlugin<HealthConnectPlugin>('HealthConnect', {
   web: () => import('./web').then((m) => new m.HealthConnectWeb()),

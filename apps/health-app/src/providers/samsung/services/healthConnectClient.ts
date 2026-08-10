@@ -1,4 +1,4 @@
-import {
+﻿import {
   checkHealthConnectAvailability,
   checkPermissions,
   getTodayHealthData,
@@ -6,42 +6,22 @@ import {
 } from "@/lib/health-connect";
 import { HealthConnect } from "@/lib/healthConnect";
 import { createTransferLog } from "@/providers/shared/services/transferLogRepository";
-import { getMockSamsungTodaySnapshot } from "@/providers/shared/services/mockData";
-import { isMockHealthDataEnabled } from "@/providers/shared/services/mockMode";
+import { buildSamsungOriginFilter } from "@/providers/samsung/services/samsungHealthOrigin";
 
 export async function getSamsungAvailability() {
-  if (isMockHealthDataEnabled()) {
-    return true;
-  }
   return checkHealthConnectAvailability();
 }
 
 export async function getSamsungPermissionStatus() {
-  if (isMockHealthDataEnabled()) {
-    return {
-      hasAllPermissions: true,
-      hasAll: true,
-      granted: [],
-      missing: [],
-      requiredCount: 0,
-      grantedCount: 0,
-    };
-  }
   return checkPermissions();
 }
 
 export async function requestSamsungPermissions() {
-  if (isMockHealthDataEnabled()) {
-    return true;
-  }
   return requestPermissions();
 }
 
 export async function getSamsungTodaySnapshot() {
-  if (isMockHealthDataEnabled()) {
-    return getMockSamsungTodaySnapshot();
-  }
-  return getTodayHealthData();
+  return getTodayHealthData(buildSamsungOriginFilter());
 }
 
 export async function openSamsungHealthConnectSettings() {
@@ -49,7 +29,7 @@ export async function openSamsungHealthConnectSettings() {
 }
 
 export async function readSamsungHealthSummary() {
-  return HealthConnect.readSummary();
+  return HealthConnect.readSummary(buildSamsungOriginFilter());
 }
 
 export async function checkSamsungHealthBridgePermissions() {

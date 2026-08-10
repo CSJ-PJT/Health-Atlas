@@ -1,4 +1,4 @@
-import { WebPlugin } from '@capacitor/core';
+﻿import { WebPlugin } from '@capacitor/core';
 import type { HealthConnectPlugin } from './plugin';
 import type {
   HealthConnectStatus,
@@ -9,7 +9,7 @@ import type {
 
 /**
  * Web implementation of Health Connect Plugin
- * (웹 환경에서는 실제 데이터 반환 불가, 테스트용 mock 데이터)
+ * (???섍꼍?먯꽌???ㅼ젣 ?곗씠??諛섑솚 遺덇?, ?뚯뒪?몄슜 mock ?곗씠??
  */
 export class HealthConnectWeb extends WebPlugin implements HealthConnectPlugin {
   async ping(): Promise<{ value: string }> {
@@ -82,7 +82,10 @@ export class HealthConnectWeb extends WebPlugin implements HealthConnectPlugin {
     return { opened: false };
   }
 
-  async readSummary(): Promise<unknown> {
+  async readSummary(options?: { dataOriginPackage?: string; dataOriginPackages?: string[] }): Promise<unknown> {
+    if (!options?.dataOriginPackage && (!options?.dataOriginPackages || options.dataOriginPackages.length === 0)) {
+      throw new Error("SAMSUNG_HEALTH_DATA_ORIGIN_REQUIRED");
+    }
     const snapshot = await this.getTodaySnapshot();
     return {
       steps: [{ count: snapshot.aggregate.steps, startTime: "", endTime: "" }],

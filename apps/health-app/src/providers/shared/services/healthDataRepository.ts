@@ -201,6 +201,9 @@ export async function saveHealthSnapshot(
   providerId: ProviderId,
   syncedAt = new Date().toISOString(),
 ) {
+  if (providerId !== "samsung") {
+    throw new Error("UNSUPPORTED_HEALTH_PROVIDER");
+  }
   const { data: authSession, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !authSession?.session) {
     throw new Error("AUTH_REQUIRED");
@@ -217,6 +220,10 @@ export async function saveHealthSnapshot(
       sleep: normalized.sleep_data,
       bodyComposition: normalized.body_composition_data,
       nutrition: normalized.nutrition_data,
+      source: {
+        provider: "samsung_health_connect",
+        integrationLayer: "android_health_connect",
+      },
     },
   };
 

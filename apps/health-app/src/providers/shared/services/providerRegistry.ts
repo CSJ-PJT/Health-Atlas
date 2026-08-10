@@ -1,25 +1,28 @@
-import { appleHealthProvider } from "@/providers/apple";
-import { garminProvider } from "@/providers/garmin";
-import { samsungProvider } from "@/providers/samsung";
-import { stravaProvider } from "@/providers/strava";
+﻿import { samsungProvider } from "@/providers/samsung";
 import { getStoredProviderId } from "@/providers/shared/services/providerStorage";
 import type { HealthProvider, ProviderId } from "@/providers/shared/types/provider";
 
-const providers: Record<ProviderId, HealthProvider> = {
+export const ACTIVE_HEALTH_PROVIDER: ProviderId = "samsung";
+
+const providers: Record<typeof ACTIVE_HEALTH_PROVIDER, HealthProvider> = {
   samsung: samsungProvider,
-  garmin: garminProvider,
-  "apple-health": appleHealthProvider,
-  strava: stravaProvider,
 };
 
 export function getProvider(providerId: ProviderId): HealthProvider {
-  return providers[providerId];
+  if (providerId !== ACTIVE_HEALTH_PROVIDER) {
+    throw new Error("UNSUPPORTED_HEALTH_PROVIDER");
+  }
+  return providers[ACTIVE_HEALTH_PROVIDER];
 }
 
 export function getAllProviders(): HealthProvider[] {
-  return Object.values(providers);
+  return [providers[ACTIVE_HEALTH_PROVIDER]];
 }
 
 export function getActiveProvider(): HealthProvider {
-  return getProvider(getStoredProviderId());
+  const providerId = getStoredProviderId();
+  if (providerId !== ACTIVE_HEALTH_PROVIDER) {
+    throw new Error("UNSUPPORTED_HEALTH_PROVIDER");
+  }
+  return providers[ACTIVE_HEALTH_PROVIDER];
 }

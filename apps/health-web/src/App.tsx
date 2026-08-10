@@ -103,7 +103,7 @@ function LoginPanel({
     <section className="notice-panel" aria-label="로그인 안내">
       <p className="card-label">Health Atlas</p>
       <h2>내 건강 데이터 확인</h2>
-      <p>Android Health Sync에서 사용하는 계정으로 로그인하세요.</p>
+      <p>Samsung Health 동기화에 사용하는 계정으로 로그인하세요.</p>
       <form className="login-form" onSubmit={onSubmit}>
         <label>
           <span>이메일</span>
@@ -299,7 +299,7 @@ function App() {
           <span>마지막 동기화: {summary ? formatSyncTime(summary.syncedAt) : "없음"}</span>
           <div className="source-badge" aria-label="동기화 상태">
           <span>{statusBadge(mode, loadMode)}</span>
-            <small>Health Sync</small>
+            <small>Samsung Health → Health Connect → Health Atlas</small>
           </div>
         </div>
       </header>
@@ -312,7 +312,7 @@ function App() {
       <section className="section-block" aria-label="상태 제어">
         <div className="section-heading">
           <div>
-            <span className="card-label">Health Sync</span>
+            <span className="card-label">Samsung Health</span>
             <h2>현재 상태</h2>
           </div>
           <div className="action-row">
@@ -325,7 +325,7 @@ function App() {
           </div>
         </div>
         <p className="error-state">
-          {loadMode === "signed_out" ? "로그인 후 Android 앱에서 건강 데이터를 동기화할 수 있습니다." : "Android 앱에서 건강 데이터를 동기화하면 최근 기록이 자동으로 반영됩니다."}
+          {loadMode === "signed_out" ? "로그인 후 Samsung Health 데이터를 동기화할 수 있습니다." : "Samsung Health에서 동기화한 기록이 자동으로 반영됩니다."}
         </p>
       </section>
 
@@ -413,7 +413,7 @@ function App() {
           <div>
             <span className="card-label">Sync Status</span>
             <h2 id="sync-title">동기화 상태</h2>
-            <small>Health Sync</small>
+            <small>Samsung Health → Health Connect → Health Atlas</small>
           </div>
           <p>실시간 동기화 채널 상태를 표시합니다.</p>
         </div>

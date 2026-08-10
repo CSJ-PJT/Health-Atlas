@@ -1,25 +1,12 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+﻿import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getActiveProvider } from "@/providers/shared";
 import { fetchHealthHistory, fetchHealthStats } from "@/providers/shared/services/healthDataRepository";
-import { getMockNormalizedHealthData } from "@/providers/shared/services/mockData";
-import { isMockHealthDataEnabled } from "@/providers/shared/services/mockMode";
 import type { HealthViewMode } from "@/providers/shared/types/provider";
 
 export const useTodayHealth = () => {
   return useQuery({
     queryKey: ["health", "today"],
-    queryFn: async () => {
-      if (isMockHealthDataEnabled()) {
-        return getMockNormalizedHealthData();
-      }
-
-      try {
-        return await getActiveProvider().getTodayData();
-      } catch (error) {
-        console.error("Falling back to mock today data:", error);
-        return getMockNormalizedHealthData();
-      }
-    },
+    queryFn: async () => getActiveProvider().getTodayData(),
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
