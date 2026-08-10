@@ -10,62 +10,33 @@ type SyncStatusInput = {
   isConfigured: boolean;
 };
 
-function toStatus(mode: HealthDataSourceMode, loadMode: HealthLoadMode): SyncSourceStatusMode {
-  if (loadMode === "signed_out") {
-    return "inactive";
-  }
-
-  if (loadMode === "signed_in") {
-    return mode === "supabase" ? "connected" : "pending";
-  }
-
-  if (mode === "supabase") {
-    return "connected";
-  }
-
-  if (mode === "error") {
-    return loadMode === "error" ? "error" : "pending";
-  }
-
+function toSamsungStatus(input: SyncStatusInput): SyncSourceStatusMode {
+  if (input.loadMode === "signed_out") return "inactive";
+  if (input.loadMode === "signed_in" && input.syncedAt) return "connected";
+  if (input.loadMode === "error") return "error";
   return "pending";
 }
 
 export function buildSyncStatuses(input: SyncStatusInput): SyncStatus[] {
-  const status = toStatus(input.mode, input.loadMode);
+  const samsungStatus = toSamsungStatus(input);
+  const dashboardStatus = input.mode === "supabase" ? "connected" : input.loadMode === "error" ? "error" : "pending";
 
   return [
     {
       source: "Samsung Health",
-      status: input.loadMode === "signed_in" ? "connected" : input.loadMode === "signed_out" ? "inactive" : "pending",
+      status: samsungStatus,
       syncedAt: input.syncedAt,
-      statusMessage:
-        input.loadMode === "signed_in"
-          ? "Health Connect를 통해 Samsung Health 데이터를 동기화합니다."
-          : "로그인 후 Samsung Health 동기화를 시작할 수 있습니다.",
+      statusMessage: input.syncedAt
+        ? "Samsung Health 데이터가 저장되었습니다."
+        : "Samsung Health 동기화가 필요합니다.",
     },
     {
-      source: "Supabase",
-      status,
-      syncedAt: input.isConfigured ? input.syncedAt : "",
-      statusMessage:
-        input.isConfigured
-          ? input.message
-          : "Supabase URL 또는 Publishable Key 설정이 필요해 연결 상태를 확인할 수 없습니다.",
-    },
-    {
-      source: "Health Web",
-      status: input.loadMode === "signed_out" ? "inactive" : input.mode === "supabase" ? "connected" : "pending",
+      source: "Health Dashboard",
+      status: dashboardStatus,
       syncedAt: input.syncedAt,
-      statusMessage:
-        input.mode === "supabase"
-          ? "대시보드가 인증 사용자 기준 Samsung Health 데이터로 표시됩니다."
-          : "실제 데이터 연결이 준비되면 즉시 실제 값으로 전환됩니다.",
-    },
-    {
-      source: "Sync Pipeline",
-      status: input.loadMode === "signed_in" && input.syncedAt ? "connected" : "pending",
-      syncedAt: input.syncedAt,
-      statusMessage: input.syncedAt ? "Samsung Health 데이터가 저장되었습니다." : "최근 Samsung Health 동기화 데이터가 없습니다.",
+      statusMessage: input.isConfigured
+        ? input.message
+        : "Health Web 환경 설정이 필요합니다.",
     },
   ];
 }

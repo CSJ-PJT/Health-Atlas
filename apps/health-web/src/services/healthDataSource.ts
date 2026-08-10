@@ -1,6 +1,5 @@
 ﻿import type { HealthDashboardData } from "../types";
 import { getHealthWebEnv } from "./env";
-import { buildSyncStatuses } from "./syncStatus";
 import {
   fetchSupabaseHealthDashboardData,
   getHealthAuthSession,
@@ -25,10 +24,6 @@ function toLoadModeForError(message: string): DashboardMode {
     return "backend_unavailable";
   }
 
-  if (status === "NO_DATA") {
-    return "error";
-  }
-
   return "error";
 }
 
@@ -40,30 +35,44 @@ function normalizeErrorMessage(message: string) {
   return message.includes("health_rpc:") ? message.split(":").slice(2).join(":") : message;
 }
 
-async function getSampleDashboard() {
-  if (!import.meta.env.DEV) {
-    throw new Error("SAMPLE_NOT_ALLOWED");
-  }
-
+async function getAnonymousSampleDashboard(): Promise<HealthDashboardData> {
   const module = await import("../data/sampleHealthData");
-  const previewText = await import("./healthSamplePreview");
   return {
     ...(module.sampleHealthDashboardData as HealthDashboardData),
-    statusMessage: previewText.samplePreviewMessages.disabled.mode,
-    loadMode: "backend_unavailable",
     mode: "sample",
-  } as HealthDashboardData;
+    loadMode: "signed_out",
+    authState: "ANONYMOUS_SAMPLE",
+    source: "샘플 데이터",
+    syncedAt: "",
+    statusMessage: "샘플 데이터입니다. 로그인하면 Samsung Health에서 동기화된 내 건강 데이터를 확인할 수 있습니다.",
+    summary: {
+      ...module.sampleHealthDashboardData.summary,
+      source: "샘플 데이터",
+      syncedAt: "",
+      statusMessage: "샘플 기준 예시 건강 기록입니다.",
+    },
+    syncStatuses: [
+      {
+        source: "Samsung Health 연동",
+        status: "inactive",
+        syncedAt: "",
+        statusMessage: "로그인 후 Samsung Health 데이터를 연결할 수 있습니다.",
+      },
+    ],
+  };
 }
 
 function buildEmptyDashboard(supabaseConfigured: boolean, loadMode: DashboardMode): HealthDashboardData {
-  const unknownSync = "";
+  const authState = loadMode === "signed_out" ? "SESSION_EXPIRED" : loadMode === "error" ? "ERROR" : "SIGNED_IN_NO_DATA";
+  const message = loadMode === "signed_out" ? "세션이 만료되었습니다. 다시 로그인해 주세요." : "아직 동기화된 건강 기록이 없습니다.";
 
   return {
     mode: "error",
     loadMode,
+    authState,
     source: "Samsung Health",
-    syncedAt: unknownSync,
-    statusMessage: loadMode === "signed_out" ? "로그인 필요" : "최근 동기화 데이터가 없습니다.",
+    syncedAt: "",
+    statusMessage: message,
     summary: {
       date: "",
       score: null,
@@ -74,87 +83,50 @@ function buildEmptyDashboard(supabaseConfigured: boolean, loadMode: DashboardMod
       weightKg: null,
       sleepHours: null,
       source: "Samsung Health",
-      syncedAt: unknownSync,
-      statusMessage: "최근 동기화 데이터가 없습니다.",
+      syncedAt: "",
+      statusMessage: message,
     },
     trend: [],
     bodyMetrics: [],
     activityMetrics: [],
     sleepMetrics: [],
-    syncStatuses: buildSyncStatuses({
-      mode: "error",
-      loadMode,
-      syncedAt: unknownSync,
-      message: supabaseConfigured ? "최근 동기화 데이터가 없습니다." : "Supabase 설정이 필요합니다.",
-      isConfigured: supabaseConfigured,
-    }),
+    syncStatuses: [
+      {
+        source: "Samsung Health",
+        status: loadMode === "signed_in" ? "pending" : "inactive",
+        syncedAt: "",
+        statusMessage: supabaseConfigured
+          ? "Samsung Health 동기화가 필요합니다."
+          : "Health Web 환경 설정이 필요합니다.",
+      },
+    ],
   };
 }
 
-export async function loadHealthDashboardData({ preferSample = false }: LoadOptions = {}): Promise<HealthDashboardData> {
+export async function loadHealthDashboardData(_options: LoadOptions = {}): Promise<HealthDashboardData> {
   const env = getHealthWebEnv();
 
   if (!env.isSupabaseConfigured) {
-    if (env.isSamplePreviewEnabled && import.meta.env.DEV && preferSample) {
-      return getSampleDashboard();
-    }
-
     return buildEmptyDashboard(false, "backend_unavailable");
   }
 
   const { session } = await getHealthAuthSession(env);
   if (!session) {
-    return {
-      ...buildEmptyDashboard(true, "signed_out"),
-      loadMode: "signed_out",
-      source: "Samsung Health",
-      statusMessage: "로그인 필요",
-      syncStatuses: buildSyncStatuses({
-        mode: "error",
-        loadMode: "signed_out",
-        syncedAt: "",
-        message: "로그인이 필요합니다.",
-        isConfigured: true,
-      }),
-    };
+    return getAnonymousSampleDashboard();
   }
 
   try {
     return await fetchSupabaseHealthDashboardData(env, session);
   } catch (error) {
     const message = error instanceof Error ? error.message : "요청 중 예외가 발생했습니다.";
-
-    if (preferSample && env.isSamplePreviewEnabled && import.meta.env.DEV) {
-      const previewText = await import("./healthSamplePreview");
-      return {
-        ...(await getSampleDashboard()),
-        mode: "sample",
-        loadMode: "backend_unavailable",
-        statusMessage: previewText.samplePreviewMessages.disabled.toSample,
-        syncStatuses: buildSyncStatuses({
-          mode: "sample",
-        loadMode: "backend_unavailable",
-          syncedAt: "",
-          message: previewText.samplePreviewMessages.disabled.request,
-          isConfigured: env.isSupabaseConfigured,
-        }),
-      };
-    }
-
     const loadMode = toLoadModeForError(message);
     return {
       ...buildEmptyDashboard(env.isSupabaseConfigured, loadMode),
       mode: "error",
       loadMode,
-      source: "health_get_dashboard",
+      authState: loadMode === "signed_out" ? "SESSION_EXPIRED" : "ERROR",
+      source: "Samsung Health",
       statusMessage: normalizeErrorMessage(message),
-      syncStatuses: buildSyncStatuses({
-        mode: "error",
-        loadMode,
-        syncedAt: "",
-        message,
-        isConfigured: env.isSupabaseConfigured,
-      }),
     };
   }
 }

@@ -44,9 +44,10 @@ function createPublicClient(env: HealthWebEnvStatus) {
   publicClientKey = nextKey;
   publicClient = createClient(env.supabaseUrl!, env.supabasePublishableKey!, {
     auth: {
+      storage: window.sessionStorage,
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: false,
+      detectSessionInUrl: true,
     },
   });
   return publicClient;
@@ -223,7 +224,7 @@ export async function signOut(env: HealthWebEnvStatus) {
   }
 
   const client = createPublicClient(env);
-  await client.auth.signOut();
+  await client.auth.signOut({ scope: "local" });
 }
 
 export async function subscribeAuth(env: HealthWebEnvStatus, callback: (session: Session | null) => void) {
@@ -284,6 +285,7 @@ export async function fetchSupabaseHealthDashboardData(
       loadMode: "signed_in",
       source: "Samsung Health",
       syncedAt: "",
+      authState: "SIGNED_IN_NO_DATA",
       statusMessage: "최근 동기화 데이터가 없습니다.",
       summary: {
         date: "",
@@ -328,6 +330,7 @@ export async function fetchSupabaseHealthDashboardData(
     loadMode: "signed_in",
     source: "Samsung Health",
     syncedAt: latest.syncedAt,
+    authState: "SIGNED_IN_LIVE",
     statusMessage: session.user?.id ? "실제 건강 데이터 기준으로 표시합니다." : "로그인 정보가 확인되지 않습니다.",
     summary,
     trend: ordered,

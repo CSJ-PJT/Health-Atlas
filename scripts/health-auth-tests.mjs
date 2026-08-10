@@ -8,21 +8,27 @@ const androidClient = await readFile(new URL("../apps/health-app/src/integration
 const androidVite = await readFile(new URL("../apps/health-app/vite.config.ts", import.meta.url), "utf8");
 
 assert.match(repoSource, /auth:\s*\{[\s\S]*persistSession: true/);
+assert.match(repoSource, /storage: window\.sessionStorage/);
+assert.match(repoSource, /autoRefreshToken: true/);
+assert.match(repoSource, /detectSessionInUrl: true/);
 assert.match(repoSource, /client\.auth\.getSession\(\)/);
 assert.match(repoSource, /client\.auth\.onAuthStateChange/);
 assert.match(repoSource, /client\.auth\.signInWithPassword/);
 assert.match(repoSource, /client\.auth\.signUp/);
-assert.match(repoSource, /client\.auth\.signOut\(\)/);
+assert.match(repoSource, /client\.auth\.signOut\(\{ scope: "local" \}\)/);
 assert.match(repoSource, /needsEmailConfirmation/);
 assert.match(repoSource, /health_rpc:AUTH_REQUIRED/);
 assert.match(repoSource, /SESSION_EXPIRED/);
+assert.doesNotMatch(repoSource, /localStorage/);
 
 assert.match(appSource, /signUpWithEmail/);
+assert.match(appSource, /비밀번호 확인/);
 assert.match(appSource, /계정 만들기/);
 assert.match(appSource, /확인 이메일/);
 assert.match(appSource, /로그인 정보를 확인해 주세요/);
 assert.match(appSource, /계정 생성 정보를 확인해 주세요/);
 assert.doesNotMatch(appSource, /setEnvError\(error instanceof Error \? error\.message/);
+assert.doesNotMatch(appSource, /beforeunload|pagehide/);
 
 assert.match(androidVite, /envDir/);
 assert.match(androidClient, /import\.meta\.env\.VITE_SUPABASE_URL/);

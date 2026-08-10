@@ -1,4 +1,4 @@
-import type { HealthDashboardData, HealthTrendPoint } from "../types";
+﻿import type { HealthDashboardData, HealthTrendPoint } from "../types";
 
 const trend: HealthTrendPoint[] = [
   {
@@ -10,9 +10,9 @@ const trend: HealthTrendPoint[] = [
     weightKg: 68.9,
     sleepHours: 6.6,
     activityMinutes: 34,
-    source: "sample preview",
+    source: "샘플 데이터",
     syncedAt: "sample data",
-    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
+    statusMessage: "?섑뵆 ?곗씠?곕뒗 ?덈궡?⑹쑝濡쒕쭔 ?ъ슜?⑸땲??",
   },
   {
     date: "2026-07-03",
@@ -23,9 +23,9 @@ const trend: HealthTrendPoint[] = [
     weightKg: 68.8,
     sleepHours: 7.0,
     activityMinutes: 45,
-    source: "sample preview",
+    source: "샘플 데이터",
     syncedAt: "sample data",
-    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
+    statusMessage: "?섑뵆 ?곗씠?곕뒗 ?덈궡?⑹쑝濡쒕쭔 ?ъ슜?⑸땲??",
   },
   {
     date: "2026-07-04",
@@ -36,9 +36,9 @@ const trend: HealthTrendPoint[] = [
     weightKg: 68.7,
     sleepHours: 6.8,
     activityMinutes: 39,
-    source: "sample preview",
+    source: "샘플 데이터",
     syncedAt: "sample data",
-    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
+    statusMessage: "?섑뵆 ?곗씠?곕뒗 ?덈궡?⑹쑝濡쒕쭔 ?ъ슜?⑸땲??",
   },
   {
     date: "2026-07-05",
@@ -49,9 +49,9 @@ const trend: HealthTrendPoint[] = [
     weightKg: 68.5,
     sleepHours: 7.4,
     activityMinutes: 52,
-    source: "sample preview",
+    source: "샘플 데이터",
     syncedAt: "sample data",
-    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
+    statusMessage: "?섑뵆 ?곗씠?곕뒗 ?덈궡?⑹쑝濡쒕쭔 ?ъ슜?⑸땲??",
   },
   {
     date: "2026-07-06",
@@ -62,9 +62,9 @@ const trend: HealthTrendPoint[] = [
     weightKg: 68.5,
     sleepHours: 6.9,
     activityMinutes: 41,
-    source: "sample preview",
+    source: "샘플 데이터",
     syncedAt: "sample data",
-    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
+    statusMessage: "?섑뵆 ?곗씠?곕뒗 ?덈궡?⑹쑝濡쒕쭔 ?ъ슜?⑸땲??",
   },
   {
     date: "2026-07-07",
@@ -75,9 +75,9 @@ const trend: HealthTrendPoint[] = [
     weightKg: 68.4,
     sleepHours: 7.5,
     activityMinutes: 58,
-    source: "sample preview",
+    source: "샘플 데이터",
     syncedAt: "sample data",
-    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
+    statusMessage: "?섑뵆 ?곗씠?곕뒗 ?덈궡?⑹쑝濡쒕쭔 ?ъ슜?⑸땲??",
   },
   {
     date: "2026-07-08",
@@ -88,9 +88,9 @@ const trend: HealthTrendPoint[] = [
     weightKg: 68.4,
     sleepHours: 7.1,
     activityMinutes: 48,
-    source: "sample preview",
+    source: "샘플 데이터",
     syncedAt: "sample data",
-    statusMessage: "샘플 데이터는 안내용으로만 사용합니다.",
+    statusMessage: "?섑뵆 ?곗씠?곕뒗 ?덈궡?⑹쑝濡쒕쭔 ?ъ슜?⑸땲??",
   },
 ];
 
@@ -98,10 +98,11 @@ const summary = trend[trend.length - 1];
 
 export const sampleHealthDashboardData: HealthDashboardData = {
   mode: "sample",
-  loadMode: "backend_unavailable",
-  source: "sample preview",
+  loadMode: "signed_out",
+  authState: "ANONYMOUS_SAMPLE",
+  source: "샘플 데이터",
   syncedAt: "sample data",
-  statusMessage: "실제 데이터 조회 실패 시 샘플 미리보기가 필요합니다.",
+  statusMessage: "샘플 데이터입니다. 로그인하면 Samsung Health에서 동기화된 내 건강 데이터를 확인할 수 있습니다.",
   summary,
   trend,
   bodyMetrics: trend.map(({ date, weightKg, source, syncedAt }) => ({

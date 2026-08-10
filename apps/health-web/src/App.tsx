@@ -83,17 +83,18 @@ function LoginPanel({
   isBusy,
 }: {
   onLogin: (email: string, password: string) => Promise<void>;
-  onSignUp: (email: string, password: string) => Promise<void>;
+  onSignUp: (email: string, password: string, passwordConfirm: string) => Promise<void>;
   isBusy: boolean;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (mode === "signup") {
-      await onSignUp(email.trim(), password);
+      await onSignUp(email.trim(), password, passwordConfirm);
       return;
     }
     await onLogin(email.trim(), password);
@@ -102,8 +103,8 @@ function LoginPanel({
   return (
     <section className="notice-panel" aria-label="로그인 안내">
       <p className="card-label">Health Atlas</p>
-      <h2>내 건강 데이터 확인</h2>
-      <p>Samsung Health 동기화에 사용하는 계정으로 로그인하세요.</p>
+      <h2>{mode === "signup" ? "계정 만들기" : "내 건강 데이터 확인"}</h2>
+      <p>{mode === "signup" ? "건강 데이터를 안전하게 동기화하려면 계정이 필요합니다." : "Samsung Health 동기화에 사용하는 계정으로 로그인하세요."}</p>
       <form className="login-form" onSubmit={onSubmit}>
         <label>
           <span>이메일</span>
@@ -119,7 +120,19 @@ function LoginPanel({
             autoComplete="current-password"
           />
         </label>
-        <button type="submit" disabled={isBusy || !email || !password}>
+        {mode === "signup" ? (
+          <label>
+            <span>비밀번호 확인</span>
+            <input
+              type="password"
+              value={passwordConfirm}
+              onChange={(event) => setPasswordConfirm(event.target.value)}
+              placeholder="비밀번호 확인"
+              autoComplete="new-password"
+            />
+          </label>
+        ) : null}
+        <button type="submit" disabled={isBusy || !email || !password || (mode === "signup" && !passwordConfirm)}>
           {isBusy ? "처리 중..." : mode === "signup" ? "계정 만들기" : "로그인"}
         </button>
       </form>
@@ -131,6 +144,61 @@ function LoginPanel({
   );
 }
 
+function getDeviceOnboardingMessage() {
+  const platform = navigator.userAgent.toLowerCase();
+  const isNativeAndroid = Boolean((window as Window & { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } }).Capacitor?.isNativePlatform?.()) &&
+    (window as Window & { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.() === "android";
+  const isAndroidWeb = /android/.test(platform) && !isNativeAndroid;
+  const isIos = /iphone|ipad|ipod/.test(platform);
+
+  if (isNativeAndroid) {
+    return {
+      title: "Samsung Health 연결",
+      body: "Samsung Health 확인, Health Connect 권한 허용, 첫 동기화 순서로 진행하세요.",
+      cta: "Health Connect 권한 허용",
+    };
+  }
+  if (isAndroidWeb) {
+    return {
+      title: "Android 앱에서 연결",
+      body: "Samsung Health 연동은 RH Healthcare Android 앱에서 완료할 수 있습니다.",
+      cta: "Android 앱에서 연결",
+    };
+  }
+  if (isIos) {
+    return {
+      title: "Samsung Health Android 필요",
+      body: "현재 Health Atlas 건강 데이터 연동은 Samsung Health와 Android Health Connect만 지원합니다. Apple Health로 대체하지 않습니다.",
+      cta: "Android 기기에서 동기화",
+    };
+  }
+  return {
+    title: "Android에서 Samsung Health 연결",
+    body: "동기화는 Android 앱에서 진행하고, Web/Desktop에서는 로그인 후 내 대시보드를 조회할 수 있습니다.",
+    cta: "Android 앱에서 동기화",
+  };
+}
+
+function OnboardingPanel() {
+  const message = getDeviceOnboardingMessage();
+  return (
+    <section className="notice-panel" aria-label="Samsung Health 온보딩">
+      <p className="card-label">Samsung Health</p>
+      <h2>{message.title}</h2>
+      <p>{message.body}</p>
+      <ol className="onboarding-list">
+        <li>Samsung Health 확인</li>
+        <li>Health Connect 사용 가능 여부 확인</li>
+        <li>Samsung Health에서 Health Connect 공유 허용</li>
+        <li>Health Atlas Health Connect 권한 허용</li>
+        <li>첫 동기화 실행</li>
+        <li>완료 후 Web Dashboard 새로고침</li>
+      </ol>
+      <button type="button">{message.cta}</button>
+      <p className="notice">Samsung Health에서 Health Connect로 공유된 건강 기록 중 사용자가 허용한 항목만 읽고, 로그인한 본인 계정에만 저장합니다. 의료 진단 용도가 아닙니다.</p>
+    </section>
+  );
+}
 function App() {
   const [dashboard, setDashboard] = useState<HealthDashboardData | null>(null);
   const [pageState, setPageState] = useState<LoadingMode>("loading");
@@ -240,7 +308,7 @@ function App() {
     }
   };
 
-  const signup = async (email: string, password: string) => {
+  const signup = async (email: string, password: string, passwordConfirm: string) => {
     if (isAuthBusy) {
       return;
     }
@@ -252,7 +320,7 @@ function App() {
       if (result.needsEmailConfirmation) {
         setAuthNotice("확인 이메일을 보냈습니다. 이메일 확인 후 로그인하세요.");
       } else {
-        setAuthNotice("계정이 생성되었습니다.");
+        setAuthNotice("계정이 생성되었습니다. Samsung Health 연결을 진행해 주세요.");
       }
       await loadData();
     } catch {
@@ -286,6 +354,8 @@ function App() {
 
   const loadMode = dashboard.loadMode;
   const mode = dashboard.mode;
+  const isAnonymousSample = dashboard.authState === "ANONYMOUS_SAMPLE";
+  const needsOnboarding = dashboard.authState === "SIGNED_IN_NO_DATA" || dashboard.authState === "ONBOARDING_REQUIRED";
 
   return (
     <main className="app-shell">
@@ -296,7 +366,7 @@ function App() {
           <p className="subtitle">건강 데이터 대시보드</p>
         </div>
         <div className="header-meta">
-          <span>마지막 동기화: {summary ? formatSyncTime(summary.syncedAt) : "없음"}</span>
+          <span>{isAnonymousSample ? "샘플 기준" : `마지막 동기화: ${summary ? formatSyncTime(summary.syncedAt) : "없음"}`}</span>
           <div className="source-badge" aria-label="동기화 상태">
           <span>{statusBadge(mode, loadMode)}</span>
             <small>Samsung Health → Health Connect → Health Atlas</small>
@@ -306,7 +376,7 @@ function App() {
 
       <section className="banner" aria-live="polite">
         <strong>{statusBadge(mode, loadMode)}</strong>
-        <span>{loadMode === "error" ? "실제 건강 데이터가 없습니다." : dashboard.statusMessage}</span>
+        <span>{isAnonymousSample ? "로그인하면 Samsung Health에서 동기화된 내 건강 데이터를 확인할 수 있습니다." : loadMode === "error" ? "실제 건강 데이터가 없습니다." : dashboard.statusMessage}</span>
       </section>
 
       <section className="section-block" aria-label="상태 제어">
@@ -332,11 +402,12 @@ function App() {
       {envError ? <div className="notice-panel error">{envError}</div> : null}
       {authNotice ? <div className="notice-panel">{authNotice}</div> : null}
       {loadMode === "signed_out" ? <LoginPanel onLogin={login} onSignUp={signup} isBusy={isAuthBusy} /> : null}
+      {needsOnboarding ? <OnboardingPanel /> : null}
 
       <section className="section-block" aria-labelledby="today-summary-title">
         <div className="section-heading">
           <div>
-            <span className="card-label">Today Summary</span>
+            <span className="card-label">{isAnonymousSample ? "샘플 기준" : "Today Summary"}</span>
             <h2 id="today-summary-title">금일 요약</h2>
           </div>
         </div>
@@ -415,7 +486,7 @@ function App() {
             <h2 id="sync-title">동기화 상태</h2>
             <small>Samsung Health → Health Connect → Health Atlas</small>
           </div>
-          <p>실시간 동기화 채널 상태를 표시합니다.</p>
+          <p>{isAnonymousSample ? "로그인 후 Samsung Health 데이터를 연결할 수 있습니다." : "Samsung Health 동기화 상태를 표시합니다."}</p>
         </div>
 
         <div className="grid status-grid">
@@ -423,10 +494,10 @@ function App() {
             <article className="status-card" key={status.source}>
               <div className="status-heading">
                 <span>{status.source}</span>
-                <span className={statusClass(status.status)}>{statusLabel(status.status)}</span>
+                <span className={statusClass(status.status)}>{isAnonymousSample ? "샘플" : statusLabel(status.status)}</span>
               </div>
               <p>{status.statusMessage}</p>
-              <small>{formatDate(status.syncedAt)}</small>
+              <small>{isAnonymousSample ? "샘플 데이터" : formatDate(status.syncedAt)}</small>
             </article>
           ))}
         </div>

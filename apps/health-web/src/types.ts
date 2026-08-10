@@ -1,6 +1,17 @@
-export type HealthDataSourceMode = "sample" | "supabase" | "error";
+﻿export type HealthDataSourceMode = "sample" | "supabase" | "error";
 
 export type HealthLoadMode = "loading" | "signed_out" | "signed_in" | "backend_unavailable" | "error";
+
+export type HealthAuthState =
+  | "AUTH_LOADING"
+  | "ANONYMOUS_SAMPLE"
+  | "SIGNING_UP"
+  | "SIGNING_IN"
+  | "ONBOARDING_REQUIRED"
+  | "SIGNED_IN_NO_DATA"
+  | "SIGNED_IN_LIVE"
+  | "SESSION_EXPIRED"
+  | "ERROR";
 
 export type HealthSummary = {
   date: string;
@@ -63,6 +74,7 @@ export type HealthTrendPoint = {
 export type HealthDashboardData = {
   mode: HealthDataSourceMode;
   loadMode: HealthLoadMode;
+  authState: HealthAuthState;
   source: string;
   syncedAt: string;
   statusMessage: string;
