@@ -132,7 +132,6 @@ h2 {
   background: #fff1f2;
 }
 
-.source-badge.unconfigured,
 .source-badge.sample {
   border-color: #dbeafe;
   background: #eff6ff;
@@ -402,6 +401,17 @@ h2 {
   cursor: pointer;
   background: #172033;
   color: white;
+}
+
+.notice-panel .link-button {
+  width: fit-content;
+  min-height: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #172033;
+  font-weight: 800;
+  text-decoration: underline;
 }
 
 .notice-panel button:disabled,

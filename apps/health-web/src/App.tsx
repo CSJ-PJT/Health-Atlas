@@ -3,7 +3,7 @@
 import type { HealthDashboardData, HealthDataSourceMode, HealthLoadMode } from "./types";
 import { loadHealthDashboardData, subscribeAuth } from "./services/healthDataSource";
 import { getHealthWebEnv } from "./services/env";
-import { signInWithEmail, signOut } from "./services/supabaseHealthRepository";
+import { signInWithEmail, signOut, signUpWithEmail } from "./services/supabaseHealthRepository";
 
 type LoadingMode = "loading" | "ready";
 
@@ -79,16 +79,23 @@ function formatSyncTime(value: string) {
 
 function LoginPanel({
   onLogin,
+  onSignUp,
   isBusy,
 }: {
   onLogin: (email: string, password: string) => Promise<void>;
+  onSignUp: (email: string, password: string) => Promise<void>;
   isBusy: boolean;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"login" | "signup">("login");
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (mode === "signup") {
+      await onSignUp(email.trim(), password);
+      return;
+    }
     await onLogin(email.trim(), password);
   };
 
@@ -113,9 +120,12 @@ function LoginPanel({
           />
         </label>
         <button type="submit" disabled={isBusy || !email || !password}>
-          {isBusy ? "로그인 중..." : "로그인"}
+          {isBusy ? "처리 중..." : mode === "signup" ? "계정 만들기" : "로그인"}
         </button>
       </form>
+      <button className="link-button" type="button" disabled={isBusy} onClick={() => setMode(mode === "login" ? "signup" : "login")}>
+        {mode === "login" ? "계정이 없나요? 계정 만들기" : "이미 계정이 있나요? 로그인"}
+      </button>
       <p className="notice">건강 데이터는 로그인한 본인 계정의 기록만 표시됩니다.</p>
     </section>
   );
@@ -126,6 +136,7 @@ function App() {
   const [pageState, setPageState] = useState<LoadingMode>("loading");
   const [isAuthBusy, setIsAuthBusy] = useState(false);
   const [envError, setEnvError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
 
   const env = useMemo(() => getHealthWebEnv(), []);
 
@@ -218,11 +229,34 @@ function App() {
     }
     setIsAuthBusy(true);
     setEnvError("");
+    setAuthNotice("");
     try {
       await signInWithEmail(env, email, password);
       await loadData();
     } catch (error) {
       setEnvError("로그인 정보를 확인해 주세요.");
+    } finally {
+      setIsAuthBusy(false);
+    }
+  };
+
+  const signup = async (email: string, password: string) => {
+    if (isAuthBusy) {
+      return;
+    }
+    setIsAuthBusy(true);
+    setEnvError("");
+    setAuthNotice("");
+    try {
+      const result = await signUpWithEmail(env, email, password);
+      if (result.needsEmailConfirmation) {
+        setAuthNotice("확인 이메일을 보냈습니다. 이메일 확인 후 로그인하세요.");
+      } else {
+        setAuthNotice("계정이 생성되었습니다.");
+      }
+      await loadData();
+    } catch {
+      setEnvError("계정 생성 정보를 확인해 주세요.");
     } finally {
       setIsAuthBusy(false);
     }
@@ -264,8 +298,8 @@ function App() {
         <div className="header-meta">
           <span>마지막 동기화: {summary ? formatSyncTime(summary.syncedAt) : "없음"}</span>
           <div className="source-badge" aria-label="동기화 상태">
-            <span>{statusBadge(mode, loadMode)}</span>
-            <small>{dashboard.source}</small>
+          <span>{statusBadge(mode, loadMode)}</span>
+            <small>Health Sync</small>
           </div>
         </div>
       </header>
@@ -291,12 +325,13 @@ function App() {
           </div>
         </div>
         <p className="error-state">
-          Android 앱에서 건강 데이터를 동기화하면 최근 기록이 자동으로 반영됩니다.
+          {loadMode === "signed_out" ? "로그인 후 Android 앱에서 건강 데이터를 동기화할 수 있습니다." : "Android 앱에서 건강 데이터를 동기화하면 최근 기록이 자동으로 반영됩니다."}
         </p>
       </section>
 
       {envError ? <div className="notice-panel error">{envError}</div> : null}
-      {loadMode === "signed_out" ? <LoginPanel onLogin={login} isBusy={isAuthBusy} /> : null}
+      {authNotice ? <div className="notice-panel">{authNotice}</div> : null}
+      {loadMode === "signed_out" ? <LoginPanel onLogin={login} onSignUp={signup} isBusy={isAuthBusy} /> : null}
 
       <section className="section-block" aria-labelledby="today-summary-title">
         <div className="section-heading">

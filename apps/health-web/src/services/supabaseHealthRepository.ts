@@ -1,4 +1,4 @@
-﻿import { createClient, type Session } from "@supabase/supabase-js";
+﻿import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   HealthDashboardData,
@@ -28,14 +28,28 @@ type RpcResult = {
   health_id: string | null;
 };
 
+export type SignUpResult = {
+  needsEmailConfirmation: boolean;
+};
+
+let publicClient: SupabaseClient | null = null;
+let publicClientKey = "";
+
 function createPublicClient(env: HealthWebEnvStatus) {
-  return createClient(env.supabaseUrl!, env.supabasePublishableKey!, {
+  const nextKey = `${env.supabaseUrl ?? ""}|${env.supabasePublishableKey ?? ""}`;
+  if (publicClient && publicClientKey === nextKey) {
+    return publicClient;
+  }
+
+  publicClientKey = nextKey;
+  publicClient = createClient(env.supabaseUrl!, env.supabasePublishableKey!, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: false,
     },
   });
+  return publicClient;
 }
 
 function parseFiniteNumber(value: unknown): number | null {
@@ -187,6 +201,22 @@ export async function signInWithEmail(env: HealthWebEnvStatus, email: string, pa
   }
 }
 
+export async function signUpWithEmail(env: HealthWebEnvStatus, email: string, password: string): Promise<SignUpResult> {
+  if (!env.supabaseUrl || !env.supabasePublishableKey) {
+    throw new Error("SUPABASE_NOT_CONFIGURED");
+  }
+
+  const client = createPublicClient(env);
+  const { data, error } = await client.auth.signUp({ email, password });
+  if (error) {
+    throw error;
+  }
+
+  return {
+    needsEmailConfirmation: !data.session,
+  };
+}
+
 export async function signOut(env: HealthWebEnvStatus) {
   if (!env.supabaseUrl || !env.supabasePublishableKey) {
     throw new Error("SUPABASE_NOT_CONFIGURED");
@@ -250,16 +280,16 @@ export async function fetchSupabaseHealthDashboardData(
 
   if (!Array.isArray(data) || data.length === 0) {
     return {
-      mode: "error",
-      loadMode: "error",
-      source: "health_get_dashboard",
+      mode: "supabase",
+      loadMode: "signed_in",
+      source: "Health Sync",
       syncedAt: "",
-      statusMessage: "동기화된 건강 기록이 없습니다.",
+      statusMessage: "최근 동기화 데이터가 없습니다.",
       summary: {
         date: "",
         syncedAt: "",
-        source: "health_get_dashboard",
-        statusMessage: "데이터 없음",
+        source: "Health Sync",
+        statusMessage: "최근 동기화 데이터가 없습니다.",
         steps: null,
         activeCalories: null,
         activityMinutes: null,
@@ -273,10 +303,10 @@ export async function fetchSupabaseHealthDashboardData(
       activityMetrics: [],
       sleepMetrics: [],
       syncStatuses: buildSyncStatuses({
-        mode: "error",
-        loadMode: "error",
+        mode: "supabase",
+        loadMode: "signed_in",
         syncedAt: "",
-        message: "데이터가 없습니다.",
+        message: "최근 동기화 데이터가 없습니다.",
         isConfigured: env.isSupabaseConfigured,
       }),
     };
@@ -296,7 +326,7 @@ export async function fetchSupabaseHealthDashboardData(
   return {
     mode: "supabase",
     loadMode: "signed_in",
-    source: "health_get_dashboard",
+    source: "Health Sync",
     syncedAt: latest.syncedAt,
     statusMessage: session.user?.id ? "실제 건강 데이터 기준으로 표시합니다." : "로그인 정보가 확인되지 않습니다.",
     summary,

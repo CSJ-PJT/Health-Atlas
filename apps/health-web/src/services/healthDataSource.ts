@@ -61,9 +61,9 @@ function buildEmptyDashboard(supabaseConfigured: boolean, loadMode: DashboardMod
   return {
     mode: "error",
     loadMode,
-    source: "health_get_dashboard",
+    source: "Health Sync",
     syncedAt: unknownSync,
-    statusMessage: "건강 데이터 동기화가 준비 중입니다.",
+    statusMessage: loadMode === "signed_out" ? "로그인 필요" : "최근 동기화 데이터가 없습니다.",
     summary: {
       date: "",
       score: null,
@@ -73,9 +73,9 @@ function buildEmptyDashboard(supabaseConfigured: boolean, loadMode: DashboardMod
       restingHeartRate: null,
       weightKg: null,
       sleepHours: null,
-      source: "health_get_dashboard",
+      source: "Health Sync",
       syncedAt: unknownSync,
-      statusMessage: "동기화된 데이터가 없습니다.",
+      statusMessage: "최근 동기화 데이터가 없습니다.",
     },
     trend: [],
     bodyMetrics: [],
@@ -85,7 +85,7 @@ function buildEmptyDashboard(supabaseConfigured: boolean, loadMode: DashboardMod
       mode: "error",
       loadMode,
       syncedAt: unknownSync,
-      message: supabaseConfigured ? "연결이 완료되면 최근 데이터가 반영됩니다." : "Supabase 설정이 필요합니다.",
+      message: supabaseConfigured ? "최근 동기화 데이터가 없습니다." : "Supabase 설정이 필요합니다.",
       isConfigured: supabaseConfigured,
     }),
   };
@@ -107,8 +107,8 @@ export async function loadHealthDashboardData({ preferSample = false }: LoadOpti
     return {
       ...buildEmptyDashboard(true, "signed_out"),
       loadMode: "signed_out",
-      source: "health_get_dashboard",
-    statusMessage: "로그인 필요",
+      source: "Health Sync",
+      statusMessage: "로그인 필요",
       syncStatuses: buildSyncStatuses({
         mode: "error",
         loadMode: "signed_out",

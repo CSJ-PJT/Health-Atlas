@@ -23,10 +23,6 @@ function toStatus(mode: HealthDataSourceMode, loadMode: HealthLoadMode): SyncSou
     return "connected";
   }
 
-  if (mode === "unconfigured") {
-    return "inactive";
-  }
-
   if (mode === "error") {
     return loadMode === "error" ? "error" : "pending";
   }
@@ -41,16 +37,16 @@ export function buildSyncStatuses(input: SyncStatusInput): SyncStatus[] {
     {
       source: "Android",
       status: input.loadMode === "signed_in" ? "connected" : input.loadMode === "signed_out" ? "inactive" : "pending",
-      syncedAt: "planning",
+      syncedAt: input.syncedAt,
       statusMessage:
         input.loadMode === "signed_in"
           ? "Android 앱에서 수집한 최신 데이터는 동기화 시간 기준으로 반영됩니다."
-          : "Android 연결을 확인 중입니다.",
+          : "로그인 후 Android 동기화를 시작할 수 있습니다.",
     },
     {
       source: "Supabase",
       status,
-      syncedAt: input.isConfigured ? input.syncedAt : "unconfigured",
+      syncedAt: input.isConfigured ? input.syncedAt : "",
       statusMessage:
         input.isConfigured
           ? input.message
@@ -58,7 +54,7 @@ export function buildSyncStatuses(input: SyncStatusInput): SyncStatus[] {
     },
     {
       source: "Health Web",
-      status: input.mode === "supabase" ? "connected" : "pending",
+      status: input.loadMode === "signed_out" ? "inactive" : input.mode === "supabase" ? "connected" : "pending",
       syncedAt: input.syncedAt,
       statusMessage:
         input.mode === "supabase"
@@ -67,9 +63,9 @@ export function buildSyncStatuses(input: SyncStatusInput): SyncStatus[] {
     },
     {
       source: "Sync Pipeline",
-      status: "pending",
-      syncedAt: "planning",
-      statusMessage: "Android 동기화와 Supabase 저장이 모두 정상 연결되면 파이프라인 상태가 갱신됩니다.",
+      status: input.loadMode === "signed_in" && input.syncedAt ? "connected" : "pending",
+      syncedAt: input.syncedAt,
+      statusMessage: input.syncedAt ? "최근 건강 데이터가 저장되었습니다." : "최근 동기화 데이터가 없습니다.",
     },
   ];
 }

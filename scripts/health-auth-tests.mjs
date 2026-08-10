@@ -4,18 +4,29 @@ import { readFile } from "node:fs/promises";
 const repoSource = await readFile(new URL("../apps/health-web/src/services/supabaseHealthRepository.ts", import.meta.url), "utf8");
 const appSource = await readFile(new URL("../apps/health-web/src/App.tsx", import.meta.url), "utf8");
 const androidRepo = await readFile(new URL("../apps/health-app/src/providers/shared/services/healthDataRepository.ts", import.meta.url), "utf8");
+const androidClient = await readFile(new URL("../apps/health-app/src/integrations/supabase/client.ts", import.meta.url), "utf8");
+const androidVite = await readFile(new URL("../apps/health-app/vite.config.ts", import.meta.url), "utf8");
 
 assert.match(repoSource, /auth:\s*\{[\s\S]*persistSession: true/);
 assert.match(repoSource, /client\.auth\.getSession\(\)/);
 assert.match(repoSource, /client\.auth\.onAuthStateChange/);
 assert.match(repoSource, /client\.auth\.signInWithPassword/);
+assert.match(repoSource, /client\.auth\.signUp/);
 assert.match(repoSource, /client\.auth\.signOut\(\)/);
+assert.match(repoSource, /needsEmailConfirmation/);
 assert.match(repoSource, /health_rpc:AUTH_REQUIRED/);
 assert.match(repoSource, /SESSION_EXPIRED/);
 
-assert.match(appSource, /setEnvError\("로그인 정보를 확인해 주세요\."\)/);
-assert.doesNotMatch(appSource, /catch \(error\) \{[\s\S]{0,120}setEnvError\(error instanceof Error \? error\.message/);
+assert.match(appSource, /signUpWithEmail/);
+assert.match(appSource, /계정 만들기/);
+assert.match(appSource, /확인 이메일/);
+assert.match(appSource, /로그인 정보를 확인해 주세요/);
+assert.match(appSource, /계정 생성 정보를 확인해 주세요/);
+assert.doesNotMatch(appSource, /setEnvError\(error instanceof Error \? error\.message/);
 
+assert.match(androidVite, /envDir/);
+assert.match(androidClient, /import\.meta\.env\.VITE_SUPABASE_URL/);
+assert.match(androidClient, /import\.meta\.env\.VITE_SUPABASE_PUBLISHABLE_KEY/);
 assert.match(androidRepo, /supabase\.auth\.getSession\(\)/);
 assert.match(androidRepo, /throw new Error\("AUTH_REQUIRED"\)/);
 assert.match(androidRepo, /supabase\.functions\.invoke\("send-health-data"/);

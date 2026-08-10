@@ -1,4 +1,4 @@
-export type HealthDataSourceMode = "sample" | "supabase" | "unconfigured" | "error";
+export type HealthDataSourceMode = "sample" | "supabase" | "error";
 
 export type HealthLoadMode = "loading" | "signed_out" | "signed_in" | "backend_unavailable" | "error";
 

@@ -1,6 +1,10 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
+const envDir = fileURLToPath(new URL("../../", import.meta.url));
+
 export default defineConfig({
+  envDir,
   base: "/health/",
   server: {
     host: "::",

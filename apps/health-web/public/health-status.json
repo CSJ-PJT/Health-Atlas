@@ -1,7 +1,7 @@
-﻿{
+{
   "service": "Health Atlas",
-  "status": "waiting_backend",
-  "publicDashboard": true,
+  "status": "deploy_pending",
+  "backendAvailable": true,
   "liveData": false,
-  "message": "Authenticated health synchronization is being restored"
+  "message": "Health backend is active. Production web/auth deployment is pending."
 }
