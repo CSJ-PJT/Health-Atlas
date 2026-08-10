@@ -20,13 +20,16 @@ assert.match(repoSource, /client\.rpc\("health_get_dashboard", \{ p_limit: 30 \}
 assert.doesNotMatch(repoSource, /from\("health_data"\)/);
 assert.doesNotMatch(repoSource, /syncedAt: new Date\(\)\.toISOString\(\)/);
 assert.doesNotMatch(repoSource, /date: new Date\(\)\.toISOString\(\)\.slice/);
-assert.match(repoSource, /statusMessage: "최근 동기화 데이터가 없습니다\."/);
 assert.match(repoSource, /mode: "supabase"/);
 assert.match(repoSource, /loadMode: "signed_in"/);
 
 assert.match(dataSource, /if \(!env\.isSupabaseConfigured\)/);
-assert.match(dataSource, /statusMessage: "로그인 필요"/);
-assert.match(dataSource, /syncedAt: unknownSync/);
+assert.match(dataSource, /getAnonymousSampleDashboard/);
+assert.match(dataSource, /authState: "ANONYMOUS_SAMPLE"/);
+assert.match(dataSource, /source: "샘플 데이터"/);
+assert.match(dataSource, /const \{ session \} = await getHealthAuthSession\(env\)/);
+assert.match(dataSource, /if \(!session\)/);
+assert.match(dataSource, /return getAnonymousSampleDashboard\(\)/);
 assert.doesNotMatch(dataSource, /new Date\(\)\.toISOString/);
 assert.doesNotMatch(dataSource, /Date\.now/);
 
@@ -34,6 +37,8 @@ assert.match(app, /formatSyncTime\(summary\.syncedAt\)/);
 assert.match(app, /return "없음"/);
 assert.match(app, /계정 만들기/);
 assert.match(app, /signUpWithEmail/);
+assert.match(app, /샘플 데이터/);
+assert.match(app, /Samsung Health/);
 assert.doesNotMatch(app, /dashboard\.source\}<\/small>/);
 assert.doesNotMatch(app, /health_get_dashboard/);
 
