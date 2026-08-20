@@ -738,6 +738,7 @@ input:focus-visible {
   }
 
   .auth-card {
+    order: -1;
     padding: 30px 24px;
   }
 
