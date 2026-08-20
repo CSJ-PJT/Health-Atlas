@@ -124,10 +124,10 @@ function LoginPanel({
   };
 
   return (
-    <section className="notice-panel" aria-label="로그인 안내">
+    <section className="auth-card" aria-label="로그인 안내">
       <p className="card-label">Health Atlas</p>
-      <h2>{mode === "signup" ? "계정 만들기" : "내 건강 데이터 확인"}</h2>
-      <p>{mode === "signup" ? "건강 데이터를 안전하게 동기화하려면 계정이 필요합니다." : "Samsung Health 동기화에 사용하는 계정으로 로그인하세요."}</p>
+      <h2>{mode === "signup" ? "계정 만들기" : "로그인"}</h2>
+      <p className="auth-card-copy">{mode === "signup" ? "내 건강 기록을 안전하게 보관할 계정을 만드세요." : "Samsung Health 동기화에 사용하는 계정으로 접속하세요."}</p>
       <form className="login-form" onSubmit={onSubmit} noValidate>
         <label>
           <span>이메일</span>
@@ -196,7 +196,7 @@ function LoginPanel({
       >
         {mode === "login" ? "계정이 없나요? 계정 만들기" : "이미 계정이 있나요? 로그인"}
       </button>
-      <p className="notice">건강 데이터는 로그인한 본인 계정의 기록만 표시됩니다.</p>
+      <p className="auth-privacy">건강 데이터는 로그인한 본인 계정의 기록만 표시됩니다.</p>
     </section>
   );
 }
@@ -473,6 +473,39 @@ function App() {
   const isAnonymousSample = dashboard.authState === "ANONYMOUS_SAMPLE";
   const needsOnboarding = dashboard.authState === "SIGNED_IN_NO_DATA" || dashboard.authState === "ONBOARDING_REQUIRED";
 
+  if (loadMode === "signed_out") {
+    return (
+      <main className="auth-shell">
+        <header className="auth-brand" aria-label="Health Atlas 로그인 헤더">
+          <span className="auth-mark" aria-hidden="true">H</span>
+          <div>
+            <strong>Health Atlas</strong>
+            <span>Samsung Health 데이터 대시보드</span>
+          </div>
+        </header>
+
+        {envError ? <div className="notice-panel error" role="alert">{envError}</div> : null}
+        {authNotice ? <div className="notice-panel" role="status" aria-live="polite">{authNotice}</div> : null}
+
+        <div className="auth-layout">
+          <section className="auth-intro" aria-labelledby="auth-intro-title">
+            <p className="auth-kicker">Samsung Health, 한 화면에서</p>
+            <h1 id="auth-intro-title">오늘의 건강 흐름을<br />간결하게 확인하세요.</h1>
+            <p>Android 앱에서 동기화한 기록을 Web/Desktop에서 안전하게 조회합니다.</p>
+            <ul className="auth-trust-list">
+              <li><strong>본인 데이터만</strong><span>로그인한 계정의 기록만 표시</span></li>
+              <li><strong>읽기 쉬운 요약</strong><span>오늘과 최근 7일 변화 중심</span></li>
+              <li><strong>Samsung Health 연동</strong><span>Health Connect를 통한 선택적 동기화</span></li>
+            </ul>
+          </section>
+          <LoginPanel onLogin={login} onSignUp={signup} isBusy={isAuthBusy} />
+        </div>
+
+        <p className="auth-footnote">Health Atlas는 의료 진단 서비스가 아닙니다.</p>
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <header className="app-header" aria-label="Health Atlas 헤더">
@@ -511,14 +544,13 @@ function App() {
           </div>
         </div>
         <p className="error-state">
-          {loadMode === "signed_out" ? "로그인 후 Samsung Health 데이터를 동기화할 수 있습니다." : "Samsung Health에서 동기화한 기록이 자동으로 반영됩니다."}
+          Samsung Health에서 동기화한 기록이 자동으로 반영됩니다.
         </p>
       </section>
 
       {envError ? <div className="notice-panel error" role="alert">{envError}</div> : null}
       {authNotice ? <div className="notice-panel" role="status" aria-live="polite">{authNotice}</div> : null}
-      {loadMode === "signed_out" ? <LoginPanel onLogin={login} onSignUp={signup} isBusy={isAuthBusy} /> : null}
-      {loadMode === "signed_out" || needsOnboarding ? <OnboardingPanel /> : null}
+      {needsOnboarding ? <OnboardingPanel /> : null}
 
       <section className="section-block" aria-labelledby="today-summary-title">
         <div className="section-heading">

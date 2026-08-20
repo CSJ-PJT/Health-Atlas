@@ -48,7 +48,9 @@ assert.match(app, /샘플 데이터/);
 assert.match(app, /Samsung Health/);
 assert.match(app, /handleOnboardingAction/);
 assert.match(app, /health-connect-onboarding-steps/);
-assert.match(app, /loadMode === "signed_out" \|\| needsOnboarding/);
+assert.match(app, /if \(loadMode === "signed_out"\)[\s\S]*className="auth-shell"/);
+assert.match(app, /needsOnboarding \? <OnboardingPanel \/>/);
+assert.doesNotMatch(app, /loadMode === "signed_out" \|\| needsOnboarding/);
 assert.doesNotMatch(app, /dashboard\.source\}<\/small>/);
 assert.doesNotMatch(app, /health_get_dashboard/);
 
