@@ -208,7 +208,12 @@ export async function signUpWithEmail(env: HealthWebEnvStatus, email: string, pa
   }
 
   const client = createPublicClient(env);
-  const { data, error } = await client.auth.signUp({ email, password });
+  const emailRedirectTo = new URL(import.meta.env.BASE_URL, window.location.origin).toString();
+  const { data, error } = await client.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo },
+  });
   if (error) {
     throw error;
   }

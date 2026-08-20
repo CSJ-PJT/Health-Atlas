@@ -6,6 +6,23 @@ import { getHealthWebEnv } from "./services/env";
 import { signInWithEmail, signOut, signUpWithEmail } from "./services/supabaseHealthRepository";
 
 type LoadingMode = "loading" | "ready";
+type AuthMode = "login" | "signup";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 6;
+
+function validateAuthInput(mode: AuthMode, email: string, password: string, passwordConfirm: string) {
+  if (!EMAIL_PATTERN.test(email.trim())) {
+    return "올바른 이메일 주소를 입력해 주세요.";
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상 입력해 주세요.`;
+  }
+  if (mode === "signup" && password !== passwordConfirm) {
+    return "비밀번호와 비밀번호 확인이 일치하지 않습니다.";
+  }
+  return "";
+}
 
 function formatValue(value: number | null) {
   if (value === null || Number.isNaN(value)) {
@@ -88,11 +105,17 @@ function LoginPanel({
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<AuthMode>("login");
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [validationError, setValidationError] = useState("");
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    const nextError = validateAuthInput(mode, email, password, passwordConfirm);
+    setValidationError(nextError);
+    if (nextError) {
+      return;
+    }
     if (mode === "signup") {
       await onSignUp(email.trim(), password, passwordConfirm);
       return;
@@ -105,19 +128,37 @@ function LoginPanel({
       <p className="card-label">Health Atlas</p>
       <h2>{mode === "signup" ? "계정 만들기" : "내 건강 데이터 확인"}</h2>
       <p>{mode === "signup" ? "건강 데이터를 안전하게 동기화하려면 계정이 필요합니다." : "Samsung Health 동기화에 사용하는 계정으로 로그인하세요."}</p>
-      <form className="login-form" onSubmit={onSubmit}>
+      <form className="login-form" onSubmit={onSubmit} noValidate>
         <label>
           <span>이메일</span>
-          <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" autoComplete="username" />
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setValidationError("");
+            }}
+            placeholder="you@example.com"
+            autoComplete="username"
+            inputMode="email"
+            required
+            aria-invalid={validationError.includes("이메일") || undefined}
+          />
         </label>
         <label>
           <span>비밀번호</span>
           <input
             type="password"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setValidationError("");
+            }}
             placeholder="비밀번호"
-            autoComplete="current-password"
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            minLength={MIN_PASSWORD_LENGTH}
+            required
+            aria-invalid={validationError.includes("비밀번호") || undefined}
           />
         </label>
         {mode === "signup" ? (
@@ -126,17 +167,33 @@ function LoginPanel({
             <input
               type="password"
               value={passwordConfirm}
-              onChange={(event) => setPasswordConfirm(event.target.value)}
+              onChange={(event) => {
+                setPasswordConfirm(event.target.value);
+                setValidationError("");
+              }}
               placeholder="비밀번호 확인"
               autoComplete="new-password"
+              minLength={MIN_PASSWORD_LENGTH}
+              required
+              aria-invalid={validationError.includes("비밀번호") || undefined}
             />
           </label>
         ) : null}
+        {validationError ? <p className="form-error" role="alert">{validationError}</p> : null}
         <button type="submit" disabled={isBusy || !email || !password || (mode === "signup" && !passwordConfirm)}>
           {isBusy ? "처리 중..." : mode === "signup" ? "계정 만들기" : "로그인"}
         </button>
       </form>
-      <button className="link-button" type="button" disabled={isBusy} onClick={() => setMode(mode === "login" ? "signup" : "login")}>
+      <button
+        className="link-button"
+        type="button"
+        disabled={isBusy}
+        onClick={() => {
+          setMode(mode === "login" ? "signup" : "login");
+          setPasswordConfirm("");
+          setValidationError("");
+        }}
+      >
         {mode === "login" ? "계정이 없나요? 계정 만들기" : "이미 계정이 있나요? 로그인"}
       </button>
       <p className="notice">건강 데이터는 로그인한 본인 계정의 기록만 표시됩니다.</p>
@@ -144,10 +201,24 @@ function LoginPanel({
   );
 }
 
+type HealthConnectPlugin = {
+  requestPermissions: () => Promise<{ granted?: boolean }>;
+};
+
+type CapacitorBridge = {
+  isNativePlatform?: () => boolean;
+  getPlatform?: () => string;
+  Plugins?: { HealthConnect?: HealthConnectPlugin };
+};
+
+function getCapacitorBridge() {
+  return (window as Window & { Capacitor?: CapacitorBridge }).Capacitor;
+}
+
 function getDeviceOnboardingMessage() {
   const platform = navigator.userAgent.toLowerCase();
-  const isNativeAndroid = Boolean((window as Window & { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } }).Capacitor?.isNativePlatform?.()) &&
-    (window as Window & { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.() === "android";
+  const bridge = getCapacitorBridge();
+  const isNativeAndroid = Boolean(bridge?.isNativePlatform?.()) && bridge?.getPlatform?.() === "android";
   const isAndroidWeb = /android/.test(platform) && !isNativeAndroid;
   const isIos = /iphone|ipad|ipod/.test(platform);
 
@@ -156,45 +227,90 @@ function getDeviceOnboardingMessage() {
       title: "Samsung Health 연결",
       body: "Samsung Health 확인, Health Connect 권한 허용, 첫 동기화 순서로 진행하세요.",
       cta: "Health Connect 권한 허용",
+      nativePermission: true,
     };
   }
   if (isAndroidWeb) {
     return {
-      title: "Android 앱에서 연결",
+      title: "Android 앱에서 Samsung Health 연결",
       body: "Samsung Health 연동은 RH Healthcare Android 앱에서 완료할 수 있습니다.",
-      cta: "Android 앱에서 연결",
+      cta: "연결 단계 보기",
+      nativePermission: false,
     };
   }
   if (isIos) {
     return {
       title: "Samsung Health Android 필요",
       body: "현재 Health Atlas 건강 데이터 연동은 Samsung Health와 Android Health Connect만 지원합니다. Apple Health로 대체하지 않습니다.",
-      cta: "Android 기기에서 동기화",
+      cta: "Android 연결 단계 보기",
+      nativePermission: false,
     };
   }
   return {
     title: "Android에서 Samsung Health 연결",
     body: "동기화는 Android 앱에서 진행하고, Web/Desktop에서는 로그인 후 내 대시보드를 조회할 수 있습니다.",
-    cta: "Android 앱에서 동기화",
+    cta: "Android 앱에서 동기화 단계 보기",
+    nativePermission: false,
   };
 }
 
 function OnboardingPanel() {
   const message = getDeviceOnboardingMessage();
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [actionStatus, setActionStatus] = useState("");
+
+  const handleOnboardingAction = async () => {
+    setGuideOpen(true);
+    if (!message.nativePermission) {
+      setActionStatus("아래 연결 단계를 Android 기기에서 순서대로 완료해 주세요.");
+      return;
+    }
+
+    const plugin = getCapacitorBridge()?.Plugins?.HealthConnect;
+    if (!plugin?.requestPermissions) {
+      setActionStatus("이 실행 환경에서는 권한 창을 열 수 없습니다. 아래 단계에 따라 Health Connect 설정을 확인해 주세요.");
+      return;
+    }
+
+    setActionStatus("Health Connect 권한 요청 중입니다...");
+    try {
+      const result = await plugin.requestPermissions();
+      setActionStatus(
+        result.granted
+          ? "Health Connect 권한이 허용되었습니다. 첫 동기화를 실행한 뒤 Web Dashboard에서 다시 확인해 주세요."
+          : "Health Connect 권한이 허용되지 않았습니다. Android 설정에서 권한을 확인해 주세요.",
+      );
+    } catch {
+      setActionStatus("권한 요청을 완료하지 못했습니다. Android 설정에서 Health Connect 권한을 확인해 주세요.");
+    }
+  };
+
   return (
     <section className="notice-panel" aria-label="Samsung Health 온보딩">
       <p className="card-label">Samsung Health</p>
       <h2>{message.title}</h2>
       <p>{message.body}</p>
-      <ol className="onboarding-list">
-        <li>Samsung Health 확인</li>
-        <li>Health Connect 사용 가능 여부 확인</li>
-        <li>Samsung Health에서 Health Connect 공유 허용</li>
-        <li>Health Atlas Health Connect 권한 허용</li>
-        <li>첫 동기화 실행</li>
-        <li>완료 후 Web Dashboard 새로고침</li>
-      </ol>
-      <button type="button">{message.cta}</button>
+      <button
+        type="button"
+        aria-expanded={guideOpen}
+        aria-controls="health-connect-onboarding-steps"
+        onClick={() => void handleOnboardingAction()}
+      >
+        {message.cta}
+      </button>
+      {guideOpen ? (
+        <div id="health-connect-onboarding-steps" className="onboarding-details">
+          <ol className="onboarding-list">
+            <li>Android 기기에서 Samsung Health를 열고 최신 기록을 확인합니다.</li>
+            <li>Health Connect 사용 가능 여부를 확인합니다.</li>
+            <li>Samsung Health에서 Health Connect 공유를 허용합니다.</li>
+            <li>RH Healthcare Android 앱의 Health Connect 읽기 권한을 허용합니다.</li>
+            <li>Android 앱에서 첫 동기화를 실행합니다.</li>
+            <li>완료 후 이 Web Dashboard에서 다시 확인을 누릅니다.</li>
+          </ol>
+          {actionStatus ? <p className="action-status" role="status" aria-live="polite">{actionStatus}</p> : null}
+        </div>
+      ) : null}
       <p className="notice">Samsung Health에서 Health Connect로 공유된 건강 기록 중 사용자가 허용한 항목만 읽고, 로그인한 본인 계정에만 저장합니다. 의료 진단 용도가 아닙니다.</p>
     </section>
   );
@@ -399,10 +515,10 @@ function App() {
         </p>
       </section>
 
-      {envError ? <div className="notice-panel error">{envError}</div> : null}
-      {authNotice ? <div className="notice-panel">{authNotice}</div> : null}
+      {envError ? <div className="notice-panel error" role="alert">{envError}</div> : null}
+      {authNotice ? <div className="notice-panel" role="status" aria-live="polite">{authNotice}</div> : null}
       {loadMode === "signed_out" ? <LoginPanel onLogin={login} onSignUp={signup} isBusy={isAuthBusy} /> : null}
-      {needsOnboarding ? <OnboardingPanel /> : null}
+      {loadMode === "signed_out" || needsOnboarding ? <OnboardingPanel /> : null}
 
       <section className="section-block" aria-labelledby="today-summary-title">
         <div className="section-heading">

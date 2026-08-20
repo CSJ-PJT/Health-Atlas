@@ -385,7 +385,7 @@ h2 {
 
 .notice-panel input {
   width: 100%;
-  min-height: 38px;
+  min-height: 44px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 8px 10px;
@@ -394,7 +394,7 @@ h2 {
 .notice-panel button,
 .section-block button,
 .action-row button {
-  min-height: 36px;
+  min-height: 44px;
   border: 0;
   border-radius: 8px;
   padding: 8px 14px;
@@ -405,13 +405,49 @@ h2 {
 
 .notice-panel .link-button {
   width: fit-content;
-  min-height: auto;
+  min-height: 44px;
   border: 0;
-  padding: 0;
+  padding: 0 4px;
   background: transparent;
   color: #172033;
   font-weight: 800;
   text-decoration: underline;
+}
+
+.form-error {
+  margin: 0;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.onboarding-details {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.onboarding-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 22px;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.action-status {
+  margin: 0;
+  color: #172033;
+  font-weight: 700;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .notice-panel button:disabled,

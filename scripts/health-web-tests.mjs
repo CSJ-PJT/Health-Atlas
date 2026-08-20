@@ -8,6 +8,7 @@ const repoSource = await read("apps/health-web/src/services/supabaseHealthReposi
 const dataSource = await read("apps/health-web/src/services/healthDataSource.ts");
 const syncStatus = await read("apps/health-web/src/services/syncStatus.ts");
 const env = await read("apps/health-web/src/services/env.ts");
+const styles = await read("apps/health-web/src/styles.css");
 const viteConfig = await read("apps/health-web/vite.config.ts");
 const packageJson = await read("package.json");
 const healthStatus = JSON.parse(
@@ -45,6 +46,9 @@ assert.match(app, /계정 만들기/);
 assert.match(app, /signUpWithEmail/);
 assert.match(app, /샘플 데이터/);
 assert.match(app, /Samsung Health/);
+assert.match(app, /handleOnboardingAction/);
+assert.match(app, /health-connect-onboarding-steps/);
+assert.match(app, /loadMode === "signed_out" \|\| needsOnboarding/);
 assert.doesNotMatch(app, /dashboard\.source\}<\/small>/);
 assert.doesNotMatch(app, /health_get_dashboard/);
 
@@ -53,5 +57,6 @@ assert.doesNotMatch(syncStatus, /"unconfigured"/);
 
 assert.match(env, /rawSamplePreview === "true"/);
 assert.doesNotMatch(env, /VITE_ENABLE_SAMPLE_PREVIEW.*\?\? "true"/);
+assert.match(styles, /min-height: 44px/);
 
 console.log("Health web tests passed");
