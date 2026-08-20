@@ -1,9 +1,9 @@
 ﻿{
     "service":  "Health Atlas",
-    "status":  "deploy_pending",
+    "status":  "operational",
     "backendAvailable":  true,
     "liveData":  false,
-    "message":  "Health backend is active. Production web/auth deployment is pending.",
+    "message":  "Health web authentication is active. Live data appears after Samsung Health sync.",
     "activeProvider":  "Samsung Health",
     "integrationLayer":  "Android Health Connect"
 }

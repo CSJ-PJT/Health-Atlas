@@ -10,11 +10,17 @@ const syncStatus = await read("apps/health-web/src/services/syncStatus.ts");
 const env = await read("apps/health-web/src/services/env.ts");
 const viteConfig = await read("apps/health-web/vite.config.ts");
 const packageJson = await read("package.json");
+const healthStatus = JSON.parse(
+  (await read("apps/health-web/public/health-status.json")).replace(/^\uFEFF/, ""),
+);
 
 assert.match(viteConfig, /envDir/);
 assert.match(viteConfig, /new URL\("\.\.\/\.\.\/", import\.meta\.url\)/);
 assert.match(packageJson, /verify:health-web-env/);
 assert.match(packageJson, /build:health-web": "npm run verify:health-web-env && npm run build/);
+assert.equal(healthStatus.status, "operational");
+assert.equal(healthStatus.backendAvailable, true);
+assert.equal(healthStatus.liveData, false);
 
 assert.match(repoSource, /client\.rpc\("health_get_dashboard", \{ p_limit: 30 \}\)/);
 assert.doesNotMatch(repoSource, /from\("health_data"\)/);
