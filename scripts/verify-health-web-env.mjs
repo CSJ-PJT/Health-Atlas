@@ -6,6 +6,10 @@ const envFiles = [".env.production.local", ".env.local", ".env"].map((file) => r
 const required = ["VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY"];
 const values = new Map();
 
+for (const key of [...required, "VITE_SUPABASE_PROJECT_ID"]) {
+  if (process.env[key]) values.set(key, process.env[key].trim());
+}
+
 for (const file of envFiles) {
   if (!existsSync(file)) continue;
   const content = readFileSync(file, "utf8");
@@ -14,7 +18,7 @@ for (const file of envFiles) {
     if (!match) continue;
     const [, key, rawValue] = match;
     if (!required.includes(key) && key !== "VITE_SUPABASE_PROJECT_ID") continue;
-    values.set(key, rawValue.replace(/^['"]|['"]$/g, "").trim());
+    if (!values.has(key)) values.set(key, rawValue.replace(/^['"]|['"]$/g, "").trim());
   }
 }
 
