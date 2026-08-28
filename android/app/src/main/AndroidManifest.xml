@@ -26,6 +26,11 @@
     <!-- 인터넷 접근 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Android 13 이하 Health Connect 앱 탐색에 필요 -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

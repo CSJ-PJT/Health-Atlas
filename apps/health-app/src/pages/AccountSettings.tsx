@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { ScrollToTop } from "@/components/ScrollToTop";
@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { nicknameSchema, passwordSchema, userIdSchema } from "@/lib/validationSchemas";
@@ -24,71 +23,15 @@ const defaultHealthConnectPermissions = {
   backgroundRead: false,
 };
 
-const defaultGarminPermissions = {
-  dailySummary: true,
-  activities: true,
-  sleep: true,
-  nutrition: true,
-  hydration: true,
-  bodyComposition: true,
-  heartRate: true,
-};
-
-const defaultApplePermissions = {
-  workouts: true,
-  activitySummary: true,
-  heartRate: true,
-  sleep: true,
-  bodyComposition: true,
-  nutrition: true,
-};
-
-const defaultStravaPermissions = {
-  readActivities: true,
-  readAllActivities: true,
-  readAthlete: true,
-  readRoutes: false,
-};
-
-const permissionOptions = {
-  "health-connect": [
-    { key: "readSteps", label: "걸음 수 읽기" },
-    { key: "readHeartRate", label: "심박수 읽기" },
-    { key: "readSleep", label: "수면 읽기" },
-    { key: "readExercise", label: "운동 기록 읽기" },
-    { key: "readNutrition", label: "영양 기록 읽기" },
-    { key: "readBodyComposition", label: "체성분 읽기" },
-    { key: "backgroundRead", label: "백그라운드 동기화" },
-  ],
-  garmin: [
-    { key: "dailySummary", label: "일일 요약" },
-    { key: "activities", label: "활동 세션" },
-    { key: "sleep", label: "수면" },
-    { key: "nutrition", label: "영양" },
-    { key: "hydration", label: "수분" },
-    { key: "bodyComposition", label: "체성분" },
-    { key: "heartRate", label: "심박" },
-  ],
-  "apple-health": [
-    { key: "workouts", label: "운동 세션" },
-    { key: "activitySummary", label: "활동 요약" },
-    { key: "heartRate", label: "심박" },
-    { key: "sleep", label: "수면" },
-    { key: "bodyComposition", label: "체성분" },
-    { key: "nutrition", label: "영양" },
-  ],
-  strava: [
-    { key: "readActivities", label: "공개 활동 읽기" },
-    { key: "readAllActivities", label: "비공개 활동 읽기" },
-    { key: "readAthlete", label: "선수 정보 읽기" },
-    { key: "readRoutes", label: "경로 읽기" },
-  ],
-} as const;
-
-type PermissionRecord = Record<string, boolean>;
-type PermissionSetter = Dispatch<SetStateAction<PermissionRecord>>;
-
-type PermissionTab = keyof typeof permissionOptions;
+const healthConnectPermissionOptions = [
+  { key: "readSteps", label: "걸음 수 읽기" },
+  { key: "readHeartRate", label: "심박수 읽기" },
+  { key: "readSleep", label: "수면 읽기" },
+  { key: "readExercise", label: "운동 기록 읽기" },
+  { key: "readNutrition", label: "영양 기록 읽기" },
+  { key: "readBodyComposition", label: "체성분 읽기" },
+  { key: "backgroundRead", label: "백그라운드 동기화" },
+] as const;
 
 function createPasswordSalt() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -136,11 +79,7 @@ export default function AccountSettings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPasswordEditor, setShowPasswordEditor] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [permissionTab, setPermissionTab] = useState<PermissionTab>("health-connect");
   const [healthConnectPermissions, setHealthConnectPermissions] = useState(defaultHealthConnectPermissions);
-  const [garminPermissions, setGarminPermissions] = useState(defaultGarminPermissions);
-  const [applePermissions, setApplePermissions] = useState(defaultApplePermissions);
-  const [stravaPermissions, setStravaPermissions] = useState(defaultStravaPermissions);
 
   const storedPassword = localStorage.getItem("user_password") || "";
   const storedPasswordSalt = localStorage.getItem("user_password_salt") || "";
@@ -150,14 +89,7 @@ export default function AccountSettings() {
     void loadProfileData();
 
     const storedHealthConnectPermissions = localStorage.getItem("health_connect_permissions");
-    const storedGarminPermissions = localStorage.getItem("garmin_permissions");
-    const storedApplePermissions = localStorage.getItem("apple_health_permissions");
-    const storedStravaPermissions = localStorage.getItem("strava_permissions");
-
     if (storedHealthConnectPermissions) setHealthConnectPermissions(JSON.parse(storedHealthConnectPermissions));
-    if (storedGarminPermissions) setGarminPermissions(JSON.parse(storedGarminPermissions));
-    if (storedApplePermissions) setApplePermissions(JSON.parse(storedApplePermissions));
-    if (storedStravaPermissions) setStravaPermissions(JSON.parse(storedStravaPermissions));
   }, []);
 
   const ensureProfile = async (nextUserId: string, nextNickname: string) => {
@@ -377,32 +309,6 @@ export default function AccountSettings() {
     localStorage.setItem(storageKey, JSON.stringify(next));
   };
 
-  const permissionStateByTab = useMemo(
-    () => ({
-      "health-connect": {
-        current: healthConnectPermissions as PermissionRecord,
-        setCurrent: setHealthConnectPermissions as PermissionSetter,
-        storageKey: "health_connect_permissions",
-      },
-      garmin: {
-        current: garminPermissions as PermissionRecord,
-        setCurrent: setGarminPermissions as PermissionSetter,
-        storageKey: "garmin_permissions",
-      },
-      "apple-health": {
-        current: applePermissions as PermissionRecord,
-        setCurrent: setApplePermissions as PermissionSetter,
-        storageKey: "apple_health_permissions",
-      },
-      strava: {
-        current: stravaPermissions as PermissionRecord,
-        setCurrent: setStravaPermissions as PermissionSetter,
-        storageKey: "strava_permissions",
-      },
-    }),
-    [applePermissions, garminPermissions, healthConnectPermissions, stravaPermissions],
-  );
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -561,39 +467,27 @@ export default function AccountSettings() {
 
         <Card>
           <CardHeader>
-            <CardTitle>권한 설정</CardTitle>
+            <CardTitle>Samsung Health 권한</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Tabs value={permissionTab} onValueChange={(value) => setPermissionTab(value as PermissionTab)}>
-              <TabsList className="grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-4">
-                <TabsTrigger value="health-connect">Health Connect</TabsTrigger>
-                <TabsTrigger value="garmin">Garmin</TabsTrigger>
-                <TabsTrigger value="apple-health">Apple Health</TabsTrigger>
-                <TabsTrigger value="strava">Strava</TabsTrigger>
-              </TabsList>
-
-              {(["health-connect", "garmin", "apple-health", "strava"] as const).map((tabKey) => {
-                const target = permissionStateByTab[tabKey];
-
-                return (
-                  <TabsContent key={tabKey} value={tabKey} className="space-y-3 pt-4">
-                    {permissionOptions[tabKey].map((option) => (
-                      <div key={option.key} className="flex items-center justify-between rounded-xl border px-4 py-3">
-                        <span className="text-sm">{option.label}</span>
-                        <Switch
-                          checked={Boolean(target.current[option.key as keyof typeof target.current])}
-                          onCheckedChange={(checked) => {
-                            const next = { ...target.current, [option.key]: checked };
-                            target.setCurrent(next as typeof target.current);
-                            savePermissionState(target.storageKey, next as Record<string, boolean>);
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </TabsContent>
-                );
-              })}
-            </Tabs>
+            <p className="text-sm text-muted-foreground">
+              Samsung Health가 Health Connect에 공유한 항목만 읽습니다.
+            </p>
+            <div className="space-y-3">
+              {healthConnectPermissionOptions.map((option) => (
+                <div key={option.key} className="flex items-center justify-between rounded-xl border px-4 py-3">
+                  <span className="text-sm">{option.label}</span>
+                  <Switch
+                    checked={healthConnectPermissions[option.key]}
+                    onCheckedChange={(checked) => {
+                      const next = { ...healthConnectPermissions, [option.key]: checked };
+                      setHealthConnectPermissions(next);
+                      savePermissionState("health_connect_permissions", next);
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>

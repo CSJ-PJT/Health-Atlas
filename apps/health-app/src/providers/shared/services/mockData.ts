@@ -19,21 +19,15 @@ function formatTime(date: Date) {
 }
 
 function getProviderBase(providerId: ProviderId) {
-  const meta = getProviderMeta(providerId);
-
-  const baseByProvider: Record<
-    ProviderId,
-    { steps: number; distanceMeters: number; weight: number; bodyFat: number; vo2Max: number }
-  > = {
-    samsung: { steps: 12864, distanceMeters: 9420, weight: 71.6, bodyFat: 18.4, vo2Max: 47.8 },
-    garmin: { steps: 15420, distanceMeters: 11320, weight: 69.8, bodyFat: 16.9, vo2Max: 51 },
-    "apple-health": { steps: 13640, distanceMeters: 10180, weight: 68.4, bodyFat: 17.6, vo2Max: 49.2 },
-    strava: { steps: 11980, distanceMeters: 12460, weight: 70.1, bodyFat: 15.8, vo2Max: 52.4 },
-  };
+  if (providerId !== "samsung") throw new Error("UNSUPPORTED_HEALTH_PROVIDER");
 
   return {
-    meta,
-    ...baseByProvider[providerId],
+    meta: getProviderMeta("samsung"),
+    steps: 12864,
+    distanceMeters: 9420,
+    weight: 71.6,
+    bodyFat: 18.4,
+    vo2Max: 47.8,
   };
 }
 
@@ -440,41 +434,8 @@ export function getMockStravaDailyPayload(): StravaDailyPayload {
 }
 
 export function getMockNormalizedHealthData(providerId: ProviderId = getStoredProviderId()) {
-  if (providerId === "samsung") {
-    return mapTodaySnapshotToNormalizedHealthData(getMockSamsungTodaySnapshot());
-  }
-
-  if (providerId === "apple-health") {
-    return mapAppleHealthPayloadToNormalizedHealthData(getMockAppleHealthDailyPayload());
-  }
-
-  if (providerId === "strava") {
-    return mapStravaPayloadToNormalizedHealthData(getMockStravaDailyPayload());
-  }
-
-  const garminLikeData = mapGarminPayloadToNormalizedHealthData(getMockGarminDailyPayload());
-  const base = getProviderBase(providerId);
-
-  return {
-    ...garminLikeData,
-    steps_data: {
-      count: base.steps,
-      distance: (base.distanceMeters / 1000).toFixed(2),
-      calories: Math.round(base.steps * 0.052),
-    },
-    body_composition_data: {
-      weight: base.weight,
-      bodyFat: base.bodyFat,
-    },
-    vo2max: [{ value: base.vo2Max }],
-    exercise_data: garminLikeData.exercise_data.map((exercise, index) => ({
-      ...exercise,
-      type:
-        index === 0
-          ? `${base.meta.shortLabel} Run`
-          : exercise.type,
-    })),
-  };
+  if (providerId !== "samsung") throw new Error("UNSUPPORTED_HEALTH_PROVIDER");
+  return mapTodaySnapshotToNormalizedHealthData(getMockSamsungTodaySnapshot());
 }
 
 export function getMockHealthHistory(providerId = getStoredProviderId()) {
@@ -506,9 +467,8 @@ export function getMockHealthHistory(providerId = getStoredProviderId()) {
     const elevationGain = Math.max(18, Math.round(84 + Math.sin(index / 6) * 30));
     const elevationLoss = Math.max(16, Math.round(elevationGain * 0.9));
     const sessionIdPrefix = providerId.replace(/[^a-z]/g, "");
-    const runName = providerId === "strava" ? "Morning Tempo" : `${base.meta.shortLabel} Run`;
-    const secondName =
-      providerId === "garmin" ? "Recovery Walk" : providerId === "apple-health" ? "Evening Walk" : "Light Walk";
+    const runName = `${base.meta.shortLabel} Run`;
+    const secondName = "Light Walk";
 
     const runningSession = {
       activityId: `${sessionIdPrefix}-run-${index + 1}`,
