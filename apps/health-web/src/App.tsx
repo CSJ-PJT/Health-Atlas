@@ -233,7 +233,7 @@ function getDeviceOnboardingMessage() {
   if (isAndroidWeb) {
     return {
       title: "Android 앱에서 Samsung Health 연결",
-      body: "Samsung Health 연동은 RH Healthcare Android 앱에서 완료할 수 있습니다.",
+      body: "가입 후 RH Healthcare Android 앱에서 같은 계정으로 로그인하면 Samsung Health 연결과 첫 동기화가 바로 이어집니다.",
       cta: "연결 단계 보기",
       nativePermission: false,
     };
@@ -248,7 +248,7 @@ function getDeviceOnboardingMessage() {
   }
   return {
     title: "Android에서 Samsung Health 연결",
-    body: "동기화는 Android 앱에서 진행하고, Web/Desktop에서는 로그인 후 내 대시보드를 조회할 수 있습니다.",
+    body: "가입 후 Android 앱에서 같은 계정으로 로그인해 Samsung Health 권한과 첫 동기화를 완료하세요. Web/Desktop에서는 동기화된 내 기록을 조회합니다.",
     cta: "Android 앱에서 동기화 단계 보기",
     nativePermission: false,
   };
@@ -304,8 +304,8 @@ function OnboardingPanel() {
             <li>Android 기기에서 Samsung Health를 열고 최신 기록을 확인합니다.</li>
             <li>Health Connect 사용 가능 여부를 확인합니다.</li>
             <li>Samsung Health에서 Health Connect 공유를 허용합니다.</li>
-            <li>RH Healthcare Android 앱의 Health Connect 읽기 권한을 허용합니다.</li>
-            <li>Android 앱에서 첫 동기화를 실행합니다.</li>
+            <li>RH Healthcare Android 앱에서 가입한 계정으로 로그인합니다.</li>
+            <li>앱의 “Samsung Health 연결 및 첫 동기화”를 눌러 Health Connect 읽기 권한을 허용합니다.</li>
             <li>완료 후 이 Web Dashboard에서 다시 확인을 누릅니다.</li>
           </ol>
           {actionStatus ? <p className="action-status" role="status" aria-live="polite">{actionStatus}</p> : null}

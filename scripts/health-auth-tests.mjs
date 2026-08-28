@@ -6,6 +6,8 @@ const appSource = await readFile(new URL("../apps/health-web/src/App.tsx", impor
 const androidRepo = await readFile(new URL("../apps/health-app/src/providers/shared/services/healthDataRepository.ts", import.meta.url), "utf8");
 const androidClient = await readFile(new URL("../apps/health-app/src/integrations/supabase/client.ts", import.meta.url), "utf8");
 const androidVite = await readFile(new URL("../apps/health-app/vite.config.ts", import.meta.url), "utf8");
+const androidSetup = await readFile(new URL("../apps/health-app/src/pages/Setup.tsx", import.meta.url), "utf8");
+const androidApp = await readFile(new URL("../apps/health-app/src/App.tsx", import.meta.url), "utf8");
 
 assert.match(repoSource, /auth:\s*\{[\s\S]*persistSession: true/);
 assert.match(repoSource, /storage: window\.sessionStorage/);
@@ -53,5 +55,26 @@ assert.match(androidRepo, /throw new Error\("AUTH_REQUIRED"\)/);
 assert.match(androidRepo, /supabase\.functions\.invoke\("send-health-data"/);
 assert.doesNotMatch(androidRepo, /user_id/);
 assert.doesNotMatch(androidRepo, /userId/);
+
+assert.match(androidSetup, /supabase\.auth\.getSession\(\)/);
+assert.match(androidSetup, /supabase\.auth\.onAuthStateChange/);
+assert.match(androidSetup, /supabase\.auth\.signUp/);
+assert.match(androidSetup, /supabase\.auth\.signInWithPassword/);
+assert.match(androidSetup, /emailRedirectTo: EMAIL_REDIRECT_URL/);
+assert.match(androidSetup, /user_id: userId/);
+assert.match(androidSetup, /await samsungProvider\.connect\(\)/);
+assert.match(androidSetup, /await samsungProvider\.getTodayData\(\)/);
+assert.match(androidSetup, /await saveHealthSnapshot\(healthData, "samsung", syncedAt\)/);
+assert.match(androidSetup, /if \(!saved\) throw new Error\("첫 건강 데이터 동기화에 실패/);
+assert.match(androidSetup, /localStorage\.setItem\("setup_completed", "true"\)/);
+assert.ok(
+  androidSetup.indexOf('await saveHealthSnapshot(healthData, "samsung", syncedAt)') <
+    androidSetup.indexOf('localStorage.setItem("setup_completed", "true")'),
+  "setup must only complete after the first authenticated Samsung sync",
+);
+assert.doesNotMatch(androidSetup, /generatedUserId|user_\$\{Date\.now/);
+assert.doesNotMatch(androidSetup, /openai_credentials/);
+assert.match(androidApp, /supabase\.auth\.getSession\(\)/);
+assert.match(androidApp, /hasSession && localStorage\.getItem\("setup_completed"\) === "true"/);
 
 console.log("Health auth tests passed");
