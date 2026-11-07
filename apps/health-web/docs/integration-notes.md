@@ -21,7 +21,7 @@ Current exclusions:
 - Supabase client initialization is isolated in `src/services/supabaseHealthRepository.ts`.
 - The browser client uses only `VITE_SUPABASE_PUBLISHABLE_KEY`.
 - Failed Supabase reads fall back to sample preview state instead of crashing the app.
-- No game, Unity, private-product, or private-product code in the build graph.
+- No standalone game or Unity project code in the build graph.
 
 Dashboard data source states:
 

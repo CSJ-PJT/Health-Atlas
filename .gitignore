@@ -55,9 +55,3 @@ unity/**/[Ll]ibrary/
 unity/**/[Tt]emp/
 unity/**/[Ll]ogs/
 unity/**/[Uu]ser[Ss]ettings/
-
-# private-product local runtime and validation artifacts
-unity/private-product/.utmp/
-unity/private-product/TestResults/
-unity/private-product/Pictures/Screenshot/
-unity/private-product/_codex_phone_screen.png
