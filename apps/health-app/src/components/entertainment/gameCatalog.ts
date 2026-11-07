@@ -1,13 +1,7 @@
 ﻿import type { PlayableGameId } from "@/components/entertainment/playableGames";
 import type { RankingRange, RankingRow } from "@/services/entertainmentTypes";
 
-export const majorEntertainmentModes: Array<{ id: PlayableGameId; title: string; summary: string }> = [
-  {
-    id: "private-product-valley",
-    title: "제5새벽 계곡",
-    summary: "별도 private-product 앱에서 즐기는 톱다운 라이프 심 RPG입니다. 농장, 마을, 광산, 정착지 확장이 하나의 세계로 이어집니다.",
-  },
-];
+export const majorEntertainmentModes: Array<{ id: PlayableGameId; title: string; summary: string }> = [];
 
 export const miniGames: Array<{ id: PlayableGameId; title: string; summary: string }> = [
   {
@@ -33,7 +27,7 @@ export const miniGames: Array<{ id: PlayableGameId; title: string; summary: stri
   {
     id: "fitcraft-island",
     title: "FitCraft Island",
-    summary: "창조형 건설 시스템의 원형입니다. 현재는 private-product의 정착지 확장과 거주지 건설 기반으로 수렴 중입니다.",
+    summary: "건강 활동을 가벼운 창조형 건설 경험으로 연결하는 샌드박스 모드입니다.",
   },
   {
     id: "pulse-frontier",
@@ -139,16 +133,6 @@ export function buildSeedRankingData(
         { name: myUserName, userId: myUserId, score: 1170, rank: 2 },
       ],
     },
-    "private-product-valley": {
-      weekly: [
-        { name: "아리아", userId: "aria", score: 180, rank: 1 },
-        { name: myUserName, userId: myUserId, score: 146, rank: 2 },
-      ],
-      monthly: [
-        { name: "아리아", userId: "aria", score: 780, rank: 1 },
-        { name: myUserName, userId: myUserId, score: 702, rank: 2 },
-      ],
-    },
     tetris: {
       weekly: [
         { name: "윤호", userId: "yunho", score: 230, rank: 1 },
@@ -205,13 +189,6 @@ export function buildSeedTopFiveData(myUserName: string): Record<PlayableGameId,
       { name: myUserName, score: 2450, badge: "Pulse General" },
       { name: "지우", score: 2388, badge: "Outpost Hunter" },
       { name: "가온", score: 2320, badge: "Tactical Mind" },
-    ],
-    "private-product-valley": [
-      { name: "아리아", score: 980, badge: "Dawn Keeper" },
-      { name: "도윤", score: 944, badge: "Purifier Builder" },
-      { name: myUserName, score: 910, badge: "Renewal Farmer" },
-      { name: "민서", score: 888, badge: "Harvest Warden" },
-      { name: "서연", score: 850, badge: "Archive Walker" },
     ],
     tetris: [
       { name: "윤호", score: 2310, badge: "Block Master" },

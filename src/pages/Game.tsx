@@ -1,6 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { Award, Crown, Footprints, Gamepad2, HeartPulse, Moon, Plus, Swords, Users } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useDeviceBackNavigation } from "@/hooks/useDeviceBackNavigation";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { buildSeedRankingData, buildSeedTopFiveData, featuredBadges, majorEntertainmentModes, miniGames } from "@/components/entertainment/gameCatalog";
+import { buildSeedRankingData, buildSeedTopFiveData, featuredBadges, miniGames } from "@/components/entertainment/gameCatalog";
 import { ArcadeArena } from "@/components/entertainment/ArcadeArena";
 import { buildRoomScoreboard, buildSystemMessage, hasRoomScore, parseLatestStart } from "@/components/entertainment/gameRoomState";
 import { getGameMode, supportsTimedRounds, type PlayableGameId } from "@/components/entertainment/playableGames";
@@ -95,8 +94,6 @@ function generateBotScore(gameId: PlayableGameId, durationSeconds: 30 | 60) {
       return 110 + Math.floor(Math.random() * 140);
     case "pulse-frontier":
       return 120 + Math.floor(Math.random() * 80);
-    case "private-product-valley":
-      return 0;
   }
 }
 
@@ -124,7 +121,6 @@ function getChallenges(): ChallengeEntry[] {
 function getScores(): Record<PlayableGameId, number> { return getStoredEntertainmentScores(); }
 function getRooms(): MultiRoom[] { return getStoredEntertainmentRooms(); }
 export default function Game() {
-  const navigate = useNavigate();
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [challenges, setChallenges] = useState<ChallengeEntry[]>([]);
   const [scores, setScores] = useState(getScores());
@@ -813,28 +809,6 @@ export default function Game() {
               </TabsList>
               <TabsContent value="mini" className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
                 <div className="space-y-4">
-                  <Card className="border-primary/20 bg-gradient-to-br from-primary/10 via-background to-emerald-500/10">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Moon className="h-5 w-5 text-primary" />
-                        대형 RPG 모드
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-3">
-                      {majorEntertainmentModes.map((mode) => (
-                        <button
-                          key={mode.id}
-                          type="button"
-                          className="rounded-3xl border border-primary/20 bg-background/70 p-5 text-left transition hover:border-primary/40 hover:bg-muted/30"
-                          onClick={() => navigate("/game/life-sim", { state: { from: "/game" } })}
-                        >
-                          <div className="text-lg font-semibold">{mode.title}</div>
-                          <div className="mt-2 text-sm text-muted-foreground">{mode.summary}</div>
-                          <div className="mt-4 text-xs text-primary">전체 화면으로 실행</div>
-                        </button>
-                      ))}
-                    </CardContent>
-                  </Card>
                   <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2"><Gamepad2 className="h-5 w-5 text-primary" />미니게임</CardTitle></CardHeader>
                     <CardContent className="grid gap-3 md:grid-cols-2">

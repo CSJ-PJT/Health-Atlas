@@ -5,7 +5,6 @@ export type PlayableGameId =
   | "resource-rush"
   | "pulse-frontier"
   | "fitcraft-island"
-  | "private-product-valley"
   | "tetris";
 
 export type RoomMode = "arcade" | "strategy" | "sandbox" | "life-sim";
@@ -21,10 +20,6 @@ export function getGameMode(gameId: PlayableGameId): RoomMode {
 
   if (gameId === "fitcraft-island") {
     return "sandbox";
-  }
-
-  if (gameId === "private-product-valley") {
-    return "life-sim";
   }
 
   return "arcade";
