@@ -55,9 +55,3 @@ unity/**/[Ll]ibrary/
 unity/**/[Tt]emp/
 unity/**/[Ll]ogs/
 unity/**/[Uu]ser[Ss]ettings/
-
-# DeepStake3D local runtime and validation artifacts
-unity/DeepStake3D/.utmp/
-unity/DeepStake3D/TestResults/
-unity/DeepStake3D/Pictures/Screenshot/
-unity/DeepStake3D/_codex_phone_screen.png

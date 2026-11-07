@@ -241,7 +241,7 @@ function Send-DiscordFatalNotification {
     }
 
     $Content = @(
-        "## DeepStake 개발 중단 알림",
+        "## 게임 개발 중단 알림",
         ('구성요소: `' + $Component + '`'),
         $TaskLine,
         "저장소: $RepoPath",

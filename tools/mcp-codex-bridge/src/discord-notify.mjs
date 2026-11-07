@@ -118,7 +118,7 @@ function buildPmReviewMessage(review, result, screenshotPaths) {
     : "최신 스크린샷 없음: 마일스톤이 아직 진행 중이거나 결과 JSON에 screenshotPaths가 없습니다.";
 
   return [
-    `## DeepStake PM 리뷰 보고`,
+    `## 게임 PM 리뷰 보고`,
     `작업 ID: \`${taskId}\``,
     ``,
     `**변경 요약**`,

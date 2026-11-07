@@ -1,40 +1,17 @@
-# AGENTS
+# AGENTS — Health Atlas
 
-## Monorepo Rules
+## Scope
 
-- `apps/health-app` and `apps/fifth-dawn-game` must stay independently buildable.
-- Shared contracts go in `packages/*`.
-- Do not make the game app import or query raw health records directly.
-- Health-to-game data must flow through derived, game-safe linkage only.
-- Treat the repository root `src/` tree as transitional legacy code after the split. Prefer editing the app-specific trees first.
+- This repository contains RH Healthcare, its web dashboard, shared healthcare contracts, and existing migration history.
+- Keep health data providers, Health Connect, AI analysis, admin, and settings functional.
+- Game-specific Unity projects and independent game prototypes are maintained in a separate private repository, not here.
+- Preserve the existing health-linked derived-data boundary for compatibility; never pass raw health tables into external games.
 
-## Health App
+## Architecture and safety
 
-- Preserve provider sync, analytics, AI coach, social, admin, and settings behavior.
-- Keep the game surface lightweight:
-  - link account
-  - preview derived parameters
-  - show linked missions/rewards
-- Do not embed the full standalone game here.
-
-## Game App
-
-- Keep gameplay systems isolated from the React shell where practical.
-- Prefer serializable state and adapter/repository boundaries.
-- Design with future desktop/EXE/Steam packaging in mind.
-- Do not make progression depend on health linkage.
-- `apps/fifth-dawn-game` is the standalone game product.
-- `FitCraft Island` should converge into Fifth Dawn as building / settlement systems, not as a competing standalone product.
-- `Pulse Frontier` stays in the health app entertainment hub for now.
-
-## Supabase / Security
-
-- Use migrations only.
-- Keep RLS enabled on client-facing tables.
-- Prefer RPCs for sensitive linkage flows.
-- Avoid broad public table access unless there is a documented temporary reason.
-
-## Entertainment
-
-- Preserve existing arcade, strategy, and sandbox functionality.
-- New major modes must be isolated modules, not hacks inside old reducers.
+- App-specific code stays under `apps/health-app` and `apps/health-web`.
+- Shared contracts belong in `packages/*`.
+- Root `src/` is transitional code; do not delete it just because a separate game was migrated.
+- Database migrations are append-only; do not remove applied history casually.
+- Keep RLS enabled, use RPC for sensitive linkage, do not commit client/server secrets or personal health data.
+- Preserve existing health entertainment modes until separately scoped and tested.
